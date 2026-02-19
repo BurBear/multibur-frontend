@@ -870,10 +870,8 @@ async function exportReporteEntregadosCsv() {
         <td>${esc(r.papel_material)} ${esc(r.gramaje ? `(${r.gramaje}g)` : "")}</td>
         <td>${esc(r.tipo_impresion)}</td>
         <td>${esc(r.color)}</td>
-        ${isServicioOnly ? "" : `<td>${r.tiene_oc ? "SI" : "NO"}</td><td>${esc(r.oc_numero || "-")}</td>`}
-        <td>${r.tiene_guia ? "SI" : "NO"}</td>
-        <td>${esc(r.guia_numero || "-")}</td>
-        <td>${esc(r.guia_observacion || "-")}</td>
+        ${isServicioOnly ? "" : `<td>${esc((r.oc_numero || "").trim() || "NO")}</td>`}
+        ${isServicioOnly ? "" : `<td>${esc((r.guia_numero || "").trim() || "NO")}</td><td>${esc(r.guia_observacion || "-")}</td>`}
         <td>${esc(String(r.cantidad ?? "-"))}</td>
         <td>${esc(fmt(r.fecha_entregado))}</td>
       </tr>
@@ -912,14 +910,14 @@ async function exportReporteEntregadosCsv() {
       <h1>Reporte de Trabajos Entregados</h1>
       <div class="sub">MultiBur - generado: ${esc(stamp)}</div>
       <div class="sub">Filtro cliente: ${esc(selectedCliente)} | Rango fecha entregado: ${esc(filtroFecha)}</div>
-      <div class="sub">${isServicioOnly ? "Formato: Servicio de impresion (sin OC)." : "Formato: Completo."}</div>
+      <div class="sub">${isServicioOnly ? "Formato: Servicio de impresion (sin OC ni guia)." : "Formato: Completo."}</div>
     </div>
   </div>
   <div class="kpis">
     <div class="kpi"><span>Total entregados</span><b>${total}</b></div>
     <div class="kpi"><span>Total cantidad</span><b>${totalCant}</b></div>
     ${isServicioOnly ? "" : `<div class="kpi"><span>Con OC</span><b>${totalOc}</b></div>`}
-    <div class="kpi"><span>Con guia</span><b>${totalGuia}</b></div>
+    ${isServicioOnly ? "" : `<div class="kpi"><span>Con guia</span><b>${totalGuia}</b></div>`}
   </div>
   <table>
     <thead>
@@ -934,10 +932,8 @@ async function exportReporteEntregadosCsv() {
         <th>Material</th>
         <th>Impresion</th>
         <th>Color</th>
-        ${isServicioOnly ? "" : "<th>OC</th><th>Nro OC</th>"}
-        <th>Guia</th>
-        <th>Nro guia</th>
-        <th>Obs guia</th>
+        ${isServicioOnly ? "" : "<th>Nro OC</th>"}
+        ${isServicioOnly ? "" : "<th>Nro guia</th><th>Obs guia</th>"}
         <th>Cantidad</th>
         <th>Fecha entregado</th>
       </tr>
