@@ -1,0 +1,154 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MultiBur | Admin  -  Materiales & Formatos</title>
+  <script>
+    (function () {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      if (tab) document.documentElement.setAttribute("data-tab", tab.toLowerCase());
+    })();
+  </script>
+  <style>
+    body{font-family:system-ui,Arial; margin:0; background:#0b1220; color:#e8eefc;}
+    header{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #243250; background:#0d1730;}
+    .wrap{max-width:1200px; margin:0 auto; padding:16px;}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr;} }
+    html[data-tab="materiales"] .grid,
+    html[data-tab="formatos"] .grid{grid-template-columns:1fr;}
+    html[data-tab="materiales"] #sectionFormatos{display:none;}
+    html[data-tab="formatos"] #sectionMateriales{display:none;}
+    .card{background:#121b2e; border:1px solid #243250; border-radius:14px; padding:14px;}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between}
+    .row2{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .btn{padding:10px 12px; border-radius:10px; border:0; cursor:pointer; font-weight:800;}
+    .btn-ghost{background:#0e1627; color:#e8eefc; border:1px solid #2a3b61;}
+    .btn-primary{background:#22c55e; color:#05120a;}
+    .btn-danger{background:#ef4444; color:#120606;}
+    .pill{padding:6px 10px; border:1px solid #2a3b61; border-radius:999px; font-size:12px; opacity:.9}
+    .small{font-size:12px; opacity:.82}
+    table{width:100%; border-collapse:collapse; font-size:13px;}
+    th,td{padding:9px 8px; border-bottom:1px solid #243250; vertical-align:top;}
+    th{text-align:left; opacity:.85; font-weight:800;}
+    tr:hover td{background:#0e1627;}
+    input,select,textarea{
+      padding:9px 10px; border-radius:10px;
+      border:1px solid #2a3b61; background:#0e1627; color:#e8eefc;
+    }
+    textarea{min-height:58px; resize:vertical; width:100%;}
+    .msg{margin-top:10px; font-size:12px; white-space:pre-wrap; opacity:.95}
+    .w-100{width:100%}
+    .col-id{width:60px}
+    .col-actions{width:190px}
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <b id="viewTitle">Materiales & Formatos</b>
+    <div id="viewSub" class="small">Admin  -  Catalogo real para autocompletar ordenes</div>
+  </div>
+  <div class="row2">
+    <span id="userPill" class="pill">-</span>
+    <a class="btn btn-ghost" href="./admin.html">Volver a Admin</a>
+    <a class="btn btn-ghost" href="./admin_reportes.html">Reportes</a>
+    <a class="btn btn-ghost" href="./admin_catalogos.html?tab=clientes">Clientes</a>
+    <a class="btn btn-ghost" href="./admin_catalogos.html?tab=maquinas">Maquinas</a>
+    <a class="btn btn-ghost" href="./admin_materiales_formatos.html?tab=materiales">Materiales</a>
+    <a class="btn btn-ghost" href="./admin_materiales_formatos.html?tab=formatos">Formatos</a>
+    <button id="btnLogout" class="btn btn-ghost">Cerrar sesion</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+
+    <!-- MATERIALES -->
+    <section id="sectionMateriales" class="card">
+      <div class="row">
+        <h3 style="margin:0">Materiales</h3>
+        <div class="row2">
+          <button id="btnReloadMat" class="btn btn-ghost">Recargar</button>
+          <button id="btnAddMat" class="btn btn-primary">Agregar</button>
+        </div>
+      </div>
+
+      <div class="row2" style="margin-top:10px">
+        <input id="mat_nombre" placeholder="Nombre (ej: Couche)" style="flex:1; min-width:200px" />
+        <input id="mat_gramaje" type="number" min="0" placeholder="Gramaje (ej: 300)" style="width:170px" />
+        <input id="mat_prov" placeholder="Proveedor (opcional)" style="flex:1; min-width:200px" />
+      </div>
+      <div style="margin-top:10px">
+        <textarea id="mat_notas" placeholder="Notas (opcional)"></textarea>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <input id="mat_filter" placeholder="Buscar material por nombre, gramaje o proveedor..." style="flex:1; min-width:220px" />
+      </div>
+
+      <div style="overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250;">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-id">ID</th>
+              <th>Nombre</th>
+              <th>Gramaje</th>
+              <th>Proveedor</th>
+              <th class="col-actions">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbMat"></tbody>
+        </table>
+      </div>
+
+      <div id="msgMat" class="msg"></div>
+    </section>
+
+    <!-- FORMATOS -->
+    <section id="sectionFormatos" class="card">
+      <div class="row">
+        <h3 style="margin:0">Formatos</h3>
+        <div class="row2">
+          <button id="btnReloadFor" class="btn btn-ghost">Recargar</button>
+          <button id="btnAddFor" class="btn btn-primary">Agregar</button>
+        </div>
+      </div>
+
+      <div class="row2" style="margin-top:10px">
+        <input id="for_nombre" placeholder="Nombre (opcional: 43 x 30.5)" style="flex:1; min-width:220px" />
+        <input id="for_ancho" type="number" step="0.01" placeholder="Ancho (ej: 43.0)" style="width:180px" />
+        <input id="for_alto" type="number" step="0.01" placeholder="Alto (ej: 30.5)" style="width:180px" />
+      </div>
+      <div style="margin-top:10px">
+        <textarea id="for_notas" placeholder="Notas (opcional)"></textarea>
+      </div>
+
+      <div style="overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250;">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-id">ID</th>
+              <th>Nombre</th>
+              <th>Ancho</th>
+              <th>Alto</th>
+              <th class="col-actions">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbFor"></tbody>
+        </table>
+      </div>
+
+      <div id="msgFor" class="msg"></div>
+    </section>
+
+  </div>
+</div>
+
+<script src="../js/config.local.js"></script>
+<script type="module" src="../js/admin_materiales_formatos.js"></script>
+</body>
+</html>
+
+
+

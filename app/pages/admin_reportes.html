@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MultiBur | Reportes</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:system-ui,Arial; margin:0; background:#0b1220; color:#e8eefc;}
+    .top{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #243250; background:#0d1730;}
+    .brand-wrap{display:flex; flex-direction:column; gap:4px}
+    .brand{font-size:34px; font-weight:900; letter-spacing:-.02em}
+    .role-chip{width:max-content; font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #1f7a57; color:#22c55e; background:rgba(34,197,94,.12)}
+    .top-right{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+    .nav-link{color:#c6d6f3; text-decoration:none; font-size:14px; opacity:.9}
+    .nav-link:hover{opacity:1}
+    .nav-link.is-active{
+      opacity:1;
+      color:#ffffff;
+      background:#143c77;
+      border:1px solid #2563eb;
+      border-radius:999px;
+      padding:6px 10px;
+      font-weight:700;
+    }
+    .pill{padding:6px 10px; border:1px solid #2a3b61; border-radius:999px; font-size:12px; opacity:.95}
+    .main{max-width:1100px; margin:0 auto; padding:16px;}
+    .card{background:#121b2e; border:1px solid #243250; border-radius:14px; overflow:hidden}
+    .card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px; border-bottom:1px solid #243250; background:#0d1730}
+    .card-title{margin:0; font-size:16px}
+    .card-sub{margin-top:2px; font-size:12px; opacity:.8}
+    .card-body{padding:14px}
+    .btn{padding:10px 12px; border-radius:10px; border:1px solid #2a3b61; background:#0e1627; color:#e8eefc; cursor:pointer; font-weight:800}
+    .btn:hover{border-color:#3b4f79}
+    .btn-danger{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.4); color:#fecaca}
+    .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .f-grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px}
+    @media (max-width:860px){ .f-grid{grid-template-columns:1fr} }
+    .field-lb{display:block; font-size:12px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; opacity:.84}
+    input,select{width:100%; max-width:100%; padding:9px 10px; border-radius:10px; border:1px solid #2a3b61; background:#0e1627; color:#e8eefc}
+    .msg{margin-top:10px; white-space:pre-wrap; font-size:12px; opacity:.92}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand-wrap">
+      <div class="brand">MultiBur</div>
+      <div class="role-chip">ADMIN</div>
+    </div>
+    <div class="top-right">
+      <a class="nav-link is-active" href="./admin_reportes.html" aria-current="page">Reportes</a>
+      <a class="nav-link" href="./admin_catalogos.html?tab=maquinas">Maquinas</a>
+      <a class="nav-link" href="./admin_materiales_formatos.html?tab=materiales">Materiales</a>
+      <a class="nav-link" href="./admin_materiales_formatos.html?tab=formatos">Formatos</a>
+      <a class="nav-link" href="./admin.html">Pizarra</a>
+      <span id="userPill" class="pill">Cargando...</span>
+      <button id="btnLogout" class="btn btn-danger" type="button">Salir</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title">Reporte Entregados</h2>
+          <div class="card-sub">Filtra por cliente y rango de fecha entregado</div>
+        </div>
+        <div class="toolbar">
+          <button id="btnClearRepFilters" class="btn" type="button">Limpiar</button>
+          <button id="btnReporteEntregados" class="btn" type="button">Generar Reporte</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="f-grid">
+          <div>
+            <label class="field-lb" for="repCliente">Cliente</label>
+            <select id="repCliente"><option value="">Todos</option></select>
+          </div>
+          <div>
+            <label class="field-lb" for="repDesde">Desde (entregado)</label>
+            <input id="repDesde" type="date" />
+          </div>
+          <div>
+            <label class="field-lb" for="repHasta">Hasta (entregado)</label>
+            <input id="repHasta" type="date" />
+          </div>
+        </div>
+        <div id="msgReport" class="msg"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="../js/config.local.js"></script>
+  <script type="module" src="../js/admin_reportes.js"></script>
+</body>
+</html>

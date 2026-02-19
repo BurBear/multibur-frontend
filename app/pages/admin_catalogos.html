@@ -1,0 +1,193 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MultiBur | Admin  -  Catalogos</title>
+  <script>
+    (function () {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      if (tab) document.documentElement.setAttribute("data-tab", tab.toLowerCase());
+    })();
+  </script>
+  <style>
+    body{font-family:system-ui,Arial; margin:0; background:#0b1220; color:#e8eefc;}
+    header{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #243250; background:#0d1730;}
+    .wrap{max-width:1200px; margin:0 auto; padding:16px;}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr;} }
+    html[data-tab="clientes"] .grid,
+    html[data-tab="maquinas"] .grid{grid-template-columns:1fr;}
+    html[data-tab="clientes"] #sectionMaquinas{display:none;}
+    html[data-tab="maquinas"] #sectionClientes{display:none;}
+    .card{background:#121b2e; border:1px solid #243250; border-radius:14px; padding:14px;}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between}
+    .row2{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .btn{padding:10px 12px; border-radius:10px; border:0; cursor:pointer; font-weight:800;}
+    .btn-ghost{background:#0e1627; color:#e8eefc; border:1px solid #2a3b61;}
+    .btn-primary{background:#22c55e; color:#05120a;}
+    .btn-danger{background:#ef4444; color:#120606;}
+    .pill{padding:6px 10px; border:1px solid #2a3b61; border-radius:999px; font-size:12px; opacity:.9}
+    .small{font-size:12px; opacity:.82}
+    table{width:100%; border-collapse:collapse; font-size:13px;}
+    th,td{padding:9px 8px; border-bottom:1px solid #243250; vertical-align:top;}
+    th{text-align:left; opacity:.85; font-weight:800;}
+    tr:hover td{background:#0e1627;}
+    input,select{
+      padding:9px 10px; border-radius:10px;
+      border:1px solid #2a3b61; background:#0e1627; color:#e8eefc;
+    }
+    .msg{margin-top:10px; font-size:12px; white-space:pre-wrap; opacity:.95}
+    .w-100{width:100%}
+    .col-id{width:60px}
+    .col-actions{width:170px}
+    .table-clientes{min-width:1220px}
+    .table-maquinas{min-width:620px}
+    .cell-actions{white-space:nowrap}
+    .cell-actions .btn{
+      padding:7px 10px;
+      font-size:12px;
+      border-radius:8px;
+      min-width:78px;
+    }
+    .cell-actions .btn + .btn{margin-left:6px}
+    #tbClientes td input,
+    #tbClientes td select,
+    #tbMaquinas td input,
+    #tbMaquinas td select{
+      min-height:34px;
+      font-size:13px;
+    }
+    #tbClientes td:nth-child(2) input{min-width:170px}
+    #tbClientes td:nth-child(3) input{min-width:160px}
+    #tbClientes td:nth-child(4) input{min-width:130px}
+    #tbClientes td:nth-child(5) select{min-width:170px}
+    #tbClientes td:nth-child(6) select{min-width:90px}
+    #tbClientes td:nth-child(7) input{min-width:140px}
+    #tbMaquinas td:nth-child(2) input{min-width:180px}
+    #tbMaquinas td:nth-child(3) select{min-width:120px}
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <b id="viewTitle">Catalogos</b>
+    <div id="viewSub" class="small">Admin  -  Clientes y Maquinas</div>
+  </div>
+  <div class="row2">
+    <span id="userPill" class="pill">-</span>
+    <a class="btn btn-ghost" href="./admin.html">Volver a Admin</a>
+    <a class="btn btn-ghost" href="./admin_reportes.html">Reportes</a>
+    <a class="btn btn-ghost" href="./admin_catalogos.html?tab=clientes">Clientes</a>
+    <a class="btn btn-ghost" href="./admin_catalogos.html?tab=maquinas">Maquinas</a>
+    <a class="btn btn-ghost" href="./admin_materiales_formatos.html?tab=materiales">Materiales</a>
+    <a class="btn btn-ghost" href="./admin_materiales_formatos.html?tab=formatos">Formatos</a>
+    <button id="btnLogout" class="btn btn-ghost">Cerrar sesion</button>
+  </div>
+
+</header>
+
+<div class="wrap">
+  <div class="grid">
+
+    <!-- CLIENTES -->
+    <section id="sectionClientes" class="card">
+      <div class="row">
+        <h3 style="margin:0">Clientes</h3>
+        <div class="row2">
+          <button id="btnReloadClientes" class="btn btn-ghost">Recargar</button>
+          <button id="btnAddCliente" class="btn btn-primary">Agregar</button>
+        </div>
+      </div>
+
+      <div class="row2" style="margin-top:10px">
+        <input id="c_nombre" placeholder="Nombre (ej: UPAO)" style="flex:1; min-width:220px" />
+        <input id="c_contacto" placeholder="Contacto (opcional)" style="flex:1; min-width:200px" />
+        <input id="c_telefono" placeholder="Telefono (opcional)" style="width:180px" />
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <select id="c_tipo_cliente" style="width:210px">
+          <option value="DIRECTO">DIRECTO</option>
+          <option value="SERVICIO">SERVICIO</option>
+        </select>
+        <select id="c_doc_tipo" style="width:150px">
+          <option value="RUC">RUC</option>
+          <option value="SUR">SUR</option>
+        </select>
+        <input id="c_doc_numero" placeholder="Doc. fiscal numero" style="flex:1; min-width:220px" />
+        <label class="small" style="display:flex; gap:6px; align-items:center; padding:0 4px;">
+          <input id="c_req_oc" type="checkbox" />
+          Requiere OC por defecto
+        </label>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <input id="c_filter" placeholder="Buscar cliente por nombre, contacto o telefono..." style="flex:1; min-width:220px" />
+      </div>
+
+      <div style="overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250;">
+        <table class="table-clientes">
+          <thead>
+            <tr>
+              <th class="col-id">ID</th>
+              <th>Nombre</th>
+              <th>Contacto</th>
+              <th>Telefono</th>
+              <th>Tipo</th>
+              <th>Doc</th>
+              <th>Nro Doc</th>
+              <th>Req OC</th>
+              <th class="col-actions">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbClientes"></tbody>
+        </table>
+      </div>
+
+      <div id="msgClientes" class="msg"></div>
+    </section>
+
+    <!-- MAQUINAS -->
+    <section id="sectionMaquinas" class="card">
+      <div class="row">
+        <h3 style="margin:0">Maquinas</h3>
+        <div class="row2">
+          <button id="btnReloadMaquinas" class="btn btn-ghost">Recargar</button>
+          <button id="btnAddMaquina" class="btn btn-primary">Agregar</button>
+        </div>
+      </div>
+
+      <div class="row2" style="margin-top:10px">
+        <input id="m_nombre" placeholder="Nombre (ej: Ryobi #01)" style="flex:1; min-width:220px" />
+        <select id="m_tipo" style="width:180px">
+          <option value="OFFSET">OFFSET</option>
+          <option value="DIGITAL">DIGITAL</option>
+        </select>
+      </div>
+
+      <div style="overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250;">
+        <table class="table-maquinas">
+          <thead>
+            <tr>
+              <th class="col-id">ID</th>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th class="col-actions">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbMaquinas"></tbody>
+        </table>
+      </div>
+
+      <div id="msgMaquinas" class="msg"></div>
+    </section>
+
+  </div>
+</div>
+
+<script src="../js/config.local.js"></script>
+<script type="module" src="../js/admin_catalogos.js"></script>
+</body>
+</html>
+
+
+

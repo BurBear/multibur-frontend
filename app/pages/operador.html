@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MultiBur | Registro de Producción</title>
+  <style>
+    body{font-family:system-ui,Arial; margin:0; background:#0b1220; color:#e8eefc;}
+    header{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #243250; background:#0d1730;}
+    .brand{font-weight:800}
+    .pill{padding:6px 10px; border:1px solid #2a3b61; border-radius:999px; font-size:12px; opacity:.9}
+    .wrap{max-width:1100px; margin:0 auto; padding:16px;}
+    .grid{display:grid; grid-template-columns: 1.1fr .9fr; gap:14px;}
+    @media (max-width: 960px){ .grid{grid-template-columns:1fr;} }
+
+    .card{background:#121b2e; border:1px solid #243250; border-radius:14px; padding:14px;}
+    h2{margin:0 0 10px; font-size:16px;}
+    table{width:100%; border-collapse:collapse; font-size:13px;}
+    th,td{padding:9px 8px; border-bottom:1px solid #243250; vertical-align:top;}
+    th{opacity:.85; text-align:left; font-weight:700;}
+    tr:hover td{background:#0e1627;}
+    .muted{opacity:.75}
+    .btn{padding:10px 12px; border-radius:10px; border:0; cursor:pointer; font-weight:800;}
+    .btn-primary{background:#22c55e; color:#05120a;}
+    .btn-warn{background:#fbbf24; color:#1d1400;}
+    .btn-ghost{background:#0e1627; color:#e8eefc; border:1px solid #2a3b61;}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    select,input,textarea{width:100%; padding:9px 10px; border-radius:10px; border:1px solid #2a3b61; background:#0e1627; color:#e8eefc;}
+    textarea{min-height:80px; resize:vertical;}
+    .small{font-size:12px; opacity:.8}
+    .kpi{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
+    @media (max-width: 700px){ .kpi{grid-template-columns:repeat(2,1fr);} }
+    .k{background:#0e1627; border:1px solid #2a3b61; border-radius:12px; padding:10px;}
+    .k .t{font-size:12px; opacity:.8}
+    .k .v{font-size:16px; font-weight:900; margin-top:3px}
+    .msg{white-space:pre-wrap; font-size:12px; margin-top:10px; opacity:.9}
+    .badge{display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px; border:1px solid #2a3b61; background:#0e1627}
+    .hide{display:none;}
+
+    /* Tabs */
+    .tabs{display:flex; gap:8px; margin:10px 0 12px;}
+    .tab{padding:8px 10px; border:1px solid #2a3b61; border-radius:10px; background:#0e1627; color:#e8eefc; cursor:pointer; font-weight:800; font-size:12px;}
+    .tab.active{outline:2px solid #2a3b61;}
+
+    /* ✅ Modal */
+    .modalWrap{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.55);
+      backdrop-filter: blur(4px);
+      z-index:9999;
+      padding:18px;
+    }
+    .modal{
+      width:min(920px, 100%);
+      background:#121b2e;
+      border:1px solid #243250;
+      border-radius:16px;
+      box-shadow:0 12px 50px rgba(0,0,0,.45);
+      overflow:hidden;
+    }
+    .modalHead{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 14px;
+      border-bottom:1px solid #243250;
+      background:#0d1730;
+    }
+    .modalTitle{font-weight:900}
+    .modalBody{padding:14px;}
+    .modalGrid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+    @media (max-width: 900px){ .modalGrid{grid-template-columns:1fr;} }
+    .box{
+      background:#0e1627;
+      border:1px solid #2a3b61;
+      border-radius:12px;
+      padding:12px;
+    }
+    .box h3{margin:0 0 10px; font-size:13px; opacity:.9}
+    .twoCol{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    @media (max-width: 700px){ .twoCol{grid-template-columns:1fr;} }
+
+    .help{font-size:12px; opacity:.8; line-height:1.4}
+    .modalWrap.hide{display:none;}
+  </style>
+</head>
+
+<body>
+<header>
+  <div>
+    <div class="brand">Registro de Producción</div>
+    <div class="small">Operador selecciona trabajo → inicia → finaliza</div>
+  </div>
+  <div class="row">
+    <span id="userPill" class="pill">—</span>
+    <button id="btnLogout" class="btn btn-ghost" type="button">Cerrar sesión</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <!-- IZQ -->
+    <div class="card">
+      <h2>Panel del Operador</h2>
+      <div class="small muted">Tip: solo puedes INICIAR cuando el estado es <b>PLACAS</b>.</div>
+
+      <div class="tabs">
+        <button id="tabPend" class="tab active" type="button">Trabajos por hacer</button>
+        <button id="tabHoy" class="tab" type="button">Lo que hice hoy</button>
+      </div>
+
+      <!-- Pendientes -->
+      <section id="secPend">
+        <div style="margin:10px 0" class="row">
+          <input id="q" placeholder="Buscar: cliente, trabajo, N° orden..." />
+          <select id="fEstado" style="max-width:220px">
+            <option value="">Todos (no terminados)</option>
+            <option value="DISEÑO">DISEÑO</option>
+            <option value="PLACAS">PLACAS</option>
+            <option value="IMPRESION">IMPRESION</option>
+            <option value="ACABADOS">ACABADOS</option>
+          </select>
+          <button id="btnReload" class="btn btn-ghost" type="button">Recargar</button>
+        </div>
+
+        <div style="overflow:auto; border-radius:12px; border:1px solid #243250;">
+          <table>
+            <thead>
+              <tr>
+                <th>Orden</th>
+                <th>Cliente</th>
+                <th>Trabajo</th>
+                <th>Formato</th>
+                <th>Impresión</th>
+                <th>Color</th>
+                <th>Máq. sug.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tb"></tbody>
+          </table>
+        </div>
+
+        <div id="msgLeft" class="msg"></div>
+      </section>
+
+      <!-- Hoy -->
+      <section id="secHoy" class="hide">
+        <div style="margin:10px 0" class="row">
+          <button id="btnReloadHoy" class="btn btn-ghost" type="button">Actualizar hoy</button>
+        </div>
+
+        <div style="overflow:auto; border-radius:12px; border:1px solid #243250;">
+          <table>
+            <thead>
+              <tr>
+                <th>Registro</th>
+                <th>Orden</th>
+                <th>Máquina</th>
+                <th>Inicio</th>
+                <th>Fin</th>
+                <th>Buena</th>
+                <th>Mala</th>
+              </tr>
+            </thead>
+            <tbody id="tbHoy"></tbody>
+          </table>
+        </div>
+
+        <div id="msgHoy" class="msg"></div>
+      </section>
+    </div>
+
+    <!-- DER: solo KPIs (el formulario va en modal) -->
+    <div class="card">
+      <h2>Mi registro (Operador)</h2>
+
+      <div class="kpi">
+        <div class="k"><div class="t">Registro activo</div><div id="kAct" class="v">—</div></div>
+        <div class="k"><div class="t">Orden</div><div id="kOrd" class="v">—</div></div>
+        <div class="k"><div class="t">Máquina</div><div id="kMaq" class="v">—</div></div>
+        <div class="k"><div class="t">Inicio</div><div id="kIni" class="v">—</div></div>
+      </div>
+
+      <div class="msg muted" style="margin-top:12px">
+        Para trabajar una orden, presiona <b>Elegir</b>. Se abrirá una ventana con el detalle y las acciones.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ✅ MODAL (Detalle + Acciones) -->
+<div id="modalWrap" class="modalWrap hide" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modalHead">
+      <div id="modalTitle" class="modalTitle">Detalle de Orden</div>
+      <button id="btnModalClose" class="btn btn-ghost" type="button">Cerrar</button>
+    </div>
+
+    <div class="modalBody">
+      <div class="modalGrid">
+        <!-- Detalle -->
+        <div class="box">
+          <h3>Datos</h3>
+          <div class="twoCol">
+            <div class="small muted">
+              <div><b>Orden:</b> <span id="mOrden">—</span></div>
+              <div style="margin-top:6px"><b>Estado:</b> <span id="mEstado">—</span></div>
+              <div style="margin-top:6px"><b>Cliente:</b> <span id="mCliente">—</span></div>
+              <div style="margin-top:6px"><b>Trabajo:</b> <span id="mTrabajo">—</span></div>
+            </div>
+            <div class="small muted">
+              <div><b>Formato:</b> <span id="mFormato">—</span></div>
+              <div style="margin-top:6px"><b>Material:</b> <span id="mMaterial">—</span></div>
+              <div style="margin-top:6px"><b>Impresión:</b> <span id="mImpresion">—</span></div>
+              <div style="margin-top:6px"><b>Color:</b> <span id="mColor">—</span></div>
+            </div>
+          </div>
+
+          <div class="twoCol" style="margin-top:10px">
+            <div class="small muted">
+              <div><b>Entrega:</b> <span id="mEntrega">—</span></div>
+            </div>
+            <div class="small muted">
+              <div><b>Máq. sugerida:</b> <span id="mMaqSug">—</span></div>
+            </div>
+          </div>
+          <div class="small muted" style="margin-top:10px">
+            <div><b>Observación de orden:</b></div>
+            <div id="mObs" style="margin-top:4px; white-space:pre-wrap;">—</div>
+          </div>
+        </div>
+
+        <!-- Acciones -->
+        <div class="box">
+          <h3>Acciones (Producción)</h3>
+
+          <div class="small muted" style="margin-bottom:10px">
+            <div><b>Seleccionada:</b> <span id="selJob" class="badge">Ninguno</span></div>
+            <div style="margin-top:6px"><b>Estado:</b> <span id="selEstado">—</span></div>
+          </div>
+
+          <div style="margin-top:10px">
+            <label class="small">Máquina</label>
+            <select id="maquina"></select>
+          </div>
+
+          <div class="row" style="margin-top:12px">
+            <button id="btnStart" class="btn btn-primary" style="flex:1" type="button">INICIAR</button>
+            <button id="btnStop" class="btn btn-warn" style="flex:1" type="button">FINALIZAR</button>
+          </div>
+
+          <div class="row" style="margin-top:12px">
+            <div style="flex:1">
+              <label class="small">Cantidad buena</label>
+              <input id="good" type="number" min="0" placeholder="Ej: 480" />
+            </div>
+            <div style="flex:1">
+              <label class="small">Cantidad mala</label>
+              <input id="bad" type="number" min="0" placeholder="Ej: 10" />
+            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <label class="small">Observaciones</label>
+            <textarea id="obs" placeholder="Ej: falta tinta / papel atascado / etc."></textarea>
+          </div>
+
+          <div class="help" style="margin-top:10px">
+            Usa <b>INICIAR</b> para comenzar (solo si está en <b>PLACAS</b>).  
+            Luego registra cantidades y presiona <b>FINALIZAR</b>.
+          </div>
+
+          <div id="msgRight" class="msg"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/config.local.js"></script>
+<script type="module" src="../js/operador.js"></script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Multigráfica Burgos | Acceso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      /* Paleta de colores basada en tu marca */
+      --primary: #22c55e;
+      --primary-hover: #16a34a;
+      --bg-dark: #0b1220;
+      --card-bg: rgba(18, 27, 46, 0.7); /* Transparencia para efecto glass */
+      --border: #2a3b61;
+      --text-main: #e8eefc;
+      --text-muted: #94a3b8;
+      --input-bg: rgba(14, 22, 39, 0.8);
+      --focus-ring: rgba(34, 197, 94, 0.3);
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      /* Fondo con un degradado sutil o podrías usar tu imagen de textura azul aquí */
+      background: radial-gradient(circle at top right, #1e293b, var(--bg-dark)); 
+      color: var(--text-main);
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Fondo decorativo opcional para dar profundidad */
+    body::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-image: none;
+      background-size: cover;
+      opacity: 0.1;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .card {
+      width: min(400px, 90vw);
+      background: var(--card-bg);
+      backdrop-filter: blur(12px); /* Efecto de desenfoque */
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 40px 32px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: #fff;
+    }
+
+    .brand-subtitle {
+      font-size: 14px;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    .input-group {
+      margin-bottom: 20px;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box; /* Importante para que el padding no rompa el ancho */
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: #fff;
+      font-size: 15px;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    input::placeholder {
+      color: #475569;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px var(--focus-ring);
+      background: #0f172a;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: 0;
+      background: var(--primary);
+      color: #022c22;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, background-color 0.2s;
+    }
+
+    button:hover {
+      background: var(--primary-hover);
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      filter: grayscale(1);
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .btn2 {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+    
+    .btn2:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .msg {
+      margin-top: 16px;
+      font-size: 13px;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+      display: none; /* Oculto por defecto */
+    }
+    
+    .msg:not(:empty) {
+      display: block;
+    }
+
+    .footer-help {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Estados de error */
+    .invalid {
+      border-color: #ef4444 !important;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2) !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="header">
+      <div class="brand-subtitle">Sistema de Producción</div>
+      <h1>Multigráfica Burgos</h1>
+      <p>Ingresa tus credenciales para acceder</p>
+    </div>
+
+    <div class="input-group">
+      <label for="email">Correo Electrónico</label>
+      <input id="email" type="email" placeholder="nombre@multibur.com" autocomplete="username" />
+    </div>
+
+    <div class="input-group">
+      <label for="pass">Contraseña</label>
+      <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+
+    <button id="btnLogin">
+      Ingresar al Sistema
+    </button>
+
+    <div class="row">
+      <button id="btnLogout" class="btn2" type="button" style="display:none;">Cerrar sesión</button>
+      <button id="btnGo" class="btn2" type="button" style="display:none;">Ir al Dashboard</button>
+    </div>
+
+    <div id="msg" class="msg"></div>
+    
+    <div class="footer-help">
+      &copy; 2026 Multigráfica Burgos. <br>
+      <span style="opacity: 0.6">Gestión de usuarios vía Supabase Auth.</span>
+    </div>
+  </div>
+
+  <script src="../js/config.local.js"></script>
+  <script type="module" src="../js/login.js"></script>
+</body>
+</html>
