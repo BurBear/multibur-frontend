@@ -47,36 +47,49 @@ export async function fetchTrabajosPendientes({ estado = "" } = {}) {
 }
 
 export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
-  let q = supabase
-    .from("ordenes")
-    .select(`
-      id,
-      numero_orden_fisica,
-      descripcion_trabajo,
-      fecha_entrega,
-      prioridad,
-      estado,
-      cliente:clientes(nombre),
-      detalles_orden(
-        orden_id,
-        papel_material,
-        gramaje,
-        medida_ancho,
-        medida_alto,
-        tipo_impresion,
-        color_text,
-        cantidad_solicitada,
-        demasia,
-        maquina_sugerida_id,
-        maquina:maquinas(nombre)
-      )
-    `)
-    .order("id", { ascending: false });
+  const runQuery = async (withObsTecnica) => {
+    let q = supabase
+      .from("ordenes")
+      .select(`
+        id,
+        numero_orden_fisica,
+        descripcion_trabajo,
+        fecha_entrega,
+        prioridad,
+        estado,
+        cliente:clientes(nombre),
+        detalles_orden(
+          orden_id,
+          papel_material,
+          gramaje,
+          medida_ancho,
+          medida_alto,
+          tipo_impresion,
+          color_text,
+          cantidad_solicitada,
+          demasia,
+          ${withObsTecnica ? "observacion_tecnica," : ""}
+          maquina_sugerida_id,
+          maquina:maquinas(nombre)
+        )
+      `)
+      .order("id", { ascending: false });
 
-  if (estado) q = q.eq("estado", estado);
-  else q = q.neq("estado", "ENTREGADO");
+    if (estado) q = q.eq("estado", estado);
+    else q = q.neq("estado", "ENTREGADO");
 
-  const { data, error } = await q;
+    return q;
+  };
+
+  let data = null;
+  let error = null;
+  ({ data, error } = await runQuery(true));
+  if (error) {
+    const miss = parseMissingColumn(error);
+    if (miss && miss.table === "detalles_orden" && miss.column === "observacion_tecnica") {
+      ({ data, error } = await runQuery(false));
+    }
+  }
   if (error) throw error;
 
   return (data || []).map((o) => {
@@ -98,6 +111,7 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
       color_text: det.color_text || "-",
       cantidad_solicitada: det.cantidad_solicitada ?? null,
       demasia: det.demasia ?? null,
+      observacion_tecnica: det.observacion_tecnica || null,
       maquina_sugerida_nombre: det.maquina?.nombre || "-"
     };
   });
@@ -297,14 +311,17 @@ export async function rpcFinalizarEntregaOrden({
 }
 
 export async function createOrdenConDetalles({ orden, detalles }) {
-  const { data: rpcData, error: rpcError } = await supabase.rpc("create_orden_con_detalles", {
-    p_orden: orden,
-    p_detalles: detalles
-  });
-  if (!rpcError && rpcData && (!Array.isArray(rpcData) || rpcData.length > 0)) {
-    return Array.isArray(rpcData) ? rpcData[0] : rpcData;
+  const forceFallback = Object.prototype.hasOwnProperty.call(detalles || {}, "observacion_tecnica");
+  if (!forceFallback) {
+    const { data: rpcData, error: rpcError } = await supabase.rpc("create_orden_con_detalles", {
+      p_orden: orden,
+      p_detalles: detalles
+    });
+    if (!rpcError && rpcData && (!Array.isArray(rpcData) || rpcData.length > 0)) {
+      return Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    }
+    if (rpcError && !isMissingRpc(rpcError)) throw rpcError;
   }
-  if (rpcError && !isMissingRpc(rpcError)) throw rpcError;
 
   let ordenPayload = { ...orden };
   let o = null;

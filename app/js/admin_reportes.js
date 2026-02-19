@@ -29,6 +29,14 @@ function normalizeTipoCliente(v) {
   return t || "";
 }
 
+function fmtTipoImpresion(v) {
+  const raw = String(v || "").trim().toUpperCase();
+  if (raw === "TIRA_RETIRA") return "TIRA/RETIRA";
+  if (raw === "TIRA+RETIRA") return "T+R";
+  if (raw === "DOBLE_PINZA") return "DOBLE PINZA";
+  return String(v || "-");
+}
+
 function loadClientesFilter() {
   const sel = $("repCliente");
   if (!sel) return;
@@ -78,7 +86,7 @@ async function exportReporteEntregados() {
       <td>${esc(r.trabajo)}</td>
       <td>${esc(r.formato)}</td>
       <td>${esc(r.papel_material)} ${esc(r.gramaje ? `(${r.gramaje}g)` : "")}</td>
-      <td>${esc(r.tipo_impresion)}</td>
+      <td>${esc(fmtTipoImpresion(r.tipo_impresion))}</td>
       <td>${esc(r.color)}</td>
       ${isServicioOnly ? "" : `<td>${esc((r.oc_numero || "").trim() || "NO")}</td>`}
       ${isServicioOnly ? "" : `<td>${esc((r.guia_numero || "").trim() || "NO")}</td><td>${esc(r.guia_observacion || "-")}</td>`}

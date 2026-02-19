@@ -36,6 +36,7 @@
     .toolbar .grow{flex:1; min-width:230px}
 
     input,select,textarea{width:100%; max-width:100%; padding:9px 10px; border-radius:10px; border:1px solid #2a3b61; background:#0e1627; color:#e8eefc}
+    input[type="checkbox"]{width:16px; height:16px; padding:0; border-radius:4px; accent-color:#22c55e}
     textarea{resize:vertical}
 
     .table-wrap{overflow:auto; border:1px solid #243250; border-radius:12px; margin-top:12px}
@@ -433,6 +434,7 @@
                   <option value="">- Selecciona tipo -</option>
                   <option value="TIRA">TIRA</option>
                   <option value="TIRA_RETIRA">TIRA/RETIRA</option>
+                  <option value="TIRA+RETIRA">T+R</option>
                   <option value="DOBLE_PINZA">DOBLE PINZA</option>
                 </select>
               </div>
@@ -472,6 +474,10 @@
                 <label class="check-item"><input id="p_sect" type="checkbox" /> Sectorizado</label>
                 <label class="check-item"><input id="p_barniz" type="checkbox" /> Barniz</label>
               </div>
+            </div>
+            <div style="margin-top:12px">
+              <label class="field-lb" for="d_obs_tecnica">Observacion tecnica (impresor)</label>
+              <textarea id="d_obs_tecnica" rows="3" placeholder="Indicaciones de impresion"></textarea>
             </div>
           </section>
         </div>

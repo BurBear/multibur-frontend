@@ -109,8 +109,17 @@ function toDbTipoImpresion(v) {
   const raw = String(v || "").trim().toUpperCase();
   if (!raw) return null;
   if (raw === "TIRA/RETIRA") return "TIRA_RETIRA";
+  if (raw === "T+R") return "TIRA+RETIRA";
   if (raw === "DOBLE PINZA") return "DOBLE_PINZA";
   return raw;
+}
+
+function fmtTipoImpresion(v) {
+  const raw = String(v || "").trim().toUpperCase();
+  if (raw === "TIRA_RETIRA") return "TIRA/RETIRA";
+  if (raw === "TIRA+RETIRA") return "T+R";
+  if (raw === "DOBLE_PINZA") return "DOBLE PINZA";
+  return String(v || "-");
 }
 
 function validateOrdenForm() {
@@ -478,7 +487,8 @@ function openDetalleOrden(r, extra = null) {
   const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
   const cantidad = r.cantidad_solicitada ?? "-";
   const demasia = r.demasia ?? "-";
-  const obs = extra?.observaciones_generales || "-";
+  const obsAcabados = extra?.observaciones_generales || "-";
+  const obsTecnica = r.observacion_tecnica || "-";
   const cliTipo = extra?.cliente?.tipo_cliente || "-";
   const cliDocTipo = extra?.cliente?.doc_fiscal_tipo || "-";
   const cliDocNum = extra?.cliente?.doc_fiscal_numero || "-";
@@ -506,12 +516,13 @@ function openDetalleOrden(r, extra = null) {
       <div><span class="detail-k">Obs guia</span><span class="detail-v">${esc(guiaObs)}</span></div>
       <div><span class="detail-k">Formato</span><span class="detail-v">${esc(formato)}</span></div>
       <div><span class="detail-k">Material</span><span class="detail-v">${esc(r.papel_material || "-")} ${esc(r.gramaje ? `(${r.gramaje}g)` : "")}</span></div>
-      <div><span class="detail-k">Tipo impresion</span><span class="detail-v">${esc(r.tipo_impresion || "-")}</span></div>
+      <div><span class="detail-k">Tipo impresion</span><span class="detail-v">${esc(fmtTipoImpresion(r.tipo_impresion))}</span></div>
       <div><span class="detail-k">Color</span><span class="detail-v">${esc(r.color_text || "-")}</span></div>
       <div><span class="detail-k">Cantidad</span><span class="detail-v">${esc(cantidad)}</span></div>
       <div><span class="detail-k">Demasia</span><span class="detail-v">${esc(demasia)}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Trabajo</span><span class="detail-v">${esc(r.descripcion_trabajo || "-")}</span></div>
-      <div style="grid-column:1/-1"><span class="detail-k">Observaciones</span><span class="detail-v">${esc(obs)}</span></div>
+      <div style="grid-column:1/-1"><span class="detail-k">Observacion tecnica (impresor)</span><span class="detail-v">${esc(obsTecnica)}</span></div>
+      <div style="grid-column:1/-1"><span class="detail-k">Observacion acabados</span><span class="detail-v">${esc(obsAcabados)}</span></div>
     </div>`;
   detailRowCtx = r;
   detailExtraCtx = extra;
@@ -534,7 +545,8 @@ function printOrden(r, extra = null) {
   const material = `${r.papel_material || "-"}${r.gramaje ? ` (${r.gramaje}g)` : ""}`;
   const cantidad = r.cantidad_solicitada ?? "-";
   const demasia = r.demasia ?? "-";
-  const obs = extra?.observaciones_generales || "-";
+  const obsAcabados = extra?.observaciones_generales || "-";
+  const obsTecnica = r.observacion_tecnica || "-";
   const cliTipo = extra?.cliente?.tipo_cliente || "-";
   const cliDocTipo = extra?.cliente?.doc_fiscal_tipo || "-";
   const cliDocNum = extra?.cliente?.doc_fiscal_numero || "-";
@@ -579,10 +591,11 @@ body{font-family:"Segoe UI",Arial,sans-serif;margin:0;padding:28px;color:var(--i
   <div><span class="k">Maquina sugerida</span><span class="v">${esc(r.maquina_sugerida_nombre || "-")}</span></div>
   <div><span class="k">Formato</span><span class="v">${esc(formato)}</span></div>
   <div><span class="k">Material</span><span class="v">${esc(material)}</span></div>
-  <div><span class="k">Impresion / Color</span><span class="v">${esc(r.tipo_impresion || "-")} / ${esc(r.color_text || "-")}</span></div>
+  <div><span class="k">Impresion / Color</span><span class="v">${esc(fmtTipoImpresion(r.tipo_impresion))} / ${esc(r.color_text || "-")}</span></div>
   <div><span class="k">Cantidad</span><span class="v">${esc(cantidad)}</span></div>
   <div><span class="k">Demasia</span><span class="v">${esc(demasia)}</span></div>
-  <div class="wide"><span class="k">Observaciones</span><span class="v">${esc(obs)}</span></div>
+  <div class="wide"><span class="k">Observacion tecnica (impresor)</span><span class="v">${esc(obsTecnica)}</span></div>
+  <div class="wide"><span class="k">Observacion acabados</span><span class="v">${esc(obsAcabados)}</span></div>
 </div></section>
 <div class="sign-space"></div>
 <section class="signs"><div class="sign">Diseno / Preprensa</div><div class="sign">Produccion</div><div class="sign">Control de calidad</div></section>
@@ -624,7 +637,7 @@ async function loadJobs() {
       <td>${esc(r.cliente_nombre || "-")}</td>
       <td>${esc(r.descripcion_trabajo || "-")}</td>
       <td><b>${esc(formato)}</b><div class="small muted">${esc(r.papel_material || "")} ${esc(r.gramaje ? (r.gramaje + "g") : "")}</div></td>
-      <td>${esc(r.tipo_impresion || "-")}</td>
+      <td>${esc(fmtTipoImpresion(r.tipo_impresion))}</td>
       <td>${esc(r.color_text || "-")}</td>
       <td>${esc(r.maquina_sugerida_nombre || "-")}</td>
       <td><div class="row-actions">${renderAccion(r)}<button class="btn btn-ghost" type="button" data-action="detail" data-oid="${r.orden_id}" style="padding:8px 10px">Detalle</button></div></td>
@@ -765,6 +778,7 @@ async function onGuardarOrden() {
       demasia: demasiaFinal,
       maquina_sugerida_id: Number($("d_maq").value),
       tipo_impresion: toDbTipoImpresion($("d_tipoimp")?.value),
+      observacion_tecnica: $("d_obs_tecnica")?.value?.trim() || null,
       color_mode: $("d_color_mode")?.value || "FC",
       color_text: $("d_color_text")?.value?.trim() || "F/C",
       corte: $("p_corte")?.checked ?? false,
@@ -786,6 +800,7 @@ async function onGuardarOrden() {
     await loadRegistros();
     $("o_desc").value = "";
     $("o_obs").value = "";
+    if ($("d_obs_tecnica")) $("d_obs_tecnica").value = "";
     if ($("o_tiene_oc")) $("o_tiene_oc").checked = false;
     if ($("o_oc_numero")) $("o_oc_numero").value = "";
     if ($("o_oc_obs")) $("o_oc_obs").value = "";
@@ -868,7 +883,7 @@ async function exportReporteEntregadosCsv() {
         <td>${esc(r.trabajo)}</td>
         <td>${esc(r.formato)}</td>
         <td>${esc(r.papel_material)} ${esc(r.gramaje ? `(${r.gramaje}g)` : "")}</td>
-        <td>${esc(r.tipo_impresion)}</td>
+        <td>${esc(fmtTipoImpresion(r.tipo_impresion))}</td>
         <td>${esc(r.color)}</td>
         ${isServicioOnly ? "" : `<td>${esc((r.oc_numero || "").trim() || "NO")}</td>`}
         ${isServicioOnly ? "" : `<td>${esc((r.guia_numero || "").trim() || "NO")}</td><td>${esc(r.guia_observacion || "-")}</td>`}
