@@ -560,14 +560,14 @@ function printOrden(r, extra = null) {
 <style>
 :root{--line:#d4d4d8;--muted:#52525b;--ink:#111827}*{box-sizing:border-box}
 body{font-family:"Segoe UI",Arial,sans-serif;margin:0;padding:28px;color:var(--ink);background:#fff}
-.sheet{max-width:980px;margin:0 auto;min-height:1180px;display:flex;flex-direction:column}
+.sheet{max-width:980px;margin:0 auto;display:flex;flex-direction:column}
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:16px}
 .brand h1{font-size:22px;line-height:1;margin:0}.brand small{display:block;color:var(--muted);margin-top:6px}
 .meta{text-align:right}.meta .n{font-size:20px;font-weight:800}.meta .s{font-size:12px;color:var(--muted);margin-top:4px}
 .section{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px}
 .section h3{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 10px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}.k{display:block;color:var(--muted);font-size:12px}.v{display:block;font-size:14px;font-weight:600;margin-top:2px}.wide{grid-column:1/-1}
-.sign-space{flex:1;min-height:320px}
+.sign-space{flex:1;min-height:90px}
 .signs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:12px}
 .sign{padding-top:26px;border-top:1px solid #a1a1aa;text-align:center;font-size:12px;color:#3f3f46}
 .foot{margin-top:16px;font-size:11px;color:#71717a;text-align:right}
