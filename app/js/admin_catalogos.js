@@ -6,6 +6,15 @@ const msgC = (t) => setText("msgClientes", t);
 const msgM = (t) => setText("msgMaquinas", t);
 let clientesAll = [];
 const activeTab = (new URLSearchParams(window.location.search).get("tab") || "").toLowerCase();
+const CLIENTE_CSV_HEADERS = [
+  "nombre",
+  "contacto",
+  "telefono",
+  "tipo_cliente",
+  "doc_fiscal_tipo",
+  "doc_fiscal_numero",
+  "requiere_oc_default"
+];
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -24,6 +33,248 @@ function normalizeTipoCliente(v){
   const t = String(v || "").trim().toUpperCase();
   if (t === "SERVICIO_IMPRESION") return "SERVICIO";
   return t || "DIRECTO";
+}
+
+function normalizeDocTipo(v) {
+  const t = String(v || "").trim().toUpperCase();
+  if (t === "RUC" || t === "SUR") return t;
+  return "RUC";
+}
+
+function parseBool(v) {
+  const t = String(v ?? "").trim().toLowerCase();
+  return t === "1" || t === "true" || t === "si" || t === "s" || t === "yes" || t === "y";
+}
+
+function normalizeHeader(h) {
+  const n = String(h || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const map = {
+    tipo: "tipo_cliente",
+    tipo_cliente: "tipo_cliente",
+    tipo_de_cliente: "tipo_cliente",
+    doc_tipo: "doc_fiscal_tipo",
+    tipo_doc: "doc_fiscal_tipo",
+    doc_fiscal_tipo: "doc_fiscal_tipo",
+    nro_doc: "doc_fiscal_numero",
+    numero_doc: "doc_fiscal_numero",
+    doc_numero: "doc_fiscal_numero",
+    doc_fiscal_numero: "doc_fiscal_numero",
+    requiere_oc: "requiere_oc_default",
+    requiere_oc_default: "requiere_oc_default"
+  };
+  return map[n] || n;
+}
+
+function splitCsvLine(line, delimiter) {
+  const out = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === delimiter && !inQuotes) {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((x) => x.trim());
+}
+
+function detectDelimiter(text) {
+  const first = String(text || "").split(/\r?\n/).find((l) => l.trim());
+  if (!first) return ",";
+  const commaCount = (first.match(/,/g) || []).length;
+  const semiCount = (first.match(/;/g) || []).length;
+  return semiCount > commaCount ? ";" : ",";
+}
+
+function parseCsv(text) {
+  const lines = String(text || "").split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (!lines.length) return [];
+  const delimiter = detectDelimiter(text);
+  const headersRaw = splitCsvLine(lines[0], delimiter);
+  const headers = headersRaw.map(normalizeHeader);
+  const rows = [];
+  for (let i = 1; i < lines.length; i += 1) {
+    const cols = splitCsvLine(lines[i], delimiter);
+    const row = {};
+    headers.forEach((h, idx) => { row[h] = cols[idx] ?? ""; });
+    row.__line = i + 1;
+    rows.push(row);
+  }
+  return rows;
+}
+
+function csvValue(v, delimiter) {
+  const raw = String(v ?? "");
+  if (!raw.includes('"') && !raw.includes("\n") && !raw.includes("\r") && !raw.includes(delimiter)) {
+    return raw;
+  }
+  return `"${raw.replace(/"/g, '""')}"`;
+}
+
+function pickCsvCliente(row) {
+  return {
+    __line: row.__line,
+    nombre: String(row.nombre || "").trim(),
+    contacto: String(row.contacto || "").trim() || null,
+    telefono: String(row.telefono || "").trim() || null,
+    tipo_cliente: normalizeTipoCliente(row.tipo_cliente || "DIRECTO"),
+    doc_fiscal_tipo: normalizeDocTipo(row.doc_fiscal_tipo || "RUC"),
+    doc_fiscal_numero: String(row.doc_fiscal_numero || "").trim() || null,
+    requiere_oc_default: parseBool(row.requiere_oc_default)
+  };
+}
+
+function downloadClientesCurrentCsv() {
+  const delimiter = ";";
+  const rows = (clientesAll || []).map((c) => ([
+    c.nombre || "",
+    c.contacto || "",
+    c.telefono || "",
+    normalizeTipoCliente(c.tipo_cliente || "DIRECTO"),
+    c.doc_fiscal_tipo || "RUC",
+    c.doc_fiscal_numero || "",
+    c.requiere_oc_default ? "true" : "false"
+  ]));
+  const lines = [
+    CLIENTE_CSV_HEADERS.join(delimiter),
+    ...rows.map((r) => r.map((v) => csvValue(v, delimiter)).join(delimiter))
+  ].join("\r\n");
+
+  const blob = new Blob(["\uFEFF", lines], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "clientes_multibur_export.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  msgC(`CSV exportado: ${rows.length} cliente(s).`);
+}
+
+async function importClientesFromFile(file) {
+  msgC("");
+  if (!file) return;
+  const text = await file.text();
+  const rawRows = parseCsv(text);
+  if (!rawRows.length) {
+    msgC("Archivo vacio o sin filas validas.");
+    return;
+  }
+
+  const selectedRows = rawRows.map(pickCsvCliente);
+  const invalid = [];
+  const prepared = [];
+  const seen = new Set();
+
+  selectedRows.forEach((r) => {
+    if (!r.nombre) {
+      invalid.push(`Linea ${r.__line}: falta nombre.`);
+      return;
+    }
+    const key = r.doc_fiscal_numero
+      ? `doc:${r.doc_fiscal_numero.toUpperCase()}`
+      : `nom:${norm(r.nombre)}`;
+    if (seen.has(key)) {
+      invalid.push(`Linea ${r.__line}: duplicado dentro del archivo (${key}).`);
+      return;
+    }
+    seen.add(key);
+    prepared.push(r);
+  });
+
+  const existingByDoc = new Map();
+  const existingByName = new Map();
+  (clientesAll || []).forEach((c) => {
+    const doc = String(c.doc_fiscal_numero || "").trim();
+    const nom = norm(c.nombre || "");
+    if (doc) existingByDoc.set(doc.toUpperCase(), c);
+    if (nom) existingByName.set(nom, c);
+  });
+
+  const toInsert = [];
+  const toUpdate = [];
+  prepared.forEach((r) => {
+    const target = r.doc_fiscal_numero
+      ? existingByDoc.get(r.doc_fiscal_numero.toUpperCase())
+      : existingByName.get(norm(r.nombre));
+    if (!target) {
+      toInsert.push({
+        nombre: r.nombre,
+        contacto: r.contacto,
+        telefono: r.telefono,
+        tipo_cliente: r.tipo_cliente,
+        doc_fiscal_tipo: r.doc_fiscal_tipo,
+        doc_fiscal_numero: r.doc_fiscal_numero,
+        requiere_oc_default: r.requiere_oc_default
+      });
+      return;
+    }
+    toUpdate.push({
+      id: target.id,
+      nombre: r.nombre,
+      contacto: r.contacto,
+      telefono: r.telefono,
+      tipo_cliente: r.tipo_cliente,
+      doc_fiscal_tipo: r.doc_fiscal_tipo,
+      doc_fiscal_numero: r.doc_fiscal_numero,
+      requiere_oc_default: r.requiere_oc_default
+    });
+  });
+
+  let inserted = 0;
+  let updated = 0;
+  const dbErrors = [];
+
+  if (toInsert.length) {
+    const { error } = await supabase.from("clientes").insert(toInsert);
+    if (error) {
+      dbErrors.push(`Insert: ${error.message}`);
+    } else {
+      inserted = toInsert.length;
+    }
+  }
+
+  for (const row of toUpdate) {
+    const { id, ...payload } = row;
+    const { error } = await supabase.from("clientes").update(payload).eq("id", id);
+    if (error) {
+      dbErrors.push(`Update ID ${id}: ${error.message}`);
+    } else {
+      updated += 1;
+    }
+  }
+
+  await loadClientes();
+  const summary = [
+    `Archivo: ${file.name}`,
+    `Filas leidas: ${rawRows.length}`,
+    `Validas: ${prepared.length}`,
+    `Insertadas: ${inserted}`,
+    `Actualizadas: ${updated}`,
+    `Con error: ${invalid.length + dbErrors.length}`
+  ];
+  if (invalid.length) summary.push(`\nErrores de validacion:\n- ${invalid.join("\n- ")}`);
+  if (dbErrors.length) summary.push(`\nErrores de BD:\n- ${dbErrors.join("\n- ")}`);
+  msgC(summary.join("\n"));
 }
 
 function renderClientesTable(rows){
@@ -240,6 +491,13 @@ function wireEventos(){
   });
 
   $("btnReloadClientes").addEventListener("click", loadClientes);
+  $("btnExportClientes").addEventListener("click", downloadClientesCurrentCsv);
+  $("btnImportClientes").addEventListener("click", () => $("c_import_file")?.click());
+  $("c_import_file").addEventListener("change", async (ev) => {
+    const file = ev?.target?.files?.[0];
+    await importClientesFromFile(file);
+    ev.target.value = "";
+  });
   $("btnAddCliente").addEventListener("click", addCliente);
   $("c_filter").addEventListener("input", applyClientesFilter);
 
