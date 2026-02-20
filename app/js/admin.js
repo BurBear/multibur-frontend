@@ -481,6 +481,19 @@ function renderPrioridadBadge(prio) {
   return `<span class="${cls}">${esc(p)}</span>`;
 }
 
+function getProcesosAcabadosText(r) {
+  const procesos = [];
+  if (r?.corte) procesos.push("Corte");
+  if (r?.empaquetado) procesos.push("Empaquetado");
+  if (r?.doblez) procesos.push("Doblez");
+  if (r?.compaginado) procesos.push("Compaginado");
+  if (r?.troquelado) procesos.push("Troquelado");
+  if (r?.sectorizado) procesos.push("Sectorizado");
+  if (r?.barniz) procesos.push("Barniz");
+  if (r?.plastificado) procesos.push(`Plastificado: ${r.plastificado}`);
+  return procesos.length ? procesos.join(", ") : "Ninguno";
+}
+
 function openDetalleOrden(r, extra = null) {
   const entregaRaw = extra?.fecha_entrega || r.fecha_entrega || null;
   const entrega = fmtEntrega(entregaRaw);
@@ -489,6 +502,7 @@ function openDetalleOrden(r, extra = null) {
   const demasia = r.demasia ?? "-";
   const obsAcabados = extra?.observaciones_generales || "-";
   const obsTecnica = r.observacion_tecnica || "-";
+  const procesosAcabados = getProcesosAcabadosText(r);
   const cliTipo = extra?.cliente?.tipo_cliente || "-";
   const cliDocTipo = extra?.cliente?.doc_fiscal_tipo || "-";
   const cliDocNum = extra?.cliente?.doc_fiscal_numero || "-";
@@ -520,6 +534,7 @@ function openDetalleOrden(r, extra = null) {
       <div><span class="detail-k">Color</span><span class="detail-v">${esc(r.color_text || "-")}</span></div>
       <div><span class="detail-k">Cantidad</span><span class="detail-v">${esc(cantidad)}</span></div>
       <div><span class="detail-k">Demasia</span><span class="detail-v">${esc(demasia)}</span></div>
+      <div style="grid-column:1/-1"><span class="detail-k">Procesos acabados</span><span class="detail-v">${esc(procesosAcabados)}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Trabajo</span><span class="detail-v">${esc(r.descripcion_trabajo || "-")}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Observacion tecnica (impresor)</span><span class="detail-v">${esc(obsTecnica)}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Observacion acabados</span><span class="detail-v">${esc(obsAcabados)}</span></div>
@@ -547,14 +562,11 @@ function printOrden(r, extra = null) {
   const demasia = r.demasia ?? "-";
   const obsAcabados = extra?.observaciones_generales || "-";
   const obsTecnica = r.observacion_tecnica || "-";
+  const procesosAcabados = getProcesosAcabadosText(r);
   const cliTipo = extra?.cliente?.tipo_cliente || "-";
   const cliDocTipo = extra?.cliente?.doc_fiscal_tipo || "-";
   const cliDocNum = extra?.cliente?.doc_fiscal_numero || "-";
-  const tieneOc = !!extra?.tiene_oc;
   const ocNum = extra?.oc_numero || "-";
-  const tieneGuia = !!extra?.tiene_guia;
-  const guiaNum = extra?.guia_numero || "-";
-  const guiaObs = extra?.guia_observacion || "-";
   const html = `
 <!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</title>
 <style>
@@ -580,11 +592,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;margin:0;padding:28px;color:var(--i
 <div><span class="k">Documento fiscal</span><span class="v">${esc(`${cliDocTipo} ${cliDocNum}`)}</span></div>
 <div><span class="k">Estado</span><span class="v">${esc(r.estado || "-")}</span></div>
 <div><span class="k">Prioridad</span><span class="v">${esc(r.prioridad || "NORMAL")}</span></div>
-<div><span class="k">Requiere OC</span><span class="v">${tieneOc ? "SI" : "NO"}</span></div>
 <div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}</span></div>
-<div><span class="k">Tiene guia</span><span class="v">${tieneGuia ? "SI" : "NO"}</span></div>
-<div><span class="k">Nro guia</span><span class="v">${esc(guiaNum)}</span></div>
-<div><span class="k">Obs guia</span><span class="v">${esc(guiaObs)}</span></div>
 <div class="wide"><span class="k">Trabajo</span><span class="v">${esc(r.descripcion_trabajo || "-")}</span></div>
 </div></section>
 <section class="section"><h3>Ficha tecnica</h3><div class="grid">
@@ -594,6 +602,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;margin:0;padding:28px;color:var(--i
   <div><span class="k">Impresion / Color</span><span class="v">${esc(fmtTipoImpresion(r.tipo_impresion))} / ${esc(r.color_text || "-")}</span></div>
   <div><span class="k">Cantidad</span><span class="v">${esc(cantidad)}</span></div>
   <div><span class="k">Demasia</span><span class="v">${esc(demasia)}</span></div>
+  <div class="wide"><span class="k">Procesos acabados</span><span class="v">${esc(procesosAcabados)}</span></div>
   <div class="wide"><span class="k">Observacion tecnica (impresor)</span><span class="v">${esc(obsTecnica)}</span></div>
   <div class="wide"><span class="k">Observacion acabados</span><span class="v">${esc(obsAcabados)}</span></div>
 </div></section>

@@ -68,6 +68,14 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
           color_text,
           cantidad_solicitada,
           demasia,
+          corte,
+          empaquetado,
+          doblez,
+          compaginado,
+          troquelado,
+          sectorizado,
+          barniz,
+          plastificado,
           ${withObsTecnica ? "observacion_tecnica," : ""}
           maquina_sugerida_id,
           maquina:maquinas(nombre)
@@ -111,6 +119,14 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
       color_text: det.color_text || "-",
       cantidad_solicitada: det.cantidad_solicitada ?? null,
       demasia: det.demasia ?? null,
+      corte: !!det.corte,
+      empaquetado: !!det.empaquetado,
+      doblez: !!det.doblez,
+      compaginado: !!det.compaginado,
+      troquelado: !!det.troquelado,
+      sectorizado: !!det.sectorizado,
+      barniz: !!det.barniz,
+      plastificado: det.plastificado || null,
       observacion_tecnica: det.observacion_tecnica || null,
       maquina_sugerida_nombre: det.maquina?.nombre || "-"
     };
