@@ -5,10 +5,12 @@ import { $, setText } from "./ui.js";
 const msgC = (t) => setText("msgClientes", t);
 const msgM = (t) => setText("msgMaquinas", t);
 let clientesAll = [];
+let clientesFiltered = [];
+let clientesPage = 1;
+let clientesPageSize = 20;
 const activeTab = (new URLSearchParams(window.location.search).get("tab") || "").toLowerCase();
 const CLIENTE_CSV_HEADERS = [
   "nombre",
-  "contacto",
   "telefono",
   "tipo_cliente",
   "doc_fiscal_tipo",
@@ -133,7 +135,6 @@ function pickCsvCliente(row) {
   return {
     __line: row.__line,
     nombre: String(row.nombre || "").trim(),
-    contacto: String(row.contacto || "").trim() || null,
     telefono: String(row.telefono || "").trim() || null,
     tipo_cliente: normalizeTipoCliente(row.tipo_cliente || "DIRECTO"),
     doc_fiscal_tipo: normalizeDocTipo(row.doc_fiscal_tipo || "RUC"),
@@ -146,7 +147,6 @@ function downloadClientesCurrentCsv() {
   const delimiter = ";";
   const rows = (clientesAll || []).map((c) => ([
     c.nombre || "",
-    c.contacto || "",
     c.telefono || "",
     normalizeTipoCliente(c.tipo_cliente || "DIRECTO"),
     c.doc_fiscal_tipo || "RUC",
@@ -219,7 +219,6 @@ async function importClientesFromFile(file) {
     if (!target) {
       toInsert.push({
         nombre: r.nombre,
-        contacto: r.contacto,
         telefono: r.telefono,
         tipo_cliente: r.tipo_cliente,
         doc_fiscal_tipo: r.doc_fiscal_tipo,
@@ -231,7 +230,6 @@ async function importClientesFromFile(file) {
     toUpdate.push({
       id: target.id,
       nombre: r.nombre,
-      contacto: r.contacto,
       telefono: r.telefono,
       tipo_cliente: r.tipo_cliente,
       doc_fiscal_tipo: r.doc_fiscal_tipo,
@@ -282,7 +280,6 @@ function renderClientesTable(rows){
     <tr data-id="${c.id}">
       <td>${c.id}</td>
       <td><input class="c_nombre w-100" value="${esc(c.nombre)}"></td>
-      <td><input class="c_contacto w-100" value="${esc(c.contacto)}"></td>
       <td><input class="c_telefono w-100" value="${esc(c.telefono)}"></td>
       <td>
         <select class="c_tipo_cliente">
@@ -297,7 +294,7 @@ function renderClientesTable(rows){
         </select>
       </td>
       <td><input class="c_doc_numero w-100" value="${esc(c.doc_fiscal_numero)}"></td>
-      <td style="text-align:center"><input class="c_req_oc" type="checkbox" ${c.requiere_oc_default ? "checked" : ""}></td>
+      <td style="text-align:center; vertical-align:middle"><input class="c_req_oc" type="checkbox" ${c.requiere_oc_default ? "checked" : ""}></td>
       <td class="cell-actions">
         <button class="btn btn-ghost btnSaveCliente">Guardar</button>
         <button class="btn btn-danger btnDelCliente">Eliminar</button>
@@ -306,32 +303,50 @@ function renderClientesTable(rows){
   `).join("");
 }
 
-function applyClientesFilter(){
+function renderClientesPage() {
+  const total = clientesFiltered.length;
+  const pageCount = Math.max(1, Math.ceil(total / clientesPageSize));
+  if (clientesPage > pageCount) clientesPage = pageCount;
+  if (clientesPage < 1) clientesPage = 1;
+
+  const from = total === 0 ? 0 : ((clientesPage - 1) * clientesPageSize) + 1;
+  const to = Math.min(total, clientesPage * clientesPageSize);
+  const start = (clientesPage - 1) * clientesPageSize;
+  const pageRows = clientesFiltered.slice(start, start + clientesPageSize);
+  renderClientesTable(pageRows);
+
+  setText("c_stats", `Mostrando ${from}-${to} de ${total} (total: ${clientesAll.length})`);
+  setText("c_page_info", `${clientesPage} / ${pageCount}`);
+  if ($("c_prev")) $("c_prev").disabled = clientesPage <= 1;
+  if ($("c_next")) $("c_next").disabled = clientesPage >= pageCount;
+}
+
+function applyClientesFilter(resetPage = false){
+  if (resetPage) clientesPage = 1;
   const q = norm($("c_filter")?.value || "");
   const rows = q
-    ? clientesAll.filter(c => norm(`${c.nombre} ${c.contacto || ""} ${c.telefono || ""} ${c.tipo_cliente || ""} ${c.doc_fiscal_tipo || ""} ${c.doc_fiscal_numero || ""}`).includes(q))
+    ? clientesAll.filter(c => norm(`${c.nombre} ${c.telefono || ""} ${c.tipo_cliente || ""} ${c.doc_fiscal_tipo || ""} ${c.doc_fiscal_numero || ""}`).includes(q))
     : clientesAll;
-  renderClientesTable(rows);
-  msgC(`Clientes: ${rows.length} / ${clientesAll.length}`);
+  clientesFiltered = rows;
+  renderClientesPage();
 }
 
 async function loadClientes(){
   msgC("");
   const { data, error } = await supabase
     .from("clientes")
-    .select("id,nombre,contacto,telefono,tipo_cliente,doc_fiscal_tipo,doc_fiscal_numero,requiere_oc_default")
+    .select("id,nombre,telefono,tipo_cliente,doc_fiscal_tipo,doc_fiscal_numero,requiere_oc_default")
     .order("id", { ascending:false });
 
   if(error){ msgC("Error cargando clientes: " + error.message); return; }
 
   clientesAll = data || [];
-  applyClientesFilter();
+  applyClientesFilter(true);
 }
 
 async function addCliente(){
   msgC("");
   const nombre = $("c_nombre").value.trim();
-  const contacto = $("c_contacto").value.trim() || null;
   const telefono = $("c_telefono").value.trim() || null;
   const tipo_cliente = normalizeTipoCliente($("c_tipo_cliente").value || "DIRECTO");
   const doc_fiscal_tipo = $("c_doc_tipo").value || "RUC";
@@ -342,12 +357,11 @@ async function addCliente(){
 
   const { error } = await supabase
     .from("clientes")
-    .insert([{ nombre, contacto, telefono, tipo_cliente, doc_fiscal_tipo, doc_fiscal_numero, requiere_oc_default }]);
+    .insert([{ nombre, telefono, tipo_cliente, doc_fiscal_tipo, doc_fiscal_numero, requiere_oc_default }]);
 
   if(error){ msgC("No pude crear cliente: " + error.message); return; }
 
   $("c_nombre").value = "";
-  $("c_contacto").value = "";
   $("c_telefono").value = "";
   $("c_doc_numero").value = "";
   $("c_tipo_cliente").value = "DIRECTO";
@@ -362,7 +376,6 @@ async function saveCliente(tr){
   msgC("");
   const id = Number(tr.dataset.id);
   const nombre = tr.querySelector(".c_nombre").value.trim();
-  const contacto = tr.querySelector(".c_contacto").value.trim() || null;
   const telefono = tr.querySelector(".c_telefono").value.trim() || null;
   const tipo_cliente = normalizeTipoCliente(tr.querySelector(".c_tipo_cliente").value || "DIRECTO");
   const doc_fiscal_tipo = tr.querySelector(".c_doc_tipo").value || "RUC";
@@ -373,7 +386,7 @@ async function saveCliente(tr){
 
   const { error } = await supabase
     .from("clientes")
-    .update({ nombre, contacto, telefono, tipo_cliente, doc_fiscal_tipo, doc_fiscal_numero, requiere_oc_default })
+    .update({ nombre, telefono, tipo_cliente, doc_fiscal_tipo, doc_fiscal_numero, requiere_oc_default })
     .eq("id", id);
 
   if(error){ msgC("No pude guardar: " + error.message); return; }
@@ -499,7 +512,20 @@ function wireEventos(){
     ev.target.value = "";
   });
   $("btnAddCliente").addEventListener("click", addCliente);
-  $("c_filter").addEventListener("input", applyClientesFilter);
+  $("c_filter").addEventListener("input", () => applyClientesFilter(true));
+  $("c_page_size").addEventListener("change", () => {
+    clientesPageSize = Number($("c_page_size").value || 20);
+    clientesPage = 1;
+    renderClientesPage();
+  });
+  $("c_prev").addEventListener("click", () => {
+    clientesPage -= 1;
+    renderClientesPage();
+  });
+  $("c_next").addEventListener("click", () => {
+    clientesPage += 1;
+    renderClientesPage();
+  });
 
   $("btnReloadMaquinas").addEventListener("click", loadMaquinas);
   $("btnAddMaquina").addEventListener("click", addMaquina);

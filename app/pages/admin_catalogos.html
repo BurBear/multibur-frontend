@@ -38,32 +38,49 @@
       border:1px solid #2a3b61; background:#0e1627; color:#e8eefc;
     }
     .msg{margin-top:10px; font-size:12px; white-space:pre-wrap; opacity:.95}
+    .table-scroll{overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250; max-height:520px}
+    .table-scroll thead th{position:sticky; top:0; z-index:2; background:#101c34}
+    .table-scroll tbody tr:nth-child(odd) td{background:rgba(255,255,255,.01)}
+    .pager{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap}
+    .pager .meta{font-size:12px; opacity:.86}
+    .pager .ctrl{display:flex; align-items:center; gap:8px}
+    .pager .btn{padding:7px 10px; font-size:12px; border-radius:8px}
     .w-100{width:100%}
-    .col-id{width:60px}
+    .col-id{display:none}
     .col-actions{width:170px}
     .table-clientes{min-width:1220px}
     .table-maquinas{min-width:620px}
-    .cell-actions{white-space:nowrap}
+    .cell-actions{white-space:nowrap; text-align:center; vertical-align:middle}
     .cell-actions .btn{
-      padding:7px 10px;
+      padding:5px 8px;
       font-size:12px;
       border-radius:8px;
-      min-width:78px;
+      min-width:68px;
     }
     .cell-actions .btn + .btn{margin-left:6px}
     #tbClientes td input,
     #tbClientes td select,
     #tbMaquinas td input,
     #tbMaquinas td select{
-      min-height:34px;
-      font-size:13px;
+      min-height:30px;
+      padding:6px 8px;
+      font-size:12px;
     }
-    #tbClientes td:nth-child(2) input{min-width:170px}
-    #tbClientes td:nth-child(3) input{min-width:160px}
-    #tbClientes td:nth-child(4) input{min-width:130px}
-    #tbClientes td:nth-child(5) select{min-width:170px}
-    #tbClientes td:nth-child(6) select{min-width:90px}
-    #tbClientes td:nth-child(7) input{min-width:140px}
+    .table-clientes th{padding:8px 10px}
+    #tbClientes td{padding:6px 10px}
+    #tbClientes td input,
+    #tbClientes td select{
+      width:100%;
+      border-radius:11px;
+    }
+    #tbClientes td:nth-child(1), #tbClientes th:nth-child(1){display:none}
+    #tbClientes td:nth-child(2) input{min-width:240px}
+    #tbClientes td:nth-child(3) input{min-width:170px}
+    #tbClientes td:nth-child(4) select{min-width:170px}
+    #tbClientes td:nth-child(5) select{min-width:100px}
+    #tbClientes td:nth-child(6) input{min-width:130px; max-width:150px}
+    #tbClientes td:nth-child(7), #tbClientes th:nth-child(7){text-align:center; vertical-align:middle}
+    #tbClientes td:nth-child(8), #tbClientes th:nth-child(8){text-align:center; vertical-align:middle}
     #tbMaquinas td:nth-child(2) input{min-width:180px}
     #tbMaquinas td:nth-child(3) select{min-width:120px}
   </style>
@@ -105,7 +122,6 @@
 
       <div class="row2" style="margin-top:10px">
         <input id="c_nombre" placeholder="Nombre (ej: UPAO)" style="flex:1; min-width:220px" />
-        <input id="c_contacto" placeholder="Contacto (opcional)" style="flex:1; min-width:200px" />
         <input id="c_telefono" placeholder="Telefono (opcional)" style="width:180px" />
       </div>
       <div class="row2" style="margin-top:10px">
@@ -124,16 +140,30 @@
         </label>
       </div>
       <div class="row2" style="margin-top:10px">
-        <input id="c_filter" placeholder="Buscar cliente por nombre, contacto o telefono..." style="flex:1; min-width:220px" />
+        <input id="c_filter" placeholder="Buscar cliente por nombre, telefono o documento..." style="flex:1; min-width:220px" />
+      </div>
+      <div class="pager">
+        <div id="c_stats" class="meta">Clientes: 0</div>
+        <div class="ctrl">
+          <label class="small" for="c_page_size">Mostrar</label>
+          <select id="c_page_size" style="width:84px">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <button id="c_prev" class="btn btn-ghost" type="button">Anterior</button>
+          <span id="c_page_info" class="small">1 / 1</span>
+          <button id="c_next" class="btn btn-ghost" type="button">Siguiente</button>
+        </div>
       </div>
 
-      <div style="overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250;">
+      <div class="table-scroll">
         <table class="table-clientes">
           <thead>
             <tr>
               <th class="col-id">ID</th>
               <th>Nombre</th>
-              <th>Contacto</th>
               <th>Telefono</th>
               <th>Tipo</th>
               <th>Doc</th>
