@@ -8,6 +8,7 @@ let clientesAll = [];
 let clientesFiltered = [];
 let clientesPage = 1;
 let clientesPageSize = 20;
+let importModalResolver = null;
 const activeTab = (new URLSearchParams(window.location.search).get("tab") || "").toLowerCase();
 const CLIENTE_CSV_HEADERS = [
   "nombre",
@@ -131,6 +132,28 @@ function csvValue(v, delimiter) {
   return `"${raw.replace(/"/g, '""')}"`;
 }
 
+function openImportModal({ title, text, showCancel = true, okLabel = "Confirmar", cancelLabel = "Cancelar" }) {
+  return new Promise((resolve) => {
+    importModalResolver = resolve;
+    setText("importModalTitle", title || "Importar clientes");
+    setText("importModalText", text || "");
+    setText("importModalOk", okLabel);
+    setText("importModalCancel", cancelLabel);
+    if ($("importModalCancel")) $("importModalCancel").style.display = showCancel ? "inline-block" : "none";
+    $("importModalWrap")?.classList.remove("hide");
+    $("importModalWrap")?.setAttribute("aria-hidden", "false");
+  });
+}
+
+function closeImportModal(result = false) {
+  $("importModalWrap")?.classList.add("hide");
+  $("importModalWrap")?.setAttribute("aria-hidden", "true");
+  if (importModalResolver) {
+    importModalResolver(result);
+    importModalResolver = null;
+  }
+}
+
 function pickCsvCliente(row) {
   return {
     __line: row.__line,
@@ -173,6 +196,7 @@ function downloadClientesCurrentCsv() {
 async function importClientesFromFile(file) {
   msgC("");
   if (!file) return;
+  msgC(`Archivo cargado: ${file.name}. Analizando...`);
   const text = await file.text();
   const rawRows = parseCsv(text);
   if (!rawRows.length) {
@@ -200,6 +224,23 @@ async function importClientesFromFile(file) {
     seen.add(key);
     prepared.push(r);
   });
+
+  const proceed = await openImportModal({
+    title: "Confirmar importacion",
+    text:
+      `Archivo: ${file.name}\n` +
+      `Filas leidas: ${rawRows.length}\n` +
+      `Filas validas: ${prepared.length}\n` +
+      `Errores preliminares: ${invalid.length}\n\n` +
+      "¿Deseas importar ahora estos clientes?",
+    showCancel: true,
+    okLabel: "Importar",
+    cancelLabel: "Cancelar"
+  });
+  if (!proceed) {
+    msgC("Importacion cancelada por usuario.");
+    return;
+  }
 
   const existingByDoc = new Map();
   const existingByName = new Map();
@@ -272,7 +313,18 @@ async function importClientesFromFile(file) {
   ];
   if (invalid.length) summary.push(`\nErrores de validacion:\n- ${invalid.join("\n- ")}`);
   if (dbErrors.length) summary.push(`\nErrores de BD:\n- ${dbErrors.join("\n- ")}`);
-  msgC(summary.join("\n"));
+  const summaryText = summary.join("\n");
+  msgC(summaryText);
+  await openImportModal({
+    title: "Importacion finalizada",
+    text:
+      `Insertadas: ${inserted}\n` +
+      `Actualizadas: ${updated}\n` +
+      `Errores: ${invalid.length + dbErrors.length}\n\n` +
+      "Revisa el detalle en el mensaje de clientes.",
+    showCancel: false,
+    okLabel: "Cerrar"
+  });
 }
 
 function renderClientesTable(rows){
@@ -525,6 +577,11 @@ function wireEventos(){
   $("c_next").addEventListener("click", () => {
     clientesPage += 1;
     renderClientesPage();
+  });
+  $("importModalOk").addEventListener("click", () => closeImportModal(true));
+  $("importModalCancel").addEventListener("click", () => closeImportModal(false));
+  $("importModalWrap").addEventListener("click", (ev) => {
+    if (ev.target && ev.target.id === "importModalWrap") closeImportModal(false);
   });
 
   $("btnReloadMaquinas").addEventListener("click", loadMaquinas);

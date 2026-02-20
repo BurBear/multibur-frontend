@@ -90,6 +90,12 @@
     #tbClientes td:nth-child(8), #tbClientes th:nth-child(8){text-align:center; vertical-align:middle}
     #tbMaquinas td:nth-child(2) input{min-width:180px}
     #tbMaquinas td:nth-child(3) select{min-width:120px}
+    .modal-wrap{position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:16px; z-index:70}
+    .modal-wrap.hide{display:none}
+    .modal{width:min(520px,100%); border:1px solid #243250; border-radius:14px; background:#121b2e; overflow:hidden}
+    .modal-head{padding:12px 14px; border-bottom:1px solid #243250; background:#0d1730; font-weight:800}
+    .modal-body{padding:14px}
+    .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:12px}
   </style>
 </head>
 <body>
@@ -148,6 +154,9 @@
       </div>
       <div class="row2" style="margin-top:10px">
         <input id="c_filter" placeholder="Buscar cliente por nombre, telefono o documento..." style="flex:1; min-width:220px" />
+      </div>
+      <div id="c_import_hint" class="small" style="margin-top:8px">
+        Importar CSV procesa y guarda automaticamente. No necesitas usar el boton Agregar.
       </div>
       <div class="pager">
         <div id="c_stats" class="meta">Clientes: 0</div>
@@ -221,6 +230,19 @@
       <div id="msgMaquinas" class="msg"></div>
     </section>
 
+  </div>
+</div>
+
+<div id="importModalWrap" class="modal-wrap hide" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <div class="modal-head" id="importModalTitle">Importar clientes</div>
+    <div class="modal-body">
+      <div id="importModalText" class="small">-</div>
+      <div class="modal-actions">
+        <button id="importModalCancel" class="btn btn-ghost" type="button">Cancelar</button>
+        <button id="importModalOk" class="btn btn-primary" type="button">Confirmar</button>
+      </div>
+    </div>
   </div>
 </div>
 
