@@ -123,7 +123,11 @@ function fmtTipoImpresion(v) {
 }
 
 function validateOrdenForm() {
-  const req = ["o_desc", "o_cliente", "o_entrega", "d_cant", "d_maq", "d_tipoimp", "d_color_mode", "d_color_text"];
+  const isExt = $("o_externo")?.checked ?? false;
+  const req = ["o_desc", "o_cliente", "o_entrega", "d_cant", "d_color_mode"];
+  if (!isExt) {
+    req.push("d_maq", "d_tipoimp", "d_color_text");
+  }
   if ($("d_material")) req.push("d_material");
   if ($("d_formato")) req.push("d_formato");
   if ($("o_tiene_oc")?.checked) req.push("o_oc_numero");
@@ -352,6 +356,25 @@ function syncExternalFlowUI() {
       : "Flujo normal: DISENO -> PLACAS -> IMPRESION -> ACABADOS";
     hint.classList.toggle("is-external", checked);
   }
+
+  const disableIds = ["d_dem", "d_maq", "d_tipoimp", "d_color_text", "d_obs_tecnica"];
+  disableIds.forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    el.disabled = checked;
+    const block = el.closest("div");
+    if (block) block.style.display = checked ? "none" : "";
+  });
+
+  if (checked) {
+    if ($("d_dem")) $("d_dem").value = "";
+    if ($("d_maq")) $("d_maq").value = "";
+    if ($("d_tipoimp")) $("d_tipoimp").value = "";
+    if ($("d_obs_tecnica")) $("d_obs_tecnica").value = "";
+    // Keep color text aligned to selected mode for external flow.
+    $("d_color_mode")?.dispatchEvent(new Event("change"));
+  }
+  refreshFormState();
 }
 
 function syncOcFields() {
@@ -458,16 +481,16 @@ function renderAccion(r) {
     return `<button class="btn btn-warn" type="button" data-action="set" data-oid="${r.orden_id}" data-to="PLACAS" style="padding:8px 10px">Pasar a PLACAS</button>`;
   }
   if (e === "PLACAS") {
-    return `<span class="small muted">Listo para operador</span>`;
+    return `<span class="state-pill is-ready">Listo para operador</span>`;
   }
   if (e === "IMPRESION") {
-    return `<span class="small muted">En impresion (operador)</span>`;
+    return `<span class="state-pill is-printing">En impresion (operador)</span>`;
   }
   if (e === "ACABADOS") {
     return `<button class="btn btn-primary" type="button" data-action="set" data-oid="${r.orden_id}" data-to="${ESTADO_FINAL}" style="padding:8px 10px">FINALIZAR</button>`;
   }
   if (e === estadoKey(ESTADO_FINAL)) {
-    return `<button class="btn btn-ghost" type="button" data-action="deliver" data-oid="${r.orden_id}" style="padding:8px 10px">ENTREGAR</button>`;
+    return `<button class="btn btn-deliver" type="button" data-action="deliver" data-oid="${r.orden_id}" style="padding:8px 10px">ENTREGAR</button>`;
   }
   if (e === estadoKey(ESTADO_ENTREGADO)) {
     return `<span class="small muted">Entregado</span>`;
@@ -770,7 +793,7 @@ async function onGuardarOrden() {
     const anchoFinal = toNumOrNull($("d_ancho")?.value) ?? formatoAncho;
     const altoFinal = toNumOrNull($("d_alto")?.value) ?? formatoAlto;
     const cantFinal = toNumOrNull($("d_cant")?.value);
-    const demasiaFinal = toNumOrNull($("d_dem")?.value);
+    const demasiaFinal = isExt ? null : toNumOrNull($("d_dem")?.value);
 
     if (!cantFinal || cantFinal <= 0) {
       msgCreate("ERROR: La cantidad debe ser mayor a 0.");
@@ -786,9 +809,9 @@ async function onGuardarOrden() {
       formato_id: $("d_formato")?.value ? Number($("d_formato").value) : null,
       cantidad_solicitada: cantFinal,
       demasia: demasiaFinal,
-      maquina_sugerida_id: Number($("d_maq").value),
-      tipo_impresion: toDbTipoImpresion($("d_tipoimp")?.value),
-      observacion_tecnica: $("d_obs_tecnica")?.value?.trim() || null,
+      maquina_sugerida_id: isExt ? null : (Number($("d_maq").value) || null),
+      tipo_impresion: isExt ? null : toDbTipoImpresion($("d_tipoimp")?.value),
+      observacion_tecnica: isExt ? null : ($("d_obs_tecnica")?.value?.trim() || null),
       color_mode: $("d_color_mode")?.value || "FC",
       color_text: $("d_color_text")?.value?.trim() || "F/C",
       corte: $("p_corte")?.checked ?? false,

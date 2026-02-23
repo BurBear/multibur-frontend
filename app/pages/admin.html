@@ -21,6 +21,8 @@
     .btn:disabled{opacity:.55; cursor:not-allowed}
     .btn-primary{background:#1d4ed8; border-color:#2563eb; color:#fff}
     .btn-ghost{background:#0e1627}
+    .btn-deliver{background:#0f766e; border-color:#14b8a6; color:#ecfeff}
+    .btn-deliver:hover{border-color:#2dd4bf; background:#0d615a}
     .btn-danger{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.4); color:#fecaca}
     .btn-warn{background:#f59e0b; border-color:#f59e0b; color:#1f1302}
 
@@ -48,6 +50,29 @@
     .small{font-size:12px; opacity:.82}
     .muted{opacity:.75}
     .row-actions{display:flex; gap:8px; flex-wrap:wrap}
+    .state-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid #2a3b61;
+      font-size:12px;
+      font-weight:700;
+      line-height:1;
+      white-space:nowrap;
+    }
+    .state-pill.is-ready{
+      color:#dbeafe;
+      background:#0e1c38;
+      border-color:#37558a;
+    }
+    .state-pill.is-printing{
+      color:#86efac;
+      background:rgba(34,197,94,.14);
+      border-color:rgba(34,197,94,.5);
+      box-shadow:0 0 0 1px rgba(34,197,94,.12) inset;
+    }
     .msg{margin-top:10px; white-space:pre-wrap; font-size:12px; opacity:.92}
     .hide{display:none !important}
 
