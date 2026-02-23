@@ -11,8 +11,19 @@
     })();
   </script>
   <style>
+    *{box-sizing:border-box}
     body{font-family:system-ui,Arial; margin:0; background:#0b1220; color:#e8eefc;}
-    header{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #243250; background:#0d1730;}
+    .top{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #243250; background:#0d1730;}
+    .brand-wrap{display:flex; flex-direction:column; gap:4px}
+    .brand{font-size:34px; font-weight:900; letter-spacing:-.02em}
+    .role-chip{width:max-content; font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #1f7a57; color:#22c55e; background:rgba(34,197,94,.12)}
+    .top-right{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+    .nav-link{color:#c6d6f3; text-decoration:none; font-size:14px; opacity:.9}
+    .nav-link:hover{opacity:1}
+    .nav-link.is-active{
+      opacity:1; color:#ffffff; background:#143c77; border:1px solid #2563eb;
+      border-radius:999px; padding:6px 10px; font-weight:700;
+    }
     .wrap{max-width:1200px; margin:0 auto; padding:16px;}
     .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
     @media (max-width: 980px){ .grid{grid-template-columns:1fr;} }
@@ -23,11 +34,12 @@
     .card{background:#121b2e; border:1px solid #243250; border-radius:14px; padding:14px;}
     .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between}
     .row2{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-    .btn{padding:10px 12px; border-radius:10px; border:0; cursor:pointer; font-weight:800;}
+    .btn{padding:10px 12px; border-radius:10px; border:1px solid #2a3b61; background:#0e1627; color:#e8eefc; cursor:pointer; font-weight:800}
+    .btn:hover{border-color:#3b4f79}
     .btn-ghost{background:#0e1627; color:#e8eefc; border:1px solid #2a3b61;}
-    .btn-primary{background:#22c55e; color:#05120a;}
-    .btn-danger{background:#ef4444; color:#120606;}
-    .pill{padding:6px 10px; border:1px solid #2a3b61; border-radius:999px; font-size:12px; opacity:.9}
+    .btn-primary{background:#22c55e; border-color:#22c55e; color:#05120a;}
+    .btn-danger{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.4); color:#fecaca}
+    .pill{padding:6px 10px; border:1px solid #2a3b61; border-radius:999px; font-size:12px; opacity:.95}
     .small{font-size:12px; opacity:.82}
     table{width:100%; border-collapse:collapse; font-size:13px;}
     th,td{padding:9px 8px; border-bottom:1px solid #243250; vertical-align:top;}
@@ -96,23 +108,25 @@
     .modal-head{padding:12px 14px; border-bottom:1px solid #243250; background:#0d1730; font-weight:800}
     .modal-body{padding:14px}
     .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:12px}
+    html[data-tab="clientes"] .lnk-clientes{opacity:1; color:#fff; background:#143c77; border:1px solid #2563eb; border-radius:999px; padding:6px 10px; font-weight:700}
+    html[data-tab="maquinas"] .lnk-maquinas{opacity:1; color:#fff; background:#143c77; border:1px solid #2563eb; border-radius:999px; padding:6px 10px; font-weight:700}
   </style>
 </head>
 <body>
-<header>
-  <div>
-    <b id="viewTitle">Catalogos</b>
-    <div id="viewSub" class="small">Admin  -  Clientes y Maquinas</div>
+<header class="top">
+  <div class="brand-wrap">
+    <div class="brand">MultiBur</div>
+    <div class="role-chip">ADMIN</div>
   </div>
-  <div class="row2">
+  <div class="top-right">
+    <a class="nav-link" href="./admin_reportes.html">Reportes</a>
+    <a class="nav-link lnk-clientes" href="./admin_catalogos.html?tab=clientes">Clientes</a>
+    <a class="nav-link lnk-maquinas" href="./admin_catalogos.html?tab=maquinas">Maquinas</a>
+    <a class="nav-link" href="./admin_materiales_formatos.html?tab=materiales">Materiales</a>
+    <a class="nav-link" href="./admin_materiales_formatos.html?tab=formatos">Formatos</a>
+    <a class="nav-link" href="./admin.html">Pizarra</a>
     <span id="userPill" class="pill">-</span>
-    <a class="btn btn-ghost" href="./admin.html">Volver a Admin</a>
-    <a class="btn btn-ghost" href="./admin_reportes.html">Reportes</a>
-    <a class="btn btn-ghost" href="./admin_catalogos.html?tab=clientes">Clientes</a>
-    <a class="btn btn-ghost" href="./admin_catalogos.html?tab=maquinas">Maquinas</a>
-    <a class="btn btn-ghost" href="./admin_materiales_formatos.html?tab=materiales">Materiales</a>
-    <a class="btn btn-ghost" href="./admin_materiales_formatos.html?tab=formatos">Formatos</a>
-    <button id="btnLogout" class="btn btn-ghost">Cerrar sesion</button>
+    <button id="btnLogout" class="btn btn-danger">Salir</button>
   </div>
 
 </header>
