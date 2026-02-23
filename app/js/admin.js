@@ -504,6 +504,38 @@ function renderPrioridadBadge(prio) {
   return `<span class="${cls}">${esc(p)}</span>`;
 }
 
+function parseEntregaDate(value) {
+  if (!value) return null;
+  const s = String(value).trim();
+  const hasOffset = /(?:Z|[+-]\d{2}:\d{2})$/i.test(s);
+  if (hasOffset) {
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) {
+    const [, y, mo, d, hh, mm, ss = "00"] = m;
+    const dt = new Date(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss));
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function isOrdenOverdue(fechaEntrega, estado) {
+  const e = estadoKey(estado);
+  if (e === estadoKey(ESTADO_ENTREGADO)) return false;
+  const entregaDate = parseEntregaDate(fechaEntrega);
+  if (!entregaDate) return false;
+  return entregaDate.getTime() < Date.now();
+}
+
+function renderPizarraBadges(prio, overdue) {
+  const parts = [renderPrioridadBadge(prio)];
+  if (overdue) parts.push(`<span class="prio-badge is-overdue">RETRASO</span>`);
+  return parts.join(" ");
+}
+
 function getProcesosAcabadosText(r) {
   const procesos = [];
   if (r?.corte) procesos.push("Corte");
@@ -664,8 +696,9 @@ async function loadJobs() {
   tb.innerHTML = (rows || []).map((r) => {
     const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
     const entrega = fmtEntrega(r.fecha_entrega);
+    const overdue = isOrdenOverdue(r.fecha_entrega, r.estado);
     return `<tr>
-      <td><b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b><div class="small muted">${esc(r.estado)} - ${renderPrioridadBadge(r.prioridad)}</div></td>
+      <td><b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b><div class="small muted">${esc(r.estado)} - ${renderPizarraBadges(r.prioridad, overdue)}</div></td>
       <td>${esc(entrega)}</td>
       <td>${esc(r.cliente_nombre || "-")}</td>
       <td>${esc(r.descripcion_trabajo || "-")}</td>
