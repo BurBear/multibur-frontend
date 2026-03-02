@@ -1,9 +1,11 @@
 import { requireAdmin, logout, getProfileDisplayName } from "./auth.js";
-import { fetchClientes, fetchReporteEntregados } from "./api.js";
-import { $, setText } from "./ui.js";
+import { fetchClientes, fetchReporteEntregados, fetchRegistros, fetchProfilesByIds, fetchMaquinasByIds, fetchOrdenResumenByIds } from "./api.js";
+import { $, setText, debounce } from "./ui.js";
 
 const msg = (t) => setText("msgReport", t || "");
 let clientesCache = [];
+let previewReqId = 0;
+let activeTab = "entregados";
 
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -23,6 +25,10 @@ function fmtEntrega(value) {
   return d.toLocaleString("es-PE");
 }
 
+function fmtDTPE(x) {
+  return x ? new Date(x).toLocaleString("es-PE", { timeZone: "America/Lima" }) : "-";
+}
+
 function normalizeTipoCliente(v) {
   const t = String(v || "").trim().toUpperCase();
   if (t === "SERVICIO_IMPRESION") return "SERVICIO";
@@ -37,6 +43,25 @@ function fmtTipoImpresion(v) {
   return String(v || "-");
 }
 
+function syncRegsPresetChips() {
+  const current = $("rgPreset")?.value || "today";
+  document.querySelectorAll("#rgQuickPresets .regs-chip").forEach((chip) => {
+    const active = chip.getAttribute("data-rg-preset") === current;
+    chip.classList.toggle("is-active", active);
+  });
+}
+
+function setActiveTab(tab) {
+  activeTab = tab === "produccion" ? "produccion" : "entregados";
+  const isEnt = activeTab === "entregados";
+  $("tabBtnEntregados")?.classList.toggle("is-active", isEnt);
+  $("tabBtnProduccion")?.classList.toggle("is-active", !isEnt);
+  $("tabBtnEntregados")?.setAttribute("aria-selected", isEnt ? "true" : "false");
+  $("tabBtnProduccion")?.setAttribute("aria-selected", !isEnt ? "true" : "false");
+  $("tabEntregados")?.classList.toggle("is-active", isEnt);
+  $("tabProduccion")?.classList.toggle("is-active", !isEnt);
+}
+
 function loadClientesFilter() {
   const sel = $("repCliente");
   if (!sel) return;
@@ -44,6 +69,83 @@ function loadClientesFilter() {
   sel.innerHTML = `<option value="">Todos</option>` +
     (clientesCache || []).map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
   sel.value = current;
+}
+
+function getSelectedClienteNombre(clienteId) {
+  return clienteId
+    ? ((clientesCache || []).find((c) => String(c.id) === String(clienteId))?.nombre || `ID ${clienteId}`)
+    : "Todos";
+}
+
+function renderPreviewRows(rows = []) {
+  const tb = $("repPreviewRows");
+  if (!tb) return;
+  if (!rows.length) {
+    tb.innerHTML = `<tr><td colspan="6" class="preview-empty">No hay registros para mostrar.</td></tr>`;
+    return;
+  }
+  tb.innerHTML = rows.map((r) => `
+    <tr>
+      <td>${esc(r.numero_orden_fisica)}</td>
+      <td>${esc(r.cliente)}</td>
+      <td>${esc(r.trabajo)}</td>
+      <td>${esc(r.formato)}</td>
+      <td>${esc(String(r.cantidad ?? "-"))}</td>
+      <td>${esc(fmtEntrega(r.fecha_entregado))}</td>
+    </tr>
+  `).join("");
+}
+
+function setPreviewState({ sub = "Ajusta los filtros para ver lo que se generará.", rows = null } = {}) {
+  setText("repPreviewSub", sub);
+  if (rows) renderPreviewRows(rows);
+}
+
+async function refreshPreviewReporte() {
+  const clienteId = $("repCliente")?.value || "";
+  const dateFrom = $("repDesde")?.value || "";
+  const dateTo = $("repHasta")?.value || "";
+  const cliente = getSelectedClienteNombre(clienteId);
+  const rango = `${dateFrom || "-"} a ${dateTo || "-"}`;
+
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    setPreviewState({
+      sub: `Rango inválido para ${cliente} (${rango}). Desde no puede ser mayor a Hasta.`,
+      rows: []
+    });
+    return;
+  }
+
+  const reqId = ++previewReqId;
+  setPreviewState({
+    sub: `Calculando vista previa para ${cliente} (${rango})...`,
+    rows: []
+  });
+
+  try {
+    const rows = await fetchReporteEntregados({
+      clienteId: clienteId || null,
+      dateFrom,
+      dateTo,
+      limit: 2000
+    });
+    if (reqId !== previewReqId) return;
+    const total = rows.length;
+    const cantidad = rows.reduce((acc, r) => acc + (Number(r.cantidad || 0) || 0), 0);
+    const isServicioOnly = total > 0 && rows.every((r) => normalizeTipoCliente(r.cliente_tipo) === "SERVICIO");
+    setPreviewState({
+      sub: total
+        ? `Cliente: ${cliente} | Rango: ${rango} | Registros: ${total} | Cantidad total: ${cantidad} | Formato: ${isServicioOnly ? "Servicio" : "Completo"}`
+        : `Cliente: ${cliente} | Rango: ${rango} | No hay trabajos entregados con esos filtros.`,
+      rows: rows.slice(0, 12)
+    });
+  } catch (e) {
+    if (reqId !== previewReqId) return;
+    setPreviewState({
+      sub: `No se pudo calcular la vista previa para ${cliente} (${rango}): ${e?.message || e}`,
+      rows: []
+    });
+  }
 }
 
 async function exportReporteEntregados() {
@@ -71,9 +173,7 @@ async function exportReporteEntregados() {
   const totalOc = rows.reduce((acc, r) => acc + (r.tiene_oc ? 1 : 0), 0);
   const totalGuia = rows.reduce((acc, r) => acc + (r.tiene_guia ? 1 : 0), 0);
   const isServicioOnly = rows.every((r) => normalizeTipoCliente(r.cliente_tipo) === "SERVICIO");
-  const selectedCliente = clienteId
-    ? ((clientesCache || []).find((c) => String(c.id) === String(clienteId))?.nombre || `ID ${clienteId}`)
-    : "Todos";
+  const selectedCliente = getSelectedClienteNombre(clienteId);
   const filtroFecha = `${dateFrom || "-"} a ${dateTo || "-"}`;
 
   const htmlRows = rows.map((r, i) => `
@@ -172,6 +272,49 @@ async function exportReporteEntregados() {
   msg(`OK Reporte generado: ${rows.length} registro(s).`);
 }
 
+async function loadRegistros() {
+  const preset = $("rgPreset")?.value || "today";
+  const fromDate = $("rgFrom")?.value || "";
+  const toDate = $("rgTo")?.value || "";
+  const ordenId = $("rgOrden")?.value ? Number($("rgOrden").value) : null;
+  const userId = $("rgOperador")?.value || "";
+  const regs = await fetchRegistros({ preset, fromDate, toDate, ordenId, userId, limit: 300 });
+  const orderIds = [...new Set((regs || []).map((r) => r.orden_id).filter(Boolean))];
+  const userIds = [...new Set((regs || []).map((r) => r.user_id).filter(Boolean))];
+  const maqIds = [...new Set((regs || []).map((r) => r.maquina_id).filter(Boolean))];
+  const [ordenes, users, maqs] = await Promise.all([
+    fetchOrdenResumenByIds(orderIds),
+    fetchProfilesByIds(userIds),
+    fetchMaquinasByIds(maqIds)
+  ]);
+  const ordenMap = new Map((ordenes || []).map((o) => [o.orden_id, o.numero_orden_fisica]));
+  const userMap = new Map((users || []).map((u) => [u.id, getProfileDisplayName(u) || u.username || u.id]));
+  const maqMap = new Map((maqs || []).map((m) => [m.id, m.nombre]));
+
+  const selOperador = $("rgOperador");
+  if (selOperador) {
+    const current = selOperador.value || "";
+    selOperador.innerHTML = `<option value="">Todos</option>` + (users || []).map((u) => `<option value="${u.id}">${esc(getProfileDisplayName(u) || u.username || u.id)}</option>`).join("");
+    selOperador.value = current;
+  }
+
+  const tb = $("tbRegs");
+  if (tb) {
+    tb.innerHTML = (regs || []).length
+      ? (regs || []).map((r) => `<tr>
+          <td>${esc(ordenMap.get(r.orden_id) || ("#" + r.orden_id))}</td>
+          <td>${esc(userMap.get(r.user_id) || r.user_id || "-")}</td>
+          <td>${esc(maqMap.get(r.maquina_id) || r.maquina_id || "-")}</td>
+          <td>${esc(fmtDTPE(r.hora_inicio))}</td>
+          <td>${esc(fmtDTPE(r.hora_fin))}</td>
+          <td>${esc(r.cantidad_buena ?? "-")}</td>
+          <td>${esc(r.cantidad_mala ?? 0)}</td>
+        </tr>`).join("")
+      : `<tr><td colspan="7" class="preview-empty">No hay registros para los filtros seleccionados.</td></tr>`;
+  }
+  setText("msgRegs", `Registros cargados: ${(regs || []).length}`);
+}
+
 (async function init() {
   const prof = await requireAdmin();
   if (!prof) return;
@@ -190,11 +333,46 @@ async function exportReporteEntregados() {
     if ($("repDesde")) $("repDesde").value = "";
     if ($("repHasta")) $("repHasta").value = "";
     msg("Filtros limpiados.");
+    refreshPreviewReporte();
   });
   $("btnReporteEntregados")?.addEventListener("click", exportReporteEntregados);
+  $("tabBtnEntregados")?.addEventListener("click", () => setActiveTab("entregados"));
+  $("tabBtnProduccion")?.addEventListener("click", () => setActiveTab("produccion"));
+  $("btnReloadRegs")?.addEventListener("click", loadRegistros);
+  $("btnApplyRegs")?.addEventListener("click", loadRegistros);
+  const onPreviewChange = debounce(refreshPreviewReporte, 220);
+  $("repCliente")?.addEventListener("change", onPreviewChange);
+  $("repDesde")?.addEventListener("input", onPreviewChange);
+  $("repDesde")?.addEventListener("change", onPreviewChange);
+  $("repHasta")?.addEventListener("input", onPreviewChange);
+  $("repHasta")?.addEventListener("change", onPreviewChange);
+  $("rgQuickPresets")?.addEventListener("click", (ev) => {
+    const t = ev.target;
+    if (!(t instanceof HTMLElement)) return;
+    const chip = t.closest("button[data-rg-preset]");
+    if (!chip) return;
+    $("rgPreset").value = chip.getAttribute("data-rg-preset");
+    $("rgPreset").dispatchEvent(new Event("change"));
+    loadRegistros();
+  });
+  $("rgPreset")?.addEventListener("change", () => {
+    const custom = $("rgPreset").value === "custom";
+    if (custom) {
+      $("rgFrom")?.removeAttribute("disabled");
+      $("rgTo")?.removeAttribute("disabled");
+    } else {
+      $("rgFrom")?.setAttribute("disabled", "disabled");
+      $("rgTo")?.setAttribute("disabled", "disabled");
+    }
+    syncRegsPresetChips();
+  });
+  $("rgPreset")?.dispatchEvent(new Event("change"));
 
   clientesCache = await fetchClientes().catch(() => []);
   loadClientesFilter();
+  setActiveTab("entregados");
+  refreshPreviewReporte();
+  loadRegistros();
 })().catch((e) => {
   console.error("ADMIN_REPORTES_INIT_ERROR:", e);
   msg("ERROR cargando reportes: " + (e?.message || e));

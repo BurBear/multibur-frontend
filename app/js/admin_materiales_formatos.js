@@ -8,6 +8,10 @@ let materialesAll = [];
 let materialesFiltered = [];
 let materialesPage = 1;
 let materialesPageSize = 20;
+let formatosAll = [];
+let formatosFiltered = [];
+let formatosPage = 1;
+let formatosPageSize = 20;
 const activeTab = (new URLSearchParams(window.location.search).get("tab") || "").toLowerCase();
 
 function esc(s){
@@ -148,12 +152,18 @@ async function loadFormatos(){
   msgFor("");
   const { data, error } = await supabase
     .from("formatos")
-    .select("id,nombre,ancho,alto,notas")
+    .select("id,nombre,ancho,alto")
     .order("id", { ascending:false });
 
   if(error){ msgFor("Error cargando formatos: " + error.message); return; }
 
-  $("tbFor").innerHTML = (data||[]).map(f => `
+  formatosAll = data || [];
+  formatosFiltered = formatosAll.slice();
+  applyFormatosFilter();
+}
+
+function renderFormatosTable(rows){
+  $("tbFor").innerHTML = (rows||[]).map(f => `
     <tr data-id="${f.id}">
       <td>${f.id}</td>
       <td><input class="f_nombre w-100" value="${esc(f.nombre)}"></td>
@@ -165,8 +175,37 @@ async function loadFormatos(){
       </td>
     </tr>
   `).join("");
+}
 
-  msgFor(`Formatos: ${(data||[]).length}`);
+function renderFormatosPage() {
+  const total = formatosFiltered.length;
+  const totalPages = Math.max(1, Math.ceil(total / formatosPageSize));
+  formatosPage = Math.min(formatosPage, totalPages);
+  const start = (formatosPage - 1) * formatosPageSize;
+  const end = start + formatosPageSize;
+  const pageRows = formatosFiltered.slice(start, end);
+
+  renderFormatosTable(pageRows);
+
+  const from = total ? start + 1 : 0;
+  const to = Math.min(end, total);
+  setText("for_stats", `Mostrando ${from}-${to} de ${total} (total: ${formatosAll.length})`);
+  setText("for_page_info", `${formatosPage} / ${totalPages}`);
+
+  const prev = $("btnForPrev");
+  const next = $("btnForNext");
+  if (prev) prev.disabled = formatosPage <= 1;
+  if (next) next.disabled = formatosPage >= totalPages;
+}
+
+function applyFormatosFilter(){
+  const q = norm($("for_filter")?.value || "");
+  formatosFiltered = q
+    ? formatosAll.filter(f => norm(`${f.nombre || ""} ${f.ancho || ""} ${f.alto || ""}`).includes(q))
+    : formatosAll;
+  formatosPage = 1;
+  renderFormatosPage();
+  msgFor(`Formatos filtrados: ${formatosFiltered.length} / ${formatosAll.length}`);
 }
 
 async function addFormato(){
@@ -175,7 +214,6 @@ async function addFormato(){
   const nombre = $("for_nombre").value.trim() || null;
   const ancho = $("for_ancho").value ? Number($("for_ancho").value) : null;
   const alto = $("for_alto").value ? Number($("for_alto").value) : null;
-  const notas = $("for_notas").value.trim() || null;
 
   if(ancho === null) return msgFor("Falta ancho.");
   if(alto === null) return msgFor("Falta alto.");
@@ -184,14 +222,13 @@ async function addFormato(){
 
   const { error } = await supabase
     .from("formatos")
-    .insert([{ nombre: finalNombre, ancho, alto, notas }]);
+    .insert([{ nombre: finalNombre, ancho, alto }]);
 
   if(error){ msgFor("No pude crear: " + error.message); return; }
 
   $("for_nombre").value = "";
   $("for_ancho").value = "";
   $("for_alto").value = "";
-  $("for_notas").value = "";
 
   msgFor("OK Formato creado.");
   await loadFormatos();
@@ -263,6 +300,23 @@ function wire(){
 
   $("btnReloadFor").addEventListener("click", loadFormatos);
   $("btnAddFor").addEventListener("click", addFormato);
+  $("for_filter").addEventListener("input", applyFormatosFilter);
+  $("for_page_size").addEventListener("change", () => {
+    formatosPageSize = Number($("for_page_size").value || 20);
+    formatosPage = 1;
+    renderFormatosPage();
+  });
+  $("btnForPrev").addEventListener("click", () => {
+    if (formatosPage <= 1) return;
+    formatosPage -= 1;
+    renderFormatosPage();
+  });
+  $("btnForNext").addEventListener("click", () => {
+    const totalPages = Math.max(1, Math.ceil(formatosFiltered.length / formatosPageSize));
+    if (formatosPage >= totalPages) return;
+    formatosPage += 1;
+    renderFormatosPage();
+  });
 
   $("tbMat").addEventListener("click", async (e) => {
     const tr = e.target.closest("tr");

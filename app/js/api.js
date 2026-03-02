@@ -249,6 +249,10 @@ export async function fetchOrdenById(ordenId) {
       tiene_guia,
       guia_numero,
       guia_observacion,
+      detalles_orden(
+        cantidad_solicitada,
+        demasia
+      ),
       cliente:clientes(nombre,tipo_cliente,doc_fiscal_tipo,doc_fiscal_numero)
     `)
     .eq("id", ordenId)

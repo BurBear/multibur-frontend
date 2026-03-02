@@ -1,48 +1,254 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MultiBur | Registro de Producción</title>
+  <title>MultiBur | Registro de Produccion</title>
   <style>
-    body{font-family:system-ui,Arial; margin:0; background:#0b1220; color:#e8eefc;}
-    header{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #243250; background:#0d1730;}
-    .brand{font-weight:800}
-    .pill{padding:6px 10px; border:1px solid #2a3b61; border-radius:999px; font-size:12px; opacity:.9}
-    .wrap{max-width:1100px; margin:0 auto; padding:16px;}
-    .grid{display:grid; grid-template-columns: 1.1fr .9fr; gap:14px;}
+    *{box-sizing:border-box}
+    :root{
+      --bg:#07101d;
+      --panel:#121b2e;
+      --panel-2:#0e1627;
+      --line:#243250;
+      --line-2:#2a3b61;
+      --text:#e8eefc;
+      --muted:#a8b8d9;
+      --blue:#2563eb;
+      --blue-soft:#143c77;
+      --green:#22c55e;
+      --green-soft:rgba(34,197,94,.12);
+      --shadow:0 22px 60px rgba(2,8,23,.45);
+    }
+    body{
+      font-family:system-ui,Arial;
+      margin:0;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 0% 0%, rgba(37,99,235,.14), transparent 45%),
+        radial-gradient(900px 600px at 100% 0%, rgba(34,197,94,.08), transparent 40%),
+        linear-gradient(180deg, #091326 0%, var(--bg) 100%);
+      min-height:100vh;
+    }
+    .top{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:18px 20px;
+      border-bottom:1px solid var(--line);
+      background:rgba(13,23,48,.92);
+      backdrop-filter:blur(10px);
+    }
+    .brand-wrap{display:flex; flex-direction:column; gap:4px}
+    .brand-main{font-size:34px; font-weight:900; letter-spacing:-.03em; line-height:1}
+    .role-chip{
+      width:max-content;
+      font-size:11px;
+      padding:3px 9px;
+      border-radius:999px;
+      border:1px solid #1f7a57;
+      color:var(--green);
+      background:var(--green-soft);
+    }
+    .brand{font-weight:900; font-size:28px; line-height:1.05}
+    .brand-sub{font-size:13px; color:var(--muted)}
+    .top-right{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+    .pill{
+      padding:7px 12px;
+      border:1px solid var(--line-2);
+      border-radius:999px;
+      font-size:12px;
+      opacity:.96;
+      background:rgba(11,22,46,.85);
+    }
+    .wrap{max-width:1220px; margin:0 auto; padding:18px;}
+    .grid{display:grid; grid-template-columns: 1.3fr .7fr; gap:16px; align-items:start;}
     @media (max-width: 960px){ .grid{grid-template-columns:1fr;} }
 
-    .card{background:#121b2e; border:1px solid #243250; border-radius:14px; padding:14px;}
+    .card{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow:var(--shadow);
+    }
+    .card-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      padding:16px 16px 14px;
+      border-bottom:1px solid var(--line);
+      background:linear-gradient(180deg, rgba(13,23,48,.94), rgba(13,23,48,.78));
+    }
+    .card-title{margin:0; font-size:16px; font-weight:900}
+    .card-subtitle{margin-top:4px; font-size:12px; color:var(--muted)}
+    .card-body{padding:16px}
     h2{margin:0 0 10px; font-size:16px;}
     table{width:100%; border-collapse:collapse; font-size:13px;}
-    th,td{padding:9px 8px; border-bottom:1px solid #243250; vertical-align:top;}
-    th{opacity:.85; text-align:left; font-weight:700;}
-    tr:hover td{background:#0e1627;}
-    .muted{opacity:.75}
-    .btn{padding:10px 12px; border-radius:10px; border:0; cursor:pointer; font-weight:800;}
-    .btn-primary{background:#22c55e; color:#05120a;}
-    .btn-warn{background:#fbbf24; color:#1d1400;}
-    .btn-ghost{background:#0e1627; color:#e8eefc; border:1px solid #2a3b61;}
+    th,td{padding:12px 10px; border-bottom:1px solid var(--line); vertical-align:top;}
+    th{
+      opacity:.86;
+      text-align:left;
+      font-weight:800;
+      font-size:11px;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      color:#c6d6f3;
+    }
+    tr:hover td{background:#112041;}
+    .muted{color:var(--muted)}
+    .btn{
+      padding:11px 14px;
+      border-radius:12px;
+      border:1px solid var(--line-2);
+      cursor:pointer;
+      font-weight:900;
+      background:var(--panel-2);
+      color:var(--text);
+      transition:.16s ease;
+    }
+    .btn:hover{border-color:#3b4f79; transform:translateY(-1px)}
+    .btn-primary{
+      background:linear-gradient(180deg, #22c55e, #16a34a);
+      border-color:#1f7a57;
+      color:#05120a;
+      box-shadow:0 10px 24px rgba(34,197,94,.2);
+    }
+    .btn-warn{
+      background:linear-gradient(180deg, #fbbf24, #f59e0b);
+      border-color:#f59e0b;
+      color:#1d1400;
+    }
+    .btn-ghost{background:var(--panel-2); color:var(--text);}
     .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-    select,input,textarea{width:100%; padding:9px 10px; border-radius:10px; border:1px solid #2a3b61; background:#0e1627; color:#e8eefc;}
-    textarea{min-height:80px; resize:vertical;}
-    .small{font-size:12px; opacity:.8}
+    select,input,textarea{
+      width:100%;
+      padding:11px 12px;
+      border-radius:12px;
+      border:1px solid var(--line-2);
+      background:var(--panel-2);
+      color:var(--text);
+    }
+    textarea{min-height:96px; resize:vertical;}
+    .small{font-size:12px; color:var(--muted)}
+    .meta{font-size:12px; color:var(--muted)}
     .kpi{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
     @media (max-width: 700px){ .kpi{grid-template-columns:repeat(2,1fr);} }
-    .k{background:#0e1627; border:1px solid #2a3b61; border-radius:12px; padding:10px;}
-    .k .t{font-size:12px; opacity:.8}
-    .k .v{font-size:16px; font-weight:900; margin-top:3px}
-    .msg{white-space:pre-wrap; font-size:12px; margin-top:10px; opacity:.9}
-    .badge{display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px; border:1px solid #2a3b61; background:#0e1627}
+    .k{
+      background:linear-gradient(180deg, rgba(11,22,46,.92), rgba(14,22,39,.98));
+      border:1px solid var(--line-2);
+      border-radius:14px;
+      padding:12px;
+    }
+    .k .t{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em}
+    .k .v{font-size:18px; font-weight:900; margin-top:6px}
+    .msg{white-space:pre-wrap; font-size:12px; margin-top:10px; color:var(--muted)}
+    .badge{
+      display:inline-block;
+      padding:5px 9px;
+      border-radius:999px;
+      font-size:11px;
+      border:1px solid var(--line-2);
+      background:var(--panel-2);
+    }
     .hide{display:none;}
+    .pager{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin:10px 0}
+    .pager-left,.pager-right{display:flex; gap:10px; align-items:center}
+    .pager-right{margin-left:auto; justify-content:flex-end; flex-wrap:nowrap}
+    .pager-right .btn,
+    .pager-right .meta,
+    .pager-right label{white-space:nowrap}
+    #pendPageInfo{min-width:40px; text-align:center}
+    #pendLimit{flex:0 0 100px}
+    @media (max-width: 700px){
+      .pager-right{
+        width:100%;
+        justify-content:flex-start;
+        overflow:auto;
+        padding-bottom:2px;
+      }
+    }
+    .tableWrap{
+      overflow:auto;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(9,19,38,.55);
+      max-height:calc(100vh - 360px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.02);
+    }
+    .tableWrap thead th{position:sticky; top:0; background:#14203a; z-index:1;}
+    @media (max-width: 960px){ .tableWrap{max-height:none;} }
 
-    /* Tabs */
-    .tabs{display:flex; gap:8px; margin:10px 0 12px;}
-    .tab{padding:8px 10px; border:1px solid #2a3b61; border-radius:10px; background:#0e1627; color:#e8eefc; cursor:pointer; font-weight:800; font-size:12px;}
-    .tab.active{outline:2px solid #2a3b61;}
+    .hint-strip{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:center;
+      padding:12px 14px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:linear-gradient(180deg, rgba(20,32,58,.75), rgba(11,22,46,.95));
+      margin-bottom:14px;
+    }
+    .hint-label{font-size:12px; color:var(--muted)}
+    .hint-strong{font-size:13px; font-weight:800}
+    .tabs{display:flex; gap:8px; margin:12px 0 14px;}
+    .tab{
+      padding:9px 12px;
+      border:1px solid var(--line-2);
+      border-radius:12px;
+      background:var(--panel-2);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+      font-size:12px;
+    }
+    .tab.active{
+      background:linear-gradient(180deg, rgba(37,99,235,.28), rgba(20,60,119,.75));
+      border-color:#4f80dc;
+      box-shadow:0 0 0 1px rgba(96,165,250,.2) inset;
+    }
+    .quick-tools{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-bottom:12px;
+    }
+    .quick-tools .search{flex:1; min-width:240px}
+    .section-label{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:12px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      color:#c6d6f3;
+      margin-bottom:10px;
+    }
+    .section-label::before{
+      content:"";
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      background:var(--green);
+      box-shadow:0 0 0 6px rgba(34,197,94,.12);
+    }
+    .panel-stack{display:grid; gap:14px}
+    .status-list{display:grid; gap:10px; margin-top:14px}
+    .status-card{
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:linear-gradient(180deg, rgba(17,32,65,.82), rgba(11,22,46,.98));
+      padding:12px;
+    }
+    .status-card .title{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em}
+    .status-card .value{font-size:15px; font-weight:800; margin-top:5px}
+    .status-card .desc{font-size:12px; color:var(--muted); margin-top:6px; line-height:1.45}
 
-    /* ✅ Modal */
+    /* Modal */
     .modalWrap{
       position:fixed; inset:0;
       display:flex; align-items:center; justify-content:center;
@@ -53,16 +259,16 @@
     }
     .modal{
       width:min(920px, 100%);
-      background:#121b2e;
-      border:1px solid #243250;
-      border-radius:16px;
-      box-shadow:0 12px 50px rgba(0,0,0,.45);
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:18px;
+      box-shadow:var(--shadow);
       overflow:hidden;
     }
     .modalHead{
       display:flex; align-items:center; justify-content:space-between;
       padding:12px 14px;
-      border-bottom:1px solid #243250;
+      border-bottom:1px solid var(--line);
       background:#0d1730;
     }
     .modalTitle{font-weight:900}
@@ -70,29 +276,66 @@
     .modalGrid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
     @media (max-width: 900px){ .modalGrid{grid-template-columns:1fr;} }
     .box{
-      background:#0e1627;
-      border:1px solid #2a3b61;
-      border-radius:12px;
-      padding:12px;
+      background:var(--panel-2);
+      border:1px solid var(--line-2);
+      border-radius:14px;
+      padding:14px;
     }
     .box h3{margin:0 0 10px; font-size:13px; opacity:.9}
     .twoCol{display:grid; grid-template-columns:1fr 1fr; gap:10px}
     @media (max-width: 700px){ .twoCol{grid-template-columns:1fr;} }
+    .focus-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+      margin-bottom:12px;
+    }
+    .focus-stat{
+      border:1px solid var(--line-2);
+      border-radius:14px;
+      background:linear-gradient(180deg, rgba(20,60,119,.35), rgba(11,22,46,.96));
+      padding:12px;
+    }
+    .focus-stat .k{
+      display:block;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      color:#c6d6f3;
+      margin-bottom:5px;
+    }
+    .focus-stat .v{
+      display:block;
+      font-size:24px;
+      font-weight:900;
+      line-height:1.05;
+      color:#fff;
+    }
 
-    .help{font-size:12px; opacity:.8; line-height:1.4}
+    .help{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.55;
+      border-top:1px solid var(--line);
+      padding-top:10px;
+    }
     .modalWrap.hide{display:none;}
   </style>
 </head>
 
 <body>
-<header>
-  <div>
-    <div class="brand">Registro de Producción</div>
-    <div class="small">Operador selecciona trabajo → inicia → finaliza</div>
+<header class="top">
+  <div class="brand-wrap">
+    <div class="brand-main">MultiBur</div>
+    <span class="role-chip">OPERADOR</span>
   </div>
-  <div class="row">
-    <span id="userPill" class="pill">—</span>
-    <button id="btnLogout" class="btn btn-ghost" type="button">Cerrar sesión</button>
+  <div>
+    <div class="brand">Registro de Produccion</div>
+    <div class="brand-sub">Panel operativo para seleccionar, iniciar y finalizar trabajos de impresion</div>
+  </div>
+  <div class="top-right">
+    <span id="userPill" class="pill">-</span>
+    <button id="btnLogout" class="btn btn-ghost" type="button">Cerrar sesion</button>
   </div>
 </header>
 
@@ -100,8 +343,21 @@
   <div class="grid">
     <!-- IZQ -->
     <div class="card">
-      <h2>Panel del Operador</h2>
-      <div class="small muted">Tip: solo puedes INICIAR cuando el estado es <b>PLACAS</b>.</div>
+      <div class="card-head">
+        <div>
+          <div class="card-title">Panel del Operador</div>
+          <div class="card-subtitle">Solo se muestran trabajos listos para imprimir. La accion principal es iniciar desde PLACAS.</div>
+        </div>
+        <button id="btnReload" class="btn btn-ghost" type="button">Recargar</button>
+      </div>
+      <div class="card-body">
+      <div class="hint-strip">
+        <div>
+          <div class="hint-label">Flujo permitido</div>
+          <div class="hint-strong">Solo puedes iniciar cuando el estado es PLACAS</div>
+        </div>
+        <span class="pill">Solo trabajos en PLACAS</span>
+      </div>
 
       <div class="tabs">
         <button id="tabPend" class="tab active" type="button">Trabajos por hacer</button>
@@ -110,19 +366,31 @@
 
       <!-- Pendientes -->
       <section id="secPend">
-        <div style="margin:10px 0" class="row">
-          <input id="q" placeholder="Buscar: cliente, trabajo, N° orden..." />
-          <select id="fEstado" style="max-width:220px">
-            <option value="">Todos (no terminados)</option>
-            <option value="DISEÑO">DISEÑO</option>
-            <option value="PLACAS">PLACAS</option>
-            <option value="IMPRESION">IMPRESION</option>
-            <option value="ACABADOS">ACABADOS</option>
-          </select>
-          <button id="btnReload" class="btn btn-ghost" type="button">Recargar</button>
+        <div class="section-label">Cola de impresion</div>
+        <div class="quick-tools">
+          <div class="search">
+            <input id="q" placeholder="Buscar: cliente, trabajo, nro orden..." />
+          </div>
         </div>
 
-        <div style="overflow:auto; border-radius:12px; border:1px solid #243250;">
+        <div class="pager">
+          <div class="pager-left">
+            <div id="pendStats" class="meta">Mostrando 0-0 de 0</div>
+          </div>
+          <div class="pager-right">
+            <label class="small" for="pendLimit">Mostrar</label>
+            <select id="pendLimit" style="max-width:100px">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+            </select>
+            <button id="btnPendPrev" class="btn btn-ghost" type="button">Anterior</button>
+            <div id="pendPageInfo" class="meta">1 / 1</div>
+            <button id="btnPendNext" class="btn btn-ghost" type="button">Siguiente</button>
+          </div>
+        </div>
+
+        <div class="tableWrap">
           <table>
             <thead>
               <tr>
@@ -130,9 +398,9 @@
                 <th>Cliente</th>
                 <th>Trabajo</th>
                 <th>Formato</th>
-                <th>Impresión</th>
+                <th>Impresion</th>
                 <th>Color</th>
-                <th>Máq. sug.</th>
+                <th>Maq. sug.</th>
                 <th></th>
               </tr>
             </thead>
@@ -145,17 +413,18 @@
 
       <!-- Hoy -->
       <section id="secHoy" class="hide">
+        <div class="section-label">Mi produccion de hoy</div>
         <div style="margin:10px 0" class="row">
           <button id="btnReloadHoy" class="btn btn-ghost" type="button">Actualizar hoy</button>
         </div>
 
-        <div style="overflow:auto; border-radius:12px; border:1px solid #243250;">
+        <div class="tableWrap">
           <table>
             <thead>
               <tr>
                 <th>Registro</th>
                 <th>Orden</th>
-                <th>Máquina</th>
+                <th>Maquina</th>
                 <th>Inicio</th>
                 <th>Fin</th>
                 <th>Buena</th>
@@ -168,27 +437,50 @@
 
         <div id="msgHoy" class="msg"></div>
       </section>
+      </div>
     </div>
 
     <!-- DER: solo KPIs (el formulario va en modal) -->
     <div class="card">
-      <h2>Mi registro (Operador)</h2>
-
-      <div class="kpi">
-        <div class="k"><div class="t">Registro activo</div><div id="kAct" class="v">—</div></div>
-        <div class="k"><div class="t">Orden</div><div id="kOrd" class="v">—</div></div>
-        <div class="k"><div class="t">Máquina</div><div id="kMaq" class="v">—</div></div>
-        <div class="k"><div class="t">Inicio</div><div id="kIni" class="v">—</div></div>
+      <div class="card-head">
+        <div>
+          <div class="card-title">Mi registro</div>
+          <div class="card-subtitle">Estado actual del operador y guia rapida de trabajo.</div>
+        </div>
       </div>
+      <div class="card-body">
+      <div class="panel-stack">
+        <div class="kpi">
+          <div class="k"><div class="t">Registro activo</div><div id="kAct" class="v">-</div></div>
+          <div class="k"><div class="t">Orden</div><div id="kOrd" class="v">-</div></div>
+          <div class="k"><div class="t">Maquina</div><div id="kMaq" class="v">-</div></div>
+          <div class="k"><div class="t">Inicio</div><div id="kIni" class="v">-</div></div>
+        </div>
 
-      <div class="msg muted" style="margin-top:12px">
-        Para trabajar una orden, presiona <b>Elegir</b>. Se abrirá una ventana con el detalle y las acciones.
+        <div class="status-list">
+          <div class="status-card">
+            <div class="title">Paso 1</div>
+            <div class="value">Elegir trabajo</div>
+            <div class="desc">Selecciona una orden de la cola. El modal mostrara detalle completo antes de iniciar.</div>
+          </div>
+          <div class="status-card">
+            <div class="title">Paso 2</div>
+            <div class="value">Iniciar impresion</div>
+            <div class="desc">Solo puedes iniciar si la orden esta en PLACAS y si no tienes otro registro activo.</div>
+          </div>
+          <div class="status-card">
+            <div class="title">Paso 3</div>
+            <div class="value">Finalizar con cantidades</div>
+            <div class="desc">Registra cantidad buena, mala y observaciones para cerrar correctamente la produccion.</div>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ✅ MODAL (Detalle + Acciones) -->
+<!-- MODAL (Detalle + Acciones) -->
 <div id="modalWrap" class="modalWrap hide" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modalHead">
@@ -201,46 +493,56 @@
         <!-- Detalle -->
         <div class="box">
           <h3>Datos</h3>
+          <div class="focus-grid">
+            <div class="focus-stat">
+              <span class="k">Cantidad</span>
+              <span id="mCantidad" class="v">-</span>
+            </div>
+            <div class="focus-stat">
+              <span class="k">Demasia</span>
+              <span id="mDemasia" class="v">-</span>
+            </div>
+          </div>
           <div class="twoCol">
             <div class="small muted">
-              <div><b>Orden:</b> <span id="mOrden">—</span></div>
-              <div style="margin-top:6px"><b>Estado:</b> <span id="mEstado">—</span></div>
-              <div style="margin-top:6px"><b>Cliente:</b> <span id="mCliente">—</span></div>
-              <div style="margin-top:6px"><b>Trabajo:</b> <span id="mTrabajo">—</span></div>
+              <div><b>Orden:</b> <span id="mOrden">-</span></div>
+              <div style="margin-top:6px"><b>Estado:</b> <span id="mEstado">-</span></div>
+              <div style="margin-top:6px"><b>Cliente:</b> <span id="mCliente">-</span></div>
+              <div style="margin-top:6px"><b>Trabajo:</b> <span id="mTrabajo">-</span></div>
             </div>
             <div class="small muted">
-              <div><b>Formato:</b> <span id="mFormato">—</span></div>
-              <div style="margin-top:6px"><b>Material:</b> <span id="mMaterial">—</span></div>
-              <div style="margin-top:6px"><b>Impresión:</b> <span id="mImpresion">—</span></div>
-              <div style="margin-top:6px"><b>Color:</b> <span id="mColor">—</span></div>
+              <div><b>Formato:</b> <span id="mFormato">-</span></div>
+              <div style="margin-top:6px"><b>Material:</b> <span id="mMaterial">-</span></div>
+              <div style="margin-top:6px"><b>Impresion:</b> <span id="mImpresion">-</span></div>
+              <div style="margin-top:6px"><b>Color:</b> <span id="mColor">-</span></div>
             </div>
           </div>
 
           <div class="twoCol" style="margin-top:10px">
             <div class="small muted">
-              <div><b>Entrega:</b> <span id="mEntrega">—</span></div>
+              <div><b>Entrega:</b> <span id="mEntrega">-</span></div>
             </div>
             <div class="small muted">
-              <div><b>Máq. sugerida:</b> <span id="mMaqSug">—</span></div>
+              <div><b>Maq. sugerida:</b> <span id="mMaqSug">-</span></div>
             </div>
           </div>
           <div class="small muted" style="margin-top:10px">
-            <div><b>Observación de orden:</b></div>
-            <div id="mObs" style="margin-top:4px; white-space:pre-wrap;">—</div>
+            <div><b>Observacion de orden:</b></div>
+            <div id="mObs" style="margin-top:4px; white-space:pre-wrap;">-</div>
           </div>
         </div>
 
         <!-- Acciones -->
         <div class="box">
-          <h3>Acciones (Producción)</h3>
+          <h3>Acciones (Produccion)</h3>
 
           <div class="small muted" style="margin-bottom:10px">
             <div><b>Seleccionada:</b> <span id="selJob" class="badge">Ninguno</span></div>
-            <div style="margin-top:6px"><b>Estado:</b> <span id="selEstado">—</span></div>
+            <div style="margin-top:6px"><b>Estado:</b> <span id="selEstado">-</span></div>
           </div>
 
           <div style="margin-top:10px">
-            <label class="small">Máquina</label>
+            <label class="small">Maquina</label>
             <select id="maquina"></select>
           </div>
 
@@ -266,7 +568,7 @@
           </div>
 
           <div class="help" style="margin-top:10px">
-            Usa <b>INICIAR</b> para comenzar (solo si está en <b>PLACAS</b>).  
+            Usa <b>INICIAR</b> para comenzar (solo si esta en <b>PLACAS</b>).
             Luego registra cantidades y presiona <b>FINALIZAR</b>.
           </div>
 

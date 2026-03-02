@@ -169,8 +169,26 @@
         <input id="for_ancho" type="number" step="0.01" placeholder="Ancho (ej: 43.0)" style="width:180px" />
         <input id="for_alto" type="number" step="0.01" placeholder="Alto (ej: 30.5)" style="width:180px" />
       </div>
-      <div style="margin-top:10px">
-        <textarea id="for_notas" placeholder="Notas (opcional)"></textarea>
+      <div class="row2" style="margin-top:10px">
+        <input id="for_filter" placeholder="Buscar formato por nombre, ancho o alto..." style="flex:1; min-width:220px" />
+      </div>
+
+      <div class="pager">
+        <div class="pager-left">
+          <div id="for_stats" class="meta">Mostrando 0-0 de 0</div>
+        </div>
+        <div class="pager-right">
+          <label class="small" for="for_page_size">Mostrar</label>
+          <select id="for_page_size">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <button id="btnForPrev" class="btn btn-ghost" type="button">Anterior</button>
+          <div id="for_page_info" class="meta">1 / 1</div>
+          <button id="btnForNext" class="btn btn-ghost" type="button">Siguiente</button>
+        </div>
       </div>
 
       <div class="data-table-wrap">

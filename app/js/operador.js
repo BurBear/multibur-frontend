@@ -49,6 +49,9 @@ let selectedRow = null;
 let activeRegistro = null; // {id, orden_id, maquina_id, hora_inicio} o null
 
 let allPendientes = [];
+let filteredPendientes = [];
+let pendientesPage = 1;
+let pendientesPageSize = 20;
 let maquinasMap = new Map();
 
 /* =========================
@@ -69,6 +72,8 @@ function closeModal(){
 
 function setModalDetails(row){
   if(!row){
+    setVal("mCantidad", "-");
+    setVal("mDemasia", "-");
     setVal("mOrden", "-");
     setVal("mEstado", "-");
     setVal("mCliente", "-");
@@ -86,7 +91,11 @@ function setModalDetails(row){
   const formato = (row.medida_ancho && row.medida_alto) ? `${row.medida_ancho} x ${row.medida_alto}` : "-";
   const entrega = row.fecha_entrega ? fmtDatePE(row.fecha_entrega) : "-";
   const mat = `${row.papel_material || "-"} ${row.gramaje ? (row.gramaje + "g") : ""}`.trim();
+  const cantidad = row.cantidad_solicitada ?? row.cantidad ?? "-";
+  const demasia = row.demasia ?? "-";
 
+  setVal("mCantidad", String(cantidad));
+  setVal("mDemasia", String(demasia));
   setVal("mOrden", row.numero_orden_fisica || ("#" + row.orden_id));
   setVal("mEstado", row.estado || "-");
   setVal("mCliente", row.cliente_nombre || "-");
@@ -108,11 +117,15 @@ async function loadModalDetails(row){
 
   try{
     const ord = await fetchOrdenById(row.orden_id);
+    const detRaw = Array.isArray(ord?.detalles_orden) ? ord.detalles_orden[0] : ord?.detalles_orden;
+    const det = detRaw || {};
     setModalDetails({
       ...row,
       descripcion_trabajo: ord?.descripcion_trabajo ?? row.descripcion_trabajo,
       observaciones_generales: ord?.observaciones_generales ?? row.observaciones_generales,
-      fecha_entrega: ord?.fecha_entrega ?? row.fecha_entrega
+      fecha_entrega: ord?.fecha_entrega ?? row.fecha_entrega,
+      cantidad_solicitada: det?.cantidad_solicitada ?? row.cantidad_solicitada,
+      demasia: det?.demasia ?? row.demasia
     });
   }catch{
     setModalDetails(row);
@@ -208,13 +221,28 @@ function renderPendientes(rows){
   msgL(`Cargados: ${(rows || []).length} trabajo(s).`);
 }
 
+function renderPendientesPage() {
+  const total = filteredPendientes.length;
+  const totalPages = Math.max(1, Math.ceil(total / pendientesPageSize));
+  pendientesPage = Math.min(pendientesPage, totalPages);
+  const start = (pendientesPage - 1) * pendientesPageSize;
+  const end = start + pendientesPageSize;
+  const pageRows = filteredPendientes.slice(start, end);
+  renderPendientes(pageRows);
+
+  const from = total ? start + 1 : 0;
+  const to = Math.min(end, total);
+  setVal("pendStats", `Mostrando ${from}-${to} de ${total}`);
+  setVal("pendPageInfo", `${pendientesPage} / ${totalPages}`);
+  setDisabled("btnPendPrev", pendientesPage <= 1);
+  setDisabled("btnPendNext", pendientesPage >= totalPages);
+}
+
 async function loadTrabajos(){
   msgL("");
 
   const q = (getValue("q") || "").trim().toLowerCase();
-  const fEstado = getValue("fEstado") || "";
-
-  let rows = await fetchTrabajosPendientes({ estado: fEstado });
+  let rows = await fetchTrabajosPendientes({ estado: "PLACAS" });
 
   if(q){
     rows = (rows || []).filter(r => {
@@ -232,7 +260,9 @@ async function loadTrabajos(){
   }
 
   allPendientes = rows || [];
-  renderPendientes(allPendientes);
+  filteredPendientes = allPendientes.slice();
+  pendientesPage = 1;
+  renderPendientesPage();
 }
 
 async function loadActiveRegistro(){
@@ -466,7 +496,22 @@ function setTab(which){
 
   el("btnReload")?.addEventListener("click", loadTrabajos);
   el("q")?.addEventListener("input", debounce(loadTrabajos, 250));
-  el("fEstado")?.addEventListener("change", loadTrabajos);
+  el("pendLimit")?.addEventListener("change", () => {
+    pendientesPageSize = Number(getValue("pendLimit") || 20);
+    pendientesPage = 1;
+    renderPendientesPage();
+  });
+  el("btnPendPrev")?.addEventListener("click", () => {
+    if (pendientesPage <= 1) return;
+    pendientesPage -= 1;
+    renderPendientesPage();
+  });
+  el("btnPendNext")?.addEventListener("click", () => {
+    const totalPages = Math.max(1, Math.ceil(filteredPendientes.length / pendientesPageSize));
+    if (pendientesPage >= totalPages) return;
+    pendientesPage += 1;
+    renderPendientesPage();
+  });
 
   el("btnStart")?.addEventListener("click", startRegistro);
   el("btnStop")?.addEventListener("click", stopRegistro);

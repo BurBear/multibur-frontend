@@ -101,6 +101,19 @@ function fmtEntrega(value) {
   return d.toLocaleString("es-PE");
 }
 
+function formatDurationMinutes(start, end = null) {
+  const startDate = start ? new Date(start) : null;
+  if (!startDate || Number.isNaN(startDate.getTime())) return "-";
+  const endDate = end ? new Date(end) : new Date();
+  if (Number.isNaN(endDate.getTime())) return "-";
+  const diffMs = Math.max(0, endDate.getTime() - startDate.getTime());
+  const totalMin = Math.floor(diffMs / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h <= 0) return `${m} min`;
+  return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
 function toNumOrNull(v) {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
@@ -836,20 +849,66 @@ async function loadRegistros() {
     selOperador.value = current;
   }
 
-  const tb = $("tbRegs");
-  if (tb) {
-    tb.innerHTML = (regs || []).map((r) => `<tr>
-      <td>${esc(ordenMap.get(r.orden_id) || ("#" + r.orden_id))}</td>
-      <td>${esc(userMap.get(r.user_id) || r.user_id || "-")}</td>
-      <td>${esc(maqMap.get(r.maquina_id) || r.maquina_id || "-")}</td>
-      <td>${esc(fmtDTPE(r.hora_inicio))}</td>
-      <td>${esc(fmtDTPE(r.hora_fin))}</td>
-      <td>${esc(r.cantidad_buena ?? "-")}</td>
-      <td>${esc(r.cantidad_mala ?? 0)}</td>
-    </tr>`).join("");
+  const activeRegs = (regs || []).filter((r) => !r.hora_fin);
+  const activeWrap = $("regsActiveNow");
+  if (activeWrap) {
+    activeWrap.innerHTML = activeRegs.length
+      ? activeRegs.map((r) => {
+        const orden = ordenMap.get(r.orden_id) || ("#" + r.orden_id);
+        const operador = userMap.get(r.user_id) || r.user_id || "-";
+        const maq = maqMap.get(r.maquina_id) || r.maquina_id || "-";
+        return `<article class="live-card">
+          <div class="live-card-top">
+            <div>
+              <div class="live-card-name">${esc(operador)}</div>
+              <div class="live-card-order">Orden ${esc(orden)}</div>
+            </div>
+            <div class="live-status"><span class="live-dot"></span>En curso</div>
+          </div>
+          <div class="live-meta">
+            <div class="live-meta-item">
+              <span class="k">Maquina</span>
+              <span class="v">${esc(maq)}</span>
+            </div>
+            <div class="live-meta-item">
+              <span class="k">Inicio</span>
+              <span class="v">${esc(fmtDTPE(r.hora_inicio))}</span>
+            </div>
+            <div class="live-meta-item">
+              <span class="k">Tiempo transcurrido</span>
+              <span class="v">${esc(formatDurationMinutes(r.hora_inicio))}</span>
+            </div>
+            <div class="live-meta-item">
+              <span class="k">Avance registrado</span>
+              <span class="v">Buena: ${esc(r.cantidad_buena ?? 0)} | Mala: ${esc(r.cantidad_mala ?? 0)}</span>
+            </div>
+          </div>
+        </article>`;
+      }).join("")
+      : `<div class="live-empty">No hay operadores trabajando en este momento con los filtros aplicados.</div>`;
+  }
+
+  const recentWrap = $("regsRecentList");
+  if (recentWrap) {
+    recentWrap.innerHTML = (regs || []).length
+      ? (regs || []).slice(0, 14).map((r) => {
+        const orden = ordenMap.get(r.orden_id) || ("#" + r.orden_id);
+        const operador = userMap.get(r.user_id) || r.user_id || "-";
+        const maq = maqMap.get(r.maquina_id) || r.maquina_id || "-";
+        const status = r.hora_fin ? `Finalizo ${fmtDTPE(r.hora_fin)}` : `Activo desde ${fmtDTPE(r.hora_inicio)}`;
+        return `<div class="live-row">
+          <div class="ord">${esc(orden)}</div>
+          <div class="op">${esc(operador)}</div>
+          <div>${esc(maq)}</div>
+          <div class="time">${esc(status)}</div>
+        </div>`;
+      }).join("")
+      : `<div class="live-empty">No hay movimientos para mostrar.</div>`;
   }
   setKPIs(regs);
-  msgRegs(`Registros cargados: ${(regs || []).length}`);
+  msgRegs(activeRegs.length
+    ? `Monitoreo activo: ${activeRegs.length} operador(es) trabajando ahora.`
+    : `Sin operadores activos. Movimientos cargados: ${(regs || []).length}`);
 }
 
 async function onGuardarOrden() {
