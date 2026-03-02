@@ -41,6 +41,16 @@ function msgJobs(t) { setText("msgJobs", t || ""); }
 function msgRegs(t) { setText("msgRegs", t || ""); }
 function msgCreate(t) { setText("msgCreate", t || ""); }
 
+function formatDbError(err) {
+  if (!err) return "Error desconocido.";
+  const parts = [];
+  if (err.message) parts.push(`Mensaje: ${err.message}`);
+  if (err.code) parts.push(`Code: ${err.code}`);
+  if (err.details) parts.push(`Detalle: ${err.details}`);
+  if (err.hint) parts.push(`Hint: ${err.hint}`);
+  return parts.length ? parts.join("\n") : String(err);
+}
+
 function hasExternalFlow(obs) {
   return String(obs || "").toUpperCase().includes(EXTERNAL_TAG);
 }
@@ -114,6 +124,16 @@ function toDbTipoImpresion(v) {
   return raw;
 }
 
+function toDbColorMode(v) {
+  const raw = String(v || "").trim().toUpperCase();
+  if (!raw) return "FC";
+  if (raw === "FC" || raw === "F/C") return "FC";
+  if (raw === "BN" || raw === "1 COLOR" || raw === "1_COLOR" || raw === "ONE_COLOR") return "ONE_COLOR";
+  if (raw === "2 COLORES" || raw === "DOS COLORES" || raw === "TWO_COLORS") return "TWO_COLORS";
+  if (raw === "MIXTO" || raw === "PERSONALIZADO" || raw === "CUSTOM") return "CUSTOM";
+  return raw;
+}
+
 function fmtTipoImpresion(v) {
   const raw = String(v || "").trim().toUpperCase();
   if (raw === "TIRA_RETIRA") return "TIRA/RETIRA";
@@ -132,6 +152,12 @@ function validateOrdenForm() {
   if ($("d_formato")) req.push("d_formato");
   if ($("o_tiene_oc")?.checked) req.push("o_oc_numero");
   const miss = req.filter((id) => !String($(id)?.value ?? "").trim());
+  if (isCustomFormatoSelected()) {
+    if (!String($("d_ancho")?.value ?? "").trim()) miss.push("d_ancho");
+    if (!String($("d_alto")?.value ?? "").trim()) miss.push("d_alto");
+    if ((Number($("d_ancho")?.value || 0)) <= 0) miss.push("d_ancho");
+    if ((Number($("d_alto")?.value || 0)) <= 0) miss.push("d_alto");
+  }
   if ((Number($("d_cant")?.value || 0)) <= 0) miss.push("d_cant");
   return miss;
 }
@@ -297,7 +323,39 @@ async function loadCombosMaterialesFormatos() {
   const selFor = $("d_formato");
   if (selFor) {
     selFor.innerHTML = `<option value="">- Selecciona formato -</option>` +
+      `<option value="__CUSTOM__">Medida personalizada</option>` +
       (fors || []).map((f) => `<option value="${f.id}" data-ancho="${f.ancho ?? ""}" data-alto="${f.alto ?? ""}">${esc(f.nombre)} (${esc(f.ancho)} x ${esc(f.alto)})</option>`).join("");
+  }
+}
+
+function isCustomFormatoSelected() {
+  return String($("d_formato")?.value || "") === "__CUSTOM__";
+}
+
+function syncFormatoFields() {
+  const isCustom = isCustomFormatoSelected();
+  const wrap = $("d_medida_wrap");
+  const hint = $("d_formato_hint");
+  const inpAncho = $("d_ancho");
+  const inpAlto = $("d_alto");
+  const opt = $("d_formato")?.selectedOptions?.[0] || null;
+
+  if (wrap) wrap.classList.toggle("hide", !isCustom);
+  if (hint) {
+    hint.textContent = isCustom
+      ? "Ingresa las medidas manuales para este trabajo."
+      : (opt?.dataset?.ancho && opt?.dataset?.alto
+        ? `Formato seleccionado: ${opt.dataset.ancho} x ${opt.dataset.alto}`
+        : "Usa el catalogo o elige medida personalizada.");
+  }
+
+  if (inpAncho) {
+    inpAncho.disabled = !isCustom;
+    if (!isCustom) inpAncho.value = "";
+  }
+  if (inpAlto) {
+    inpAlto.disabled = !isCustom;
+    if (!isCustom) inpAlto.value = "";
   }
 }
 
@@ -310,26 +368,31 @@ function wireAutoFillMaterialFormato() {
     refreshFormState();
   });
   selFor?.addEventListener("change", () => {
+    syncFormatoFields();
     refreshFormState();
   });
   selColorMode?.addEventListener("change", () => {
-    const mode = selColorMode.value;
+    const mode = toDbColorMode(selColorMode.value);
     if (!inpColorText) return;
     if (mode === "FC") {
       inpColorText.value = "F/C";
       inpColorText.readOnly = true;
-    } else if (mode === "BN") {
+    } else if (mode === "ONE_COLOR") {
       inpColorText.value = "1 COLOR";
+      inpColorText.readOnly = true;
+    } else if (mode === "TWO_COLORS") {
+      inpColorText.value = "2 COLORES";
       inpColorText.readOnly = true;
     } else {
       inpColorText.readOnly = false;
-      if (!String(inpColorText.value || "").trim() || inpColorText.value === "F/C" || inpColorText.value === "1 COLOR") {
+      if (!String(inpColorText.value || "").trim() || inpColorText.value === "F/C" || inpColorText.value === "1 COLOR" || inpColorText.value === "2 COLORES") {
         inpColorText.value = "";
       }
       inpColorText.focus();
     }
     refreshFormState();
   });
+  syncFormatoFields();
   selColorMode?.dispatchEvent(new Event("change"));
 }
 
@@ -817,7 +880,7 @@ async function onGuardarOrden() {
       oc_observacion: $("o_tiene_oc")?.checked ? ($("o_oc_obs")?.value?.trim() || null) : null
     };
     const selectedMaterialId = $("d_material")?.value ? Number($("d_material").value) : null;
-    const selectedFormatoOpt = $("d_formato")?.selectedOptions?.[0] || null;
+    const selectedFormatoOpt = isCustomFormatoSelected() ? null : ($("d_formato")?.selectedOptions?.[0] || null);
     const selectedMaterial = (materialesCache || []).find((m) => Number(m.id) === Number(selectedMaterialId));
     const formatoAncho = toNumOrNull(selectedFormatoOpt?.dataset?.ancho);
     const formatoAlto = toNumOrNull(selectedFormatoOpt?.dataset?.alto);
@@ -839,13 +902,13 @@ async function onGuardarOrden() {
       medida_ancho: anchoFinal,
       medida_alto: altoFinal,
       material_id: selectedMaterialId,
-      formato_id: $("d_formato")?.value ? Number($("d_formato").value) : null,
+      formato_id: isCustomFormatoSelected() ? null : ($("d_formato")?.value ? Number($("d_formato").value) : null),
       cantidad_solicitada: cantFinal,
       demasia: demasiaFinal,
       maquina_sugerida_id: isExt ? null : (Number($("d_maq").value) || null),
       tipo_impresion: isExt ? null : toDbTipoImpresion($("d_tipoimp")?.value),
       observacion_tecnica: isExt ? null : ($("d_obs_tecnica")?.value?.trim() || null),
-      color_mode: $("d_color_mode")?.value || "FC",
+      color_mode: toDbColorMode($("d_color_mode")?.value),
       color_text: $("d_color_text")?.value?.trim() || "F/C",
       corte: $("p_corte")?.checked ?? false,
       empaquetado: $("p_empaq")?.checked ?? false,
@@ -873,11 +936,14 @@ async function onGuardarOrden() {
     syncOcFields();
     $("modalOrdenWrap")?.classList.add("hide");
   } catch (e) {
-    console.error("CREATE_ORDEN_ERROR", e);
-    const detail = e?.details ? `\nDetalle: ${e.details}` : "";
-    const hint = e?.hint ? `\nHint: ${e.hint}` : "";
-    const code = e?.code ? `\nCode: ${e.code}` : "";
-    msgCreate("ERROR guardando orden: " + (e?.message || e) + code + detail + hint);
+    console.error("CREATE_ORDEN_ERROR", {
+      message: e?.message || null,
+      code: e?.code || null,
+      details: e?.details || null,
+      hint: e?.hint || null,
+      raw: e
+    });
+    msgCreate("ERROR guardando orden:\n" + formatDbError(e));
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = old; }
     refreshFormState();
@@ -1041,10 +1107,11 @@ async function exportReporteEntregadosCsv() {
 (async function init() {
   const prof = await requireAdmin();
   if (!prof) return;
-  const dn = getProfileDisplayName(prof);
-  const un = String(prof?.username || "").trim();
-  const identity = un && dn && dn !== un ? `${dn} (${un})` : (dn || un || "Usuario");
-  setText("userPill", `${identity} | ${prof.rol}`);
+  const rawName = String(getProfileDisplayName(prof) || "").trim();
+  const displayName = rawName && !rawName.includes("@")
+    ? rawName
+    : (prof?.rol === "ADMIN" ? "Administrador" : "Usuario");
+  setText("userPill", `${displayName} | ${prof.rol}`);
 
   $("btnLogout")?.addEventListener("click", async () => { await logout(); window.location.href = "./login.html"; });
   $("btnReporteEntregados")?.addEventListener("click", exportReporteEntregadosCsv);
@@ -1105,6 +1172,10 @@ async function exportReporteEntregadosCsv() {
   $("rgPreset")?.dispatchEvent(new Event("change"));
 
   ["o_desc", "o_entrega", "d_cant", "d_maq", "d_tipoimp", "d_color_mode", "d_color_text", "d_formato"].forEach((id) => {
+    $(id)?.addEventListener("input", refreshFormState);
+    $(id)?.addEventListener("change", refreshFormState);
+  });
+  ["d_ancho", "d_alto"].forEach((id) => {
     $(id)?.addEventListener("input", refreshFormState);
     $(id)?.addEventListener("change", refreshFormState);
   });

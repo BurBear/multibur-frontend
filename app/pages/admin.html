@@ -191,6 +191,7 @@
     </div>
     <div class="top-right">
       <a class="nav-link" href="./admin_reportes.html">Reportes</a>
+      <a class="nav-link" href="./admin_catalogos.html?tab=clientes">Clientes</a>
       <a class="nav-link" href="./admin_catalogos.html?tab=maquinas">Maquinas</a>
       <a class="nav-link" href="./admin_materiales_formatos.html?tab=materiales">Materiales</a>
       <a class="nav-link" href="./admin_materiales_formatos.html?tab=formatos">Formatos</a>
@@ -442,6 +443,20 @@
               <div>
                 <label class="field-lb" for="d_formato">Formato</label>
                 <select id="d_formato"></select>
+                <div id="d_formato_hint" class="subtle">Usa el catalogo o elige medida personalizada.</div>
+              </div>
+
+              <div id="d_medida_wrap" class="hide" style="grid-column:1/-1">
+                <div class="grid-fields">
+                  <div>
+                    <label class="field-lb" for="d_ancho">Ancho personalizado</label>
+                    <input id="d_ancho" type="number" min="0" step="0.1" placeholder="Ej: 34.5" />
+                  </div>
+                  <div>
+                    <label class="field-lb" for="d_alto">Alto personalizado</label>
+                    <input id="d_alto" type="number" min="0" step="0.1" placeholder="Ej: 43" />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -474,8 +489,8 @@
                 <label class="field-lb" for="d_color_mode">Modo color</label>
                 <select id="d_color_mode">
                   <option value="FC">F/C</option>
-                  <option value="BN">1 COLOR</option>
-                  <option value="MIXTO">PERSONALIZADO</option>
+                  <option value="ONE_COLOR">1 COLOR</option>
+                  <option value="CUSTOM">PERSONALIZADO</option>
                 </select>
               </div>
 

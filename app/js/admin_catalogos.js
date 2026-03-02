@@ -630,7 +630,11 @@ function applyTabView() {
   const prof = await requireAdmin();
   if(!prof) return;
 
-  setText("userPill", `${getProfileDisplayName(prof)} - ${prof.rol}`);
+  const rawName = String(getProfileDisplayName(prof) || "").trim();
+  const displayName = rawName && !rawName.includes("@")
+    ? rawName
+    : (prof?.rol === "ADMIN" ? "Administrador" : "Usuario");
+  setText("userPill", `${displayName} | ${prof.rol}`);
   applyTabView();
 
   wireEventos();

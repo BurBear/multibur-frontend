@@ -54,8 +54,28 @@
     .w-100{width:100%}
     .col-id{width:60px}
     .col-actions{width:190px}
+    .pager{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-top:10px}
+    .pager-left,.pager-right{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .pager .meta{font-size:12px; opacity:.82}
+    .pager select{min-width:90px}
+    .data-table-wrap{
+      overflow:auto;
+      margin-top:12px;
+      border-radius:12px;
+      border:1px solid #243250;
+      max-height:calc(100vh - 390px);
+    }
+    .data-table-wrap thead th{
+      position:sticky;
+      top:0;
+      z-index:1;
+      background:#121b2e;
+    }
     html[data-tab="materiales"] .lnk-materiales{opacity:1; color:#fff; background:#143c77; border:1px solid #2563eb; border-radius:999px; padding:6px 10px; font-weight:700}
     html[data-tab="formatos"] .lnk-formatos{opacity:1; color:#fff; background:#143c77; border:1px solid #2563eb; border-radius:999px; padding:6px 10px; font-weight:700}
+    @media (max-width: 980px){
+      .data-table-wrap{max-height:none}
+    }
   </style>
 </head>
 <body>
@@ -94,14 +114,29 @@
         <input id="mat_gramaje" type="number" min="0" placeholder="Gramaje (ej: 300)" style="width:170px" />
         <input id="mat_prov" placeholder="Proveedor (opcional)" style="flex:1; min-width:200px" />
       </div>
-      <div style="margin-top:10px">
-        <textarea id="mat_notas" placeholder="Notas (opcional)"></textarea>
-      </div>
       <div class="row2" style="margin-top:10px">
         <input id="mat_filter" placeholder="Buscar material por nombre, gramaje o proveedor..." style="flex:1; min-width:220px" />
       </div>
 
-      <div style="overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250;">
+      <div class="pager">
+        <div class="pager-left">
+          <div id="mat_stats" class="meta">Mostrando 0-0 de 0</div>
+        </div>
+        <div class="pager-right">
+          <label class="small" for="mat_page_size">Mostrar</label>
+          <select id="mat_page_size">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <button id="btnMatPrev" class="btn btn-ghost" type="button">Anterior</button>
+          <div id="mat_page_info" class="meta">1 / 1</div>
+          <button id="btnMatNext" class="btn btn-ghost" type="button">Siguiente</button>
+        </div>
+      </div>
+
+      <div class="data-table-wrap">
         <table>
           <thead>
             <tr>
@@ -138,7 +173,7 @@
         <textarea id="for_notas" placeholder="Notas (opcional)"></textarea>
       </div>
 
-      <div style="overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250;">
+      <div class="data-table-wrap">
         <table>
           <thead>
             <tr>

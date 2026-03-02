@@ -5,6 +5,9 @@ import { $, setText } from "./ui.js";
 const msgMat = (t) => setText("msgMat", t);
 const msgFor = (t) => setText("msgFor", t);
 let materialesAll = [];
+let materialesFiltered = [];
+let materialesPage = 1;
+let materialesPageSize = 20;
 const activeTab = (new URLSearchParams(window.location.search).get("tab") || "").toLowerCase();
 
 function esc(s){
@@ -35,13 +38,35 @@ function renderMaterialesTable(rows){
   `).join("");
 }
 
+function renderMaterialesPage() {
+  const total = materialesFiltered.length;
+  const totalPages = Math.max(1, Math.ceil(total / materialesPageSize));
+  materialesPage = Math.min(materialesPage, totalPages);
+  const start = (materialesPage - 1) * materialesPageSize;
+  const end = start + materialesPageSize;
+  const pageRows = materialesFiltered.slice(start, end);
+
+  renderMaterialesTable(pageRows);
+
+  const from = total ? start + 1 : 0;
+  const to = Math.min(end, total);
+  setText("mat_stats", `Mostrando ${from}-${to} de ${total} (total: ${materialesAll.length})`);
+  setText("mat_page_info", `${materialesPage} / ${totalPages}`);
+
+  const prev = $("btnMatPrev");
+  const next = $("btnMatNext");
+  if (prev) prev.disabled = materialesPage <= 1;
+  if (next) next.disabled = materialesPage >= totalPages;
+}
+
 function applyMaterialesFilter(){
   const q = norm($("mat_filter")?.value || "");
-  const rows = q
+  materialesFiltered = q
     ? materialesAll.filter(m => norm(`${m.nombre} ${m.gramaje || ""} ${m.proveedor || ""}`).includes(q))
     : materialesAll;
-  renderMaterialesTable(rows);
-  msgMat(`Materiales: ${rows.length} / ${materialesAll.length}`);
+  materialesPage = 1;
+  renderMaterialesPage();
+  msgMat(`Materiales filtrados: ${materialesFiltered.length} / ${materialesAll.length}`);
 }
 
 /* =======================
@@ -51,12 +76,13 @@ async function loadMateriales(){
   msgMat("");
   const { data, error } = await supabase
     .from("materiales")
-    .select("id,nombre,gramaje,proveedor,notas")
+    .select("id,nombre,gramaje,proveedor")
     .order("id", { ascending:false });
 
   if(error){ msgMat("Error cargando materiales: " + error.message); return; }
 
   materialesAll = data || [];
+  materialesFiltered = materialesAll.slice();
   applyMaterialesFilter();
 }
 
@@ -66,22 +92,18 @@ async function addMaterial(){
   const nombre = $("mat_nombre").value.trim();
   const gramaje = $("mat_gramaje").value ? Number($("mat_gramaje").value) : null;
   const proveedor = $("mat_prov").value.trim() || null;
-  const notas = $("mat_notas").value.trim() || null;
-
   if(!nombre) return msgMat("Falta nombre.");
   if(!gramaje && gramaje !== 0) return msgMat("Falta gramaje.");
 
   const { error } = await supabase
     .from("materiales")
-    .insert([{ nombre, gramaje, proveedor, notas }]);
+    .insert([{ nombre, gramaje, proveedor }]);
 
   if(error){ msgMat("No pude crear: " + error.message); return; }
 
   $("mat_nombre").value = "";
   $("mat_gramaje").value = "";
   $("mat_prov").value = "";
-  $("mat_notas").value = "";
-
   msgMat("OK Material creado.");
   await loadMateriales();
 }
@@ -222,6 +244,22 @@ function wire(){
   $("btnReloadMat").addEventListener("click", loadMateriales);
   $("btnAddMat").addEventListener("click", addMaterial);
   $("mat_filter").addEventListener("input", applyMaterialesFilter);
+  $("mat_page_size").addEventListener("change", () => {
+    materialesPageSize = Number($("mat_page_size").value || 20);
+    materialesPage = 1;
+    renderMaterialesPage();
+  });
+  $("btnMatPrev").addEventListener("click", () => {
+    if (materialesPage <= 1) return;
+    materialesPage -= 1;
+    renderMaterialesPage();
+  });
+  $("btnMatNext").addEventListener("click", () => {
+    const totalPages = Math.max(1, Math.ceil(materialesFiltered.length / materialesPageSize));
+    if (materialesPage >= totalPages) return;
+    materialesPage += 1;
+    renderMaterialesPage();
+  });
 
   $("btnReloadFor").addEventListener("click", loadFormatos);
   $("btnAddFor").addEventListener("click", addFormato);
@@ -265,7 +303,11 @@ function applyTabView() {
   const prof = await requireAdmin();
   if(!prof) return;
 
-  setText("userPill", `${getProfileDisplayName(prof)} - ${prof.rol}`);
+  const rawName = String(getProfileDisplayName(prof) || "").trim();
+  const displayName = rawName && !rawName.includes("@")
+    ? rawName
+    : (prof?.rol === "ADMIN" ? "Administrador" : "Usuario");
+  setText("userPill", `${displayName} | ${prof.rol}`);
   applyTabView();
   wire();
 

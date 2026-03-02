@@ -453,7 +453,11 @@ function setTab(which){
   if(!session) return;
 
   currentUser = session.user;
-  setVal("userPill", `${getProfileDisplayName(session.prof)} - ${session.prof.rol}`);
+  const rawName = String(getProfileDisplayName(session.prof) || "").trim();
+  const displayName = rawName && !rawName.includes("@")
+    ? rawName
+    : (session.prof?.rol === "ADMIN" ? "Administrador" : "Operador");
+  setVal("userPill", `${displayName} | ${session.prof.rol}`);
 
   el("btnLogout")?.addEventListener("click", async () => {
     await logout();

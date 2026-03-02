@@ -175,8 +175,11 @@ async function exportReporteEntregados() {
 (async function init() {
   const prof = await requireAdmin();
   if (!prof) return;
-  const dn = getProfileDisplayName(prof);
-  setText("userPill", `${dn} | ${prof.rol}`);
+  const rawName = String(getProfileDisplayName(prof) || "").trim();
+  const displayName = rawName && !rawName.includes("@")
+    ? rawName
+    : (prof?.rol === "ADMIN" ? "Administrador" : "Usuario");
+  setText("userPill", `${displayName} | ${prof.rol}`);
 
   $("btnLogout")?.addEventListener("click", async () => {
     await logout();
