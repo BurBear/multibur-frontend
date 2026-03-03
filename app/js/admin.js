@@ -716,20 +716,31 @@ function printOrden(r, extra = null) {
   const html = `
 <!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</title>
 <style>
-@page{size:A5 portrait;margin:8mm}
+@page{size:A5 portrait;margin:0}
 :root{--line:#d4d4d8;--muted:#52525b;--ink:#111827}*{box-sizing:border-box}
-body{font-family:"Segoe UI",Arial,sans-serif;margin:0;padding:0;color:var(--ink);background:#fff}
-.sheet{max-width:100%;margin:0 auto;display:flex;flex-direction:column}
-.head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:10px}
-.brand h1{font-size:15px;line-height:1.1;margin:0}.brand small{display:block;color:var(--muted);margin-top:4px;font-size:10px}
-.meta{text-align:right}.meta .n{font-size:14px;font-weight:800}.meta .s{font-size:10px;color:var(--muted);margin-top:3px}
-.section{border:1px solid var(--line);border-radius:8px;padding:8px 9px;margin-bottom:8px}
-.section h3{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 6px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px}.k{display:block;color:var(--muted);font-size:10px}.v{display:block;font-size:11px;font-weight:600;margin-top:1px}.wide{grid-column:1/-1}
-.sign-space{flex:1;min-height:28px}
-.signs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px}
-.sign{padding-top:14px;border-top:1px solid #a1a1aa;text-align:center;font-size:10px;color:#3f3f46}
-.foot{margin-top:10px;font-size:9px;color:#71717a;text-align:right}
+html,body{width:148mm;height:210mm;margin:0;padding:0}
+body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
+.sheet{
+  width:148mm;
+  min-height:210mm;
+  margin:0;
+  padding:8mm;
+  display:flex;
+  flex-direction:column;
+}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;border-bottom:1.8px solid var(--ink);padding-bottom:6px;margin-bottom:8px}
+.brand h1{font-size:13px;line-height:1.08;margin:0}.brand small{display:block;color:var(--muted);margin-top:3px;font-size:9px}
+.meta{text-align:right}.meta .n{font-size:13px;font-weight:800}.meta .s{font-size:9px;color:var(--muted);margin-top:2px}
+.section{border:1px solid var(--line);border-radius:7px;padding:6px 7px;margin-bottom:6px;break-inside:avoid}
+.section h3{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 5px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 8px}
+.k{display:block;color:var(--muted);font-size:9px}
+.v{display:block;font-size:10px;font-weight:600;margin-top:1px;line-height:1.22}
+.wide{grid-column:1/-1}
+.sign-space{min-height:14mm}
+.signs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:auto}
+.sign{padding-top:10px;border-top:1px solid #a1a1aa;text-align:center;font-size:9px;color:#3f3f46}
+.foot{margin-top:6px;font-size:8px;color:#71717a;text-align:right}
 </style></head><body><div class="sheet">
 <header class="head"><div class="brand"><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
 <section class="section"><h3>Datos generales</h3><div class="grid">
