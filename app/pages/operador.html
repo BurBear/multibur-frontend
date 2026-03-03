@@ -120,6 +120,21 @@
       border-color:#f59e0b;
       color:#1d1400;
     }
+    .btn-info{
+      background:linear-gradient(180deg, #38bdf8, #0ea5e9);
+      border-color:#0ea5e9;
+      color:#042032;
+    }
+    .btn-resume{
+      background:linear-gradient(180deg, #a78bfa, #7c3aed);
+      border-color:#8b5cf6;
+      color:#f5f3ff;
+    }
+    .btn-danger{
+      background:linear-gradient(180deg, rgba(239,68,68,.22), rgba(185,28,28,.32));
+      border-color:rgba(248,113,113,.45);
+      color:#fecaca;
+    }
     .btn-ghost{background:var(--panel-2); color:var(--text);}
     .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
     select,input,textarea{
@@ -247,6 +262,50 @@
     .status-card .title{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em}
     .status-card .value{font-size:15px; font-weight:800; margin-top:5px}
     .status-card .desc{font-size:12px; color:var(--muted); margin-top:6px; line-height:1.45}
+    .action-top{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      margin-bottom:10px;
+    }
+    .incident-summary{
+      margin-top:12px;
+      padding:12px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:linear-gradient(180deg, rgba(27,38,65,.72), rgba(11,22,46,.94));
+    }
+    .incident-summary .k{
+      display:block;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      color:#fecaca;
+      margin-bottom:5px;
+    }
+    .incident-summary .v{
+      display:block;
+      font-size:13px;
+      font-weight:800;
+      color:#fff;
+    }
+    .incident-summary .d{
+      margin-top:6px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+    .btn-alert{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      background:linear-gradient(180deg, rgba(239,68,68,.2), rgba(127,29,29,.34));
+      border-color:rgba(248,113,113,.45);
+      color:#fee2e2;
+      white-space:nowrap;
+    }
+    .btn-alert svg{width:15px; height:15px; flex:0 0 auto}
 
     /* Modal */
     .modalWrap{
@@ -311,6 +370,42 @@
       line-height:1.05;
       color:#fff;
     }
+    .incident-box{
+      margin-top:14px;
+      padding:12px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:linear-gradient(180deg, rgba(127,29,29,.12), rgba(11,22,46,.92));
+    }
+    .incident-box h4{
+      margin:0 0 8px;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      color:#fecaca;
+    }
+    .incident-steps{
+      margin:0 0 10px;
+      padding-left:18px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.5;
+    }
+    .incident-steps li + li{margin-top:4px}
+    .status-banner{
+      margin-bottom:12px;
+      padding:10px 12px;
+      border:1px solid var(--line-2);
+      border-radius:12px;
+      background:rgba(11,22,46,.88);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .status-banner strong{display:block; font-size:13px; color:#fff; margin-bottom:3px}
+    .status-banner.is-paused{
+      border-color:rgba(248,113,113,.45);
+      background:linear-gradient(180deg, rgba(127,29,29,.2), rgba(11,22,46,.95));
+    }
 
     .help{
       font-size:12px;
@@ -318,6 +413,9 @@
       line-height:1.55;
       border-top:1px solid var(--line);
       padding-top:10px;
+    }
+    .incidentModal{
+      width:min(560px, 100%);
     }
     .modalWrap.hide{display:none;}
   </style>
@@ -534,7 +632,22 @@
 
         <!-- Acciones -->
         <div class="box">
-          <h3>Acciones (Produccion)</h3>
+          <div class="action-top">
+            <h3 style="margin:0">Acciones (Produccion)</h3>
+            <button id="btnOpenIncident" class="btn btn-alert" type="button">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 3 3 19h18L12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                <path d="M12 9v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="12" cy="17" r="1" fill="currentColor"/>
+              </svg>
+              Incidencia
+            </button>
+          </div>
+
+          <div id="statusBanner" class="status-banner">
+            <strong>Trabajo listo para iniciar</strong>
+            Completa la maquina y luego inicia. Si surge una incidencia, registrala antes de pausar o devolver.
+          </div>
 
           <div class="small muted" style="margin-bottom:10px">
             <div><b>Seleccionada:</b> <span id="selJob" class="badge">Ninguno</span></div>
@@ -549,6 +662,12 @@
           <div class="row" style="margin-top:12px">
             <button id="btnStart" class="btn btn-primary" style="flex:1" type="button">INICIAR</button>
             <button id="btnStop" class="btn btn-warn" style="flex:1" type="button">FINALIZAR</button>
+          </div>
+
+          <div class="incident-summary">
+            <span class="k">Gestion de incidencia</span>
+            <span id="incidentStatusText" class="v">Sin incidencia activa</span>
+            <div id="incidentSummaryText" class="d">Si el trabajo no puede continuar, usa el boton de incidencia para registrar motivo y decidir si pausar, reanudar o devolver a PLACAS.</div>
           </div>
 
           <div class="row" style="margin-top:12px">
@@ -569,12 +688,65 @@
 
           <div class="help" style="margin-top:10px">
             Usa <b>INICIAR</b> para comenzar (solo si esta en <b>PLACAS</b>).
-            Luego registra cantidades y presiona <b>FINALIZAR</b>.
+            La gestion de incidencias vive en un modal aparte para no mezclarla con el detalle principal.
+            Si el trabajo queda pausado, primero debes <b>REANUDAR</b> y luego <b>FINALIZAR</b>.
           </div>
 
           <div id="msgRight" class="msg"></div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="incidentWrap" class="modalWrap hide" aria-hidden="true">
+  <div class="modal incidentModal" role="dialog" aria-modal="true" aria-labelledby="incidentTitle">
+    <div class="modalHead">
+      <div id="incidentTitle" class="modalTitle">Gestion de Incidencia</div>
+      <button id="btnIncidentClose" class="btn btn-ghost" type="button">Cerrar</button>
+    </div>
+
+    <div class="modalBody">
+      <div id="incidentBanner" class="status-banner">
+        <strong>Registrar incidencia</strong>
+        Primero registra el motivo. Luego decide si el trabajo debe pausarse, reanudarse o volver a PLACAS.
+      </div>
+
+      <div class="incident-box" style="margin-top:0">
+        <h4>Incidencia</h4>
+        <ol class="incident-steps">
+          <li>Registra motivo y observacion.</li>
+          <li>Si el problema es temporal, usa <b>PAUSAR</b>.</li>
+          <li>Cuando se resuelva, usa <b>REANUDAR</b> y luego <b>FINALIZAR</b>.</li>
+          <li>Si no se puede continuar, usa <b>DEVOLVER A PLACAS</b>.</li>
+        </ol>
+        <div class="row">
+          <div style="flex:1">
+            <label class="small">Motivo</label>
+            <select id="incMotivo">
+              <option value="">Selecciona motivo</option>
+              <option value="PLACA_MAL">Placa mal</option>
+              <option value="PAPEL_MAL">Papel mal</option>
+              <option value="MAQUINA">Maquina</option>
+              <option value="TINTA">Tinta</option>
+              <option value="ARCHIVO">Archivo</option>
+              <option value="OTRO">Otro</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <label class="small">Observacion de incidencia</label>
+          <textarea id="incObs" placeholder="Describe el motivo por el que no se puede continuar."></textarea>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="btnPause" class="btn btn-info" style="flex:1" type="button">PAUSAR</button>
+          <button id="btnResume" class="btn btn-resume" style="flex:1" type="button">REANUDAR</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button id="btnReturnPlacas" class="btn btn-danger" style="flex:1" type="button">DEVOLVER A PLACAS</button>
+        </div>
+      </div>
+      <div id="incidentMsg" class="msg"></div>
     </div>
   </div>
 </div>

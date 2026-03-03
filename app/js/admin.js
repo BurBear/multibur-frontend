@@ -4,6 +4,7 @@ import {
   fetchClientes,
   fetchMaquinas,
   fetchTrabajosAdminBoard,
+  fetchUltimasIncidenciasByOrdenIds,
   fetchRegistros,
   fetchProfilesByIds,
   fetchMaquinasByIds,
@@ -612,6 +613,16 @@ function renderPizarraBadges(prio, overdue) {
   return parts.join(" ");
 }
 
+function renderIncidenciaBadge(incidencia) {
+  if (!incidencia?.motivo_incidencia) return "";
+  const estado = String(incidencia.estado_registro || "").toUpperCase();
+  const cls = estado === "DEVUELTO" ? "prio-badge is-urgent" : "prio-badge is-overdue";
+  const title = incidencia.obs_incidencia
+    ? ` title="${esc(`Motivo: ${incidencia.motivo_incidencia} | Obs: ${incidencia.obs_incidencia}`)}"`
+    : ` title="${esc(`Motivo: ${incidencia.motivo_incidencia}`)}"`;
+  return `<span class="${cls}"${title}>INCIDENCIA</span>`;
+}
+
 function getProcesosAcabadosText(r) {
   const procesos = [];
   if (r?.corte) procesos.push("Corte");
@@ -643,6 +654,8 @@ function openDetalleOrden(r, extra = null) {
   const tieneGuia = !!extra?.tiene_guia;
   const guiaNum = extra?.guia_numero || "-";
   const guiaObs = extra?.guia_observacion || "-";
+  const incMotivo = r?.incidencia_motivo || "-";
+  const incObs = r?.incidencia_obs || "-";
   $("jobDetailBody").innerHTML = `
     <div class="detail-grid">
       <div><span class="detail-k">Orden</span><span class="detail-v">${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</span></div>
@@ -665,6 +678,8 @@ function openDetalleOrden(r, extra = null) {
       <div><span class="detail-k">Color</span><span class="detail-v">${esc(r.color_text || "-")}</span></div>
       <div><span class="detail-k">Cantidad</span><span class="detail-v">${esc(cantidad)}</span></div>
       <div><span class="detail-k">Demasia</span><span class="detail-v">${esc(demasia)}</span></div>
+      <div><span class="detail-k">Motivo incidencia</span><span class="detail-v">${esc(incMotivo)}</span></div>
+      <div><span class="detail-k">Observacion incidencia</span><span class="detail-v">${esc(incObs)}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Procesos acabados</span><span class="detail-v">${esc(procesosAcabados)}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Trabajo</span><span class="detail-v">${esc(r.descripcion_trabajo || "-")}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Observacion tecnica (impresor)</span><span class="detail-v">${esc(obsTecnica)}</span></div>
@@ -763,7 +778,18 @@ async function loadJobs() {
   let rows = await fetchTrabajosAdminBoard({ estado });
   const metas = await fetchOrdenesMetaByIds((rows || []).map((r) => Number(r.orden_id)).filter(Boolean)).catch(() => []);
   const metaMap = new Map((metas || []).map((m) => [Number(m.id), m]));
-  rows = (rows || []).map((r) => ({ ...r, is_external: hasExternalFlow(metaMap.get(Number(r.orden_id))?.observaciones_generales) }));
+  const incidencias = await fetchUltimasIncidenciasByOrdenIds((rows || []).map((r) => Number(r.orden_id)).filter(Boolean)).catch(() => []);
+  const incidenciaMap = new Map((incidencias || []).map((i) => [Number(i.orden_id), i]));
+  rows = (rows || []).map((r) => {
+    const inc = incidenciaMap.get(Number(r.orden_id)) || null;
+    return {
+      ...r,
+      is_external: hasExternalFlow(metaMap.get(Number(r.orden_id))?.observaciones_generales),
+      incidencia_motivo: inc?.motivo_incidencia || null,
+      incidencia_obs: inc?.obs_incidencia || null,
+      incidencia_estado: inc?.estado_registro || null
+    };
+  });
   if (!estado) rows = rows.filter((r) => estadoKey(r.estado) !== estadoKey(ESTADO_ENTREGADO));
   if (q) rows = rows.filter((r) => [r.numero_orden_fisica, r.cliente_nombre, r.descripcion_trabajo, r.estado, r.tipo_impresion, r.color_text, r.maquina_sugerida_nombre].join(" ").toLowerCase().includes(q));
   rows = rows.slice(0, Number.isFinite(limit) && limit > 0 ? limit : 50);
@@ -774,7 +800,7 @@ async function loadJobs() {
     const entrega = fmtEntrega(r.fecha_entrega);
     const overdue = isOrdenOverdue(r.fecha_entrega, r.estado);
     return `<tr>
-      <td><b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b><div class="small muted">${esc(r.estado)} - ${renderPizarraBadges(r.prioridad, overdue)}</div></td>
+      <td><b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b><div class="small muted">${esc(r.estado)} - ${renderPizarraBadges(r.prioridad, overdue)} ${renderIncidenciaBadge({ motivo_incidencia: r.incidencia_motivo, obs_incidencia: r.incidencia_obs, estado_registro: r.incidencia_estado })}</div></td>
       <td>${esc(entrega)}</td>
       <td>${esc(r.cliente_nombre || "-")}</td>
       <td>${esc(r.descripcion_trabajo || "-")}</td>

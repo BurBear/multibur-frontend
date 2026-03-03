@@ -194,6 +194,25 @@ export async function fetchRegistros({
   return data || [];
 }
 
+export async function fetchUltimasIncidenciasByOrdenIds(orderIds = []) {
+  if (!orderIds.length) return [];
+  const { data, error } = await supabase
+    .from("registro_produccion")
+    .select("id, orden_id, user_id, estado_registro, motivo_incidencia, obs_incidencia, hora_pausa, hora_inicio, hora_fin")
+    .in("orden_id", orderIds)
+    .in("estado_registro", ["PAUSADO", "DEVUELTO"])
+    .order("hora_fin", { ascending: false, nullsFirst: false })
+    .order("hora_pausa", { ascending: false, nullsFirst: false })
+    .order("hora_inicio", { ascending: false });
+  if (error) throw error;
+
+  const latest = new Map();
+  for (const row of data || []) {
+    if (!latest.has(row.orden_id)) latest.set(row.orden_id, row);
+  }
+  return Array.from(latest.values());
+}
+
 export async function fetchProfilesByIds(ids = []) {
   if (!ids.length) return [];
   const { data, error } = await supabase.from("profiles").select("id,username,nombre_completo").in("id", ids);
@@ -218,7 +237,7 @@ export async function fetchMisRegistrosHoy(userId) {
 
   const { data, error } = await supabase
     .from("registro_produccion")
-    .select("id, orden_id, maquina_id, hora_inicio, hora_fin, cantidad_buena, cantidad_mala")
+    .select("id, orden_id, maquina_id, hora_inicio, hora_fin, cantidad_buena, cantidad_mala, estado_registro, motivo_incidencia")
     .eq("user_id", userId)
     .gte("hora_inicio", peStart.toISOString())
     .lt("hora_inicio", peEnd.toISOString())
@@ -240,6 +259,7 @@ export async function fetchOrdenById(ordenId) {
     .from("ordenes")
     .select(`
       id,
+      estado,
       descripcion_trabajo,
       observaciones_generales,
       fecha_entrega,
@@ -250,8 +270,16 @@ export async function fetchOrdenById(ordenId) {
       guia_numero,
       guia_observacion,
       detalles_orden(
+        papel_material,
+        gramaje,
+        medida_ancho,
+        medida_alto,
+        tipo_impresion,
+        color_text,
         cantidad_solicitada,
-        demasia
+        demasia,
+        maquina_sugerida_id,
+        maquina:maquinas(nombre)
       ),
       cliente:clientes(nombre,tipo_cliente,doc_fiscal_tipo,doc_fiscal_numero)
     `)
@@ -284,7 +312,7 @@ export async function rpcIniciarTrabajo({ ordenId, maquinaId }) {
 export async function fetchMiRegistroActivo(userId) {
   const { data, error } = await supabase
     .from("registro_produccion")
-    .select("id, orden_id, maquina_id, hora_inicio, hora_fin")
+    .select("id, orden_id, maquina_id, hora_inicio, hora_fin, estado_registro, hora_pausa, motivo_incidencia, obs_incidencia")
     .eq("user_id", userId)
     .is("hora_fin", null)
     .order("hora_inicio", { ascending: false })
@@ -304,6 +332,34 @@ export async function rpcFinalizarTrabajo({ registroId, buena, mala, observacion
   });
   if (error) throw error;
   return data?.[0];
+}
+
+export async function rpcPausarTrabajo({ registroId, motivoIncidencia, obsIncidencia = null }) {
+  const { data, error } = await supabase.rpc("pausar_trabajo", {
+    p_registro_id: registroId,
+    p_motivo_incidencia: motivoIncidencia,
+    p_obs_incidencia: obsIncidencia
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcDevolverTrabajoAPlacas({ registroId, motivoIncidencia, obsIncidencia = null }) {
+  const { data, error } = await supabase.rpc("devolver_trabajo_a_placas", {
+    p_registro_id: registroId,
+    p_motivo_incidencia: motivoIncidencia,
+    p_obs_incidencia: obsIncidencia
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcReanudarTrabajo({ registroId }) {
+  const { data, error } = await supabase.rpc("reanudar_trabajo", {
+    p_registro_id: registroId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
 }
 
 export async function rpcFinalizarEntregaOrden({
