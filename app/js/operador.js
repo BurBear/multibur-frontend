@@ -1,6 +1,7 @@
 ﻿// app/js/operador.js
 import { requireOperador, logout, getProfileDisplayName } from "./auth.js";
 import { setText, debounce } from "./ui.js";
+import { supabase } from "./supabaseClient.js";
 import {
   fetchMaquinas,
   fetchTrabajosPendientes,
@@ -32,6 +33,87 @@ function msgR(t){ setText("msgRight", t || ""); }
 function msgHoy(t){ setText("msgHoy", t || ""); }
 function msgInc(t){ setText("incidentMsg", t || ""); }
 
+function ensureToastWrap() {
+  if (toastWrap) return toastWrap;
+  toastWrap = document.createElement("div");
+  toastWrap.style.position = "fixed";
+  toastWrap.style.top = "18px";
+  toastWrap.style.right = "18px";
+  toastWrap.style.zIndex = "120";
+  toastWrap.style.display = "grid";
+  toastWrap.style.gap = "10px";
+  toastWrap.style.maxWidth = "320px";
+  document.body.appendChild(toastWrap);
+  return toastWrap;
+}
+
+function showToast(text, tone = "info") {
+  const wrap = ensureToastWrap();
+  const item = document.createElement("div");
+  const palettes = {
+    info: { bg: "#0f172a", bd: "#37558a", fg: "#e8eefc" },
+    success: { bg: "#052e1a", bd: "#1f7a57", fg: "#dcfce7" },
+    warn: { bg: "#3a2305", bd: "#f59e0b", fg: "#fde68a" }
+  };
+  const c = palettes[tone] || palettes.info;
+  item.textContent = text;
+  item.style.padding = "12px 14px";
+  item.style.borderRadius = "12px";
+  item.style.border = `1px solid ${c.bd}`;
+  item.style.background = c.bg;
+  item.style.color = c.fg;
+  item.style.boxShadow = "0 18px 40px rgba(2,8,23,.35)";
+  item.style.fontSize = "13px";
+  item.style.lineHeight = "1.35";
+  item.style.opacity = "0";
+  item.style.transform = "translateY(-6px)";
+  item.style.transition = "opacity .18s ease, transform .18s ease";
+  wrap.appendChild(item);
+  requestAnimationFrame(() => {
+    item.style.opacity = "1";
+    item.style.transform = "translateY(0)";
+  });
+  setTimeout(() => {
+    item.style.opacity = "0";
+    item.style.transform = "translateY(-6px)";
+    setTimeout(() => item.remove(), 180);
+  }, 4200);
+}
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+}
+
+function playAlertBeep() {
+  if (!audioUnlocked) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  const ctx = new Ctx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(880, ctx.currentTime);
+  gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.3);
+  osc.onended = () => ctx.close().catch(() => {});
+}
+
+function scheduleLoadTrabajos(delay = 350) {
+  clearTimeout(trabajoReloadTimer);
+  trabajoReloadTimer = setTimeout(() => { loadTrabajos().catch((e) => console.error("REALTIME_LOADTRABAJOS_ERROR", e)); }, delay);
+}
+
+function scheduleLoadHoy(delay = 350) {
+  clearTimeout(hoyReloadTimer);
+  hoyReloadTimer = setTimeout(() => { loadHoy().catch((e) => console.error("REALTIME_LOADHOY_ERROR", e)); }, delay);
+}
+
 function fmtDatePE(x){
   if(!x) return "-";
   return new Date(x).toLocaleString("es-PE", { timeZone: "America/Lima" });
@@ -61,8 +143,6 @@ function clearIncidenciaFields(){
 function syncStatusBanner() {
   const banner = el("statusBanner");
   const incBanner = el("incidentBanner");
-  const statusText = el("incidentStatusText");
-  const summaryText = el("incidentSummaryText");
   if(!banner) return;
   banner.classList.toggle("is-paused", !!activeRegistro && isPausedRegistro(activeRegistro));
   if(incBanner) incBanner.classList.toggle("is-paused", !!activeRegistro && isPausedRegistro(activeRegistro));
@@ -70,8 +150,6 @@ function syncStatusBanner() {
   if(!activeRegistro){
     banner.innerHTML = "<strong>Trabajo listo para iniciar</strong>Completa la maquina y luego inicia. Si surge una incidencia, registrala antes de pausar o devolver.";
     if(incBanner) incBanner.innerHTML = "<strong>Registrar incidencia</strong>Primero registra el motivo. Luego decide si el trabajo debe pausarse, reanudarse o volver a PLACAS.";
-    if(statusText) statusText.textContent = "Sin incidencia activa";
-    if(summaryText) summaryText.textContent = "Si el trabajo no puede continuar, usa el boton de incidencia para registrar motivo y decidir si pausar, reanudar o devolver a PLACAS.";
     return;
   }
 
@@ -79,15 +157,11 @@ function syncStatusBanner() {
     const motivo = activeRegistro.motivo_incidencia || "-";
     banner.innerHTML = `<strong>Trabajo pausado</strong>Motivo: ${esc(motivo)}. Resuelve la incidencia y presiona REANUDAR para continuar. Si no se puede seguir, devuelve a PLACAS.`;
     if(incBanner) incBanner.innerHTML = `<strong>Trabajo pausado</strong>Motivo: ${esc(motivo)}. Reanuda si ya resolviste el problema o devuelve a PLACAS si no se puede continuar.`;
-    if(statusText) statusText.textContent = `Incidencia pausada: ${motivo}`;
-    if(summaryText) summaryText.textContent = activeRegistro.obs_incidencia || "El trabajo esta pausado. Revisa la incidencia antes de decidir la siguiente accion.";
     return;
   }
 
   banner.innerHTML = "<strong>Trabajo en curso</strong>La impresion esta activa. Si surge un problema, registra la incidencia y pausa. Cuando termine, finaliza con cantidades.";
   if(incBanner) incBanner.innerHTML = "<strong>Trabajo en curso</strong>Si aparece una incidencia, registrala y pausa. Si ya estaba pausado y se resolvio, reanuda antes de finalizar.";
-  if(statusText) statusText.textContent = "Trabajo en curso sin incidencia activa";
-  if(summaryText) summaryText.textContent = "Si surge una incidencia durante la impresion, abre este panel, registrala y decide si pausar o devolver a PLACAS.";
 }
 
 /* =========================
@@ -106,6 +180,12 @@ let filteredPendientes = [];
 let pendientesPage = 1;
 let pendientesPageSize = 20;
 let maquinasMap = new Map();
+let operatorRealtimeBound = false;
+let trabajoReloadTimer = null;
+let hoyReloadTimer = null;
+let toastWrap = null;
+let audioUnlocked = false;
+let lastAlertedOrderIds = new Set();
 
 /* =========================
    MODAL
@@ -135,6 +215,40 @@ function closeIncidentModal(){
   if(!w) return;
   w.classList.add("hide");
   w.setAttribute("aria-hidden", "true");
+}
+
+function bindRealtime() {
+  if (operatorRealtimeBound) return;
+  operatorRealtimeBound = true;
+
+  supabase.channel("operador-ordenes-watch")
+    .on("postgres_changes", { event: "*", schema: "public", table: "ordenes" }, (payload) => {
+      const next = payload?.new || null;
+      const prev = payload?.old || null;
+      const nextEstado = String(next?.estado || "").toUpperCase();
+      const prevEstado = String(prev?.estado || "").toUpperCase();
+      const entersPlacas =
+        (payload.eventType === "INSERT" && nextEstado === "PLACAS") ||
+        (payload.eventType === "UPDATE" && nextEstado === "PLACAS" && prevEstado !== "PLACAS");
+      if (entersPlacas && next?.id && !lastAlertedOrderIds.has(next.id)) {
+        lastAlertedOrderIds.add(next.id);
+        const orden = next.numero_orden_fisica || `#${next.id}`;
+        const trabajo = next.descripcion_trabajo || "Trabajo nuevo";
+        showToast(`Nueva orden lista para imprimir: ${orden} - ${trabajo}`, "success");
+        playAlertBeep();
+      }
+      scheduleLoadTrabajos();
+    })
+    .subscribe();
+
+  supabase.channel("operador-registro-watch")
+    .on("postgres_changes", { event: "*", schema: "public", table: "registro_produccion" }, (payload) => {
+      const row = payload?.new || payload?.old;
+      if (row?.user_id && currentUser?.id && row.user_id !== currentUser.id) return;
+      scheduleLoadHoy();
+      resumeIfActive().catch((e) => console.error("REALTIME_RESUME_ERROR", e));
+    })
+    .subscribe();
 }
 
 function setModalDetails(row){
@@ -732,6 +846,9 @@ function setTab(which){
     await logout();
     window.location.href = "./login.html";
   });
+  ["click", "keydown", "pointerdown"].forEach((evt) => {
+    document.addEventListener(evt, unlockAudio, { once: true, passive: true });
+  });
 
   el("btnReload")?.addEventListener("click", loadTrabajos);
   el("q")?.addEventListener("input", debounce(loadTrabajos, 250));
@@ -779,6 +896,7 @@ function setTab(which){
   });
 
   await loadMaquinas();
+  bindRealtime();
   await loadTrabajos();
   await loadHoy();
 

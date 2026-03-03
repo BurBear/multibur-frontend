@@ -28,6 +28,12 @@ let entregaCtx = null;
 let entregaRequiresGuia = false;
 let smartMode = null;
 let smartSelectedId = null;
+let adminRealtimeBound = false;
+let jobsReloadTimer = null;
+let regsReloadTimer = null;
+let toastWrap = null;
+let liveDurationInterval = null;
+let currentAdminResponsable = "Administrador";
 
 const norm = (s) =>
   String(s ?? "")
@@ -40,7 +46,116 @@ const esc = (s) =>
 
 function msgJobs(t) { setText("msgJobs", t || ""); }
 function msgRegs(t) { setText("msgRegs", t || ""); }
+
+function ensureToastWrap() {
+  if (toastWrap) return toastWrap;
+  toastWrap = document.createElement("div");
+  toastWrap.style.position = "fixed";
+  toastWrap.style.top = "18px";
+  toastWrap.style.right = "18px";
+  toastWrap.style.zIndex = "120";
+  toastWrap.style.display = "grid";
+  toastWrap.style.gap = "10px";
+  toastWrap.style.maxWidth = "320px";
+  document.body.appendChild(toastWrap);
+  return toastWrap;
+}
+
+function showToast(text, tone = "info") {
+  const wrap = ensureToastWrap();
+  const item = document.createElement("div");
+  const palettes = {
+    info: { bg: "#0f172a", bd: "#37558a", fg: "#e8eefc" },
+    success: { bg: "#052e1a", bd: "#1f7a57", fg: "#dcfce7" },
+    warn: { bg: "#3a2305", bd: "#f59e0b", fg: "#fde68a" }
+  };
+  const c = palettes[tone] || palettes.info;
+  item.textContent = text;
+  item.style.padding = "12px 14px";
+  item.style.borderRadius = "12px";
+  item.style.border = `1px solid ${c.bd}`;
+  item.style.background = c.bg;
+  item.style.color = c.fg;
+  item.style.boxShadow = "0 18px 40px rgba(2,8,23,.35)";
+  item.style.fontSize = "13px";
+  item.style.lineHeight = "1.35";
+  item.style.opacity = "0";
+  item.style.transform = "translateY(-6px)";
+  item.style.transition = "opacity .18s ease, transform .18s ease";
+  wrap.appendChild(item);
+  requestAnimationFrame(() => {
+    item.style.opacity = "1";
+    item.style.transform = "translateY(0)";
+  });
+  setTimeout(() => {
+    item.style.opacity = "0";
+    item.style.transform = "translateY(-6px)";
+    setTimeout(() => item.remove(), 180);
+  }, 4200);
+}
+
+function scheduleLoadJobs(delay = 400) {
+  clearTimeout(jobsReloadTimer);
+  jobsReloadTimer = setTimeout(() => { loadJobs().catch((e) => console.error("REALTIME_LOADJOBS_ERROR", e)); }, delay);
+}
+
+function scheduleLoadRegistros(delay = 400) {
+  clearTimeout(regsReloadTimer);
+  regsReloadTimer = setTimeout(() => { loadRegistros().catch((e) => console.error("REALTIME_LOADREGS_ERROR", e)); }, delay);
+}
+
+async function notifyRegistroRealtime(payload) {
+  const row = payload?.new || payload?.old;
+  if (!row?.orden_id) return;
+  const [orders, users] = await Promise.all([
+    fetchOrdenResumenByIds([row.orden_id]).catch(() => []),
+    row.user_id ? fetchProfilesByIds([row.user_id]).catch(() => []) : Promise.resolve([])
+  ]);
+  const orden = orders?.[0]?.numero_orden_fisica || `#${row.orden_id}`;
+  const operador = users?.[0] ? (getProfileDisplayName(users[0]) || users[0].username || row.user_id) : "Operador";
+  const eventType = payload.eventType;
+  if (eventType === "INSERT") {
+    showToast(`${operador} inicio ${orden}.`, "success");
+    return;
+  }
+  const before = String(payload?.old?.estado_registro || "").toUpperCase();
+  const after = String(payload?.new?.estado_registro || "").toUpperCase();
+  if (!after || before === after) return;
+  if (after === "FINALIZADO") showToast(`${operador} finalizo ${orden}.`, "success");
+  else if (after === "PAUSADO") showToast(`${operador} pauso ${orden}.`, "warn");
+  else if (after === "DEVUELTO") showToast(`${operador} devolvio ${orden} a PLACAS.`, "warn");
+  else if (after === "ACTIVO" && before === "PAUSADO") showToast(`${operador} reanudo ${orden}.`, "info");
+}
+
+function bindRealtime() {
+  if (adminRealtimeBound) return;
+  adminRealtimeBound = true;
+
+  supabase.channel("admin-registro-watch")
+    .on("postgres_changes", { event: "*", schema: "public", table: "registro_produccion" }, async (payload) => {
+      try {
+        await notifyRegistroRealtime(payload);
+      } catch (e) {
+        console.error("REALTIME_NOTIFY_REG_ERROR", e);
+      }
+      scheduleLoadRegistros();
+      scheduleLoadJobs();
+    })
+    .subscribe();
+
+  supabase.channel("admin-ordenes-watch")
+    .on("postgres_changes", { event: "*", schema: "public", table: "ordenes" }, () => {
+      scheduleLoadJobs();
+    })
+    .subscribe();
+}
 function msgCreate(t) { setText("msgCreate", t || ""); }
+
+function syncResponsableDisenoField() {
+  const input = $("o_resp");
+  if (!input) return;
+  input.value = currentAdminResponsable || "Administrador";
+}
 
 function formatDbError(err) {
   if (!err) return "Error desconocido.";
@@ -113,6 +228,19 @@ function formatDurationMinutes(start, end = null) {
   const m = totalMin % 60;
   if (h <= 0) return `${m} min`;
   return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+function refreshLiveDurationLabels() {
+  document.querySelectorAll("[data-live-start]").forEach((node) => {
+    const start = node.getAttribute("data-live-start");
+    if (!start) return;
+    node.textContent = formatDurationMinutes(start);
+  });
+}
+
+function ensureLiveDurationTicker() {
+  if (liveDurationInterval) return;
+  liveDurationInterval = setInterval(refreshLiveDurationLabels, 30000);
 }
 
 function toNumOrNull(v) {
@@ -913,7 +1041,7 @@ async function loadRegistros() {
             </div>
             <div class="live-meta-item">
               <span class="k">Tiempo transcurrido</span>
-              <span class="v">${esc(formatDurationMinutes(r.hora_inicio))}</span>
+              <span class="v" data-live-start="${esc(r.hora_inicio || "")}">${esc(formatDurationMinutes(r.hora_inicio))}</span>
             </div>
             <div class="live-meta-item">
               <span class="k">Avance registrado</span>
@@ -943,6 +1071,8 @@ async function loadRegistros() {
       : `<div class="live-empty">No hay movimientos para mostrar.</div>`;
   }
   setKPIs(regs);
+  refreshLiveDurationLabels();
+  ensureLiveDurationTicker();
   msgRegs(activeRegs.length
     ? `Monitoreo activo: ${activeRegs.length} operador(es) trabajando ahora.`
     : `Sin operadores activos. Movimientos cargados: ${(regs || []).length}`);
@@ -969,7 +1099,7 @@ async function onGuardarOrden() {
       fecha_entrega: dbLocalTimestamp($("o_entrega").value),
       prioridad: $("o_prio")?.value || "NORMAL",
       estado: toDbEstado(isExt ? "DISENO" : ($("o_estado")?.value || "DISENO")),
-      responsable_diseno: $("o_resp")?.value?.trim() || null,
+      responsable_diseno: currentAdminResponsable || "Administrador",
       observaciones_generales: obs,
       tiene_oc: $("o_tiene_oc")?.checked ?? false,
       oc_numero: $("o_tiene_oc")?.checked ? ($("o_oc_numero")?.value?.trim() || null) : null,
@@ -1029,6 +1159,7 @@ async function onGuardarOrden() {
     if ($("o_tiene_oc")) $("o_tiene_oc").checked = false;
     if ($("o_oc_numero")) $("o_oc_numero").value = "";
     if ($("o_oc_obs")) $("o_oc_obs").value = "";
+    syncResponsableDisenoField();
     syncOcFields();
     $("modalOrdenWrap")?.classList.add("hide");
   } catch (e) {
@@ -1207,7 +1338,9 @@ async function exportReporteEntregadosCsv() {
   const displayName = rawName && !rawName.includes("@")
     ? rawName
     : (prof?.rol === "ADMIN" ? "Administrador" : "Usuario");
+  currentAdminResponsable = displayName || "Administrador";
   setText("userPill", `${displayName} | ${prof.rol}`);
+  syncResponsableDisenoField();
 
   $("btnLogout")?.addEventListener("click", async () => { await logout(); window.location.href = "./login.html"; });
   $("btnReporteEntregados")?.addEventListener("click", exportReporteEntregadosCsv);
@@ -1229,6 +1362,7 @@ async function exportReporteEntregadosCsv() {
   $("d_material")?.addEventListener("change", syncMaterialSelectedText);
   $("o_externo")?.addEventListener("change", syncExternalFlowUI);
   $("btnOpenOrden")?.addEventListener("click", () => {
+    syncResponsableDisenoField();
     $("modalOrdenWrap")?.classList.remove("hide");
     syncExternalFlowUI();
     refreshFormState();
@@ -1284,6 +1418,7 @@ async function exportReporteEntregadosCsv() {
   syncEntregaGuiaFields();
   syncExternalFlowUI();
   refreshFormState();
+  bindRealtime();
   await loadJobs();
   await loadRegistros();
 })().catch((e) => {
