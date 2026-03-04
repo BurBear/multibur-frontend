@@ -7,7 +7,7 @@ const hasPlaceholder =
 
 if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY || hasPlaceholder) {
   throw new Error(
-    "Configura SUPABASE_URL y SUPABASE_ANON_KEY en app/js/config.local.js antes de iniciar la app."
+    "Configura SUPABASE_URL y SUPABASE_ANON_KEY en app/js/config.js antes de iniciar la app."
   );
 }
 
