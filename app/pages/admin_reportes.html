@@ -71,6 +71,20 @@
     .table-wrap table{width:100%; border-collapse:collapse; min-width:760px; font-size:13px}
     .table-wrap th,.table-wrap td{padding:9px 8px; border-bottom:1px solid #243250; text-align:left; vertical-align:top}
     .table-wrap th{opacity:.86; text-transform:uppercase; font-size:11px; letter-spacing:.04em}
+    @media (max-width:720px){
+      .top{flex-direction:column; align-items:flex-start; gap:12px; padding:12px}
+      .top-right{width:100%; gap:8px}
+      .brand{font-size:28px}
+      .pill{width:100%; text-align:center}
+      .main{padding:12px}
+      .card-head{flex-direction:column; align-items:stretch}
+      .card-body{padding:12px}
+      .toolbar{flex-direction:column; align-items:stretch}
+      .toolbar > *{width:100%}
+      .tabs{display:grid; grid-template-columns:1fr 1fr}
+      .tab-btn{width:100%}
+      .preview-head,.filter-head{flex-direction:column; align-items:stretch}
+    }
   </style>
 </head>
 <body>

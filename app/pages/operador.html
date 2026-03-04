@@ -391,6 +391,34 @@
       width:min(560px, 100%);
     }
     .modalWrap.hide{display:none;}
+    @media (max-width: 720px){
+      .top{flex-direction:column; align-items:flex-start; gap:12px; padding:12px}
+      .top-right{width:100%; gap:8px}
+      .brand-main{font-size:28px}
+      .pill{width:100%; text-align:center}
+      .wrap{padding:12px}
+      .card-head{flex-direction:column; align-items:stretch}
+      .card-body{padding:12px}
+      .hint-strip{flex-direction:column; align-items:flex-start}
+      .tabs{display:grid; grid-template-columns:1fr 1fr}
+      .tab{width:100%; text-align:center}
+      .quick-tools{flex-direction:column; align-items:stretch}
+      .quick-tools > *{width:100%}
+      .row > *{width:100%}
+      .modalWrap{padding:0}
+      .modal{
+        width:100%;
+        max-width:none;
+        max-height:100vh;
+        min-height:100vh;
+        border-radius:0;
+        border-left:0;
+        border-right:0;
+      }
+      .modalHead,.modalBody{padding:12px}
+      .action-top{flex-direction:column; align-items:stretch}
+      .focus-grid{grid-template-columns:1fr}
+    }
   </style>
 </head>
 

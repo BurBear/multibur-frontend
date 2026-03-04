@@ -76,6 +76,17 @@
     @media (max-width: 980px){
       .data-table-wrap{max-height:none}
     }
+    @media (max-width:720px){
+      .top{flex-direction:column; align-items:flex-start; gap:12px; padding:12px}
+      .top-right{width:100%; gap:8px}
+      .brand{font-size:28px}
+      .wrap{padding:12px}
+      .row{flex-direction:column; align-items:stretch}
+      .row2{flex-direction:column; align-items:stretch}
+      .row2 > *{width:100% !important; min-width:0 !important}
+      .pager-left,.pager-right{width:100%; justify-content:flex-start}
+      .pill{width:100%; text-align:center}
+    }
   </style>
 </head>
 <body>

@@ -213,6 +213,35 @@
     .smart-meta{font-size:12px; opacity:.8}
     .smart-empty{padding:12px; font-size:13px; opacity:.8}
     .smart-actions{display:flex; justify-content:space-between; gap:10px; margin-top:10px}
+    @media (max-width: 720px){
+      .top{flex-direction:column; align-items:flex-start; gap:12px; padding:12px}
+      .top-right{width:100%; gap:8px}
+      .brand{font-size:28px}
+      .pill{width:100%; text-align:center}
+      .main{padding:12px}
+      .card-head{flex-direction:column; align-items:stretch}
+      .card-body{padding:12px}
+      .toolbar{flex-direction:column; align-items:stretch}
+      .toolbar .grow{min-width:0}
+      .toolbar > *{width:100%; max-width:none !important}
+      .filter-head,.live-section-head,.smart-head{flex-direction:column; align-items:stretch}
+      .flow-top{flex-direction:column; align-items:flex-start}
+      .live-card-top{flex-direction:column}
+      .modal-wrap,.smart-backdrop{padding:0}
+      .modal,.smart-modal{
+        width:100%;
+        max-width:none;
+        max-height:100vh;
+        min-height:100vh;
+        border-radius:0;
+        border-left:0;
+        border-right:0;
+      }
+      .modal-head,.smart-head{padding:12px}
+      .modal-body,.smart-body{padding:12px}
+      .smart-actions{flex-direction:column}
+      .smart-actions > *{width:100%}
+    }
   </style>
 </head>
 <body>
