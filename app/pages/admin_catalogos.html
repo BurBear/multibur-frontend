@@ -123,6 +123,61 @@
       .modal{width:100%; max-width:none; border-radius:0; min-height:100vh}
       .modal-actions{flex-direction:column}
       .modal-actions > *{width:100%}
+      .pager .ctrl{width:100%; flex-wrap:wrap}
+      .table-scroll{max-height:none}
+      .table-clientes,
+      .table-maquinas{min-width:0; width:100%}
+      .table-clientes thead,
+      .table-maquinas thead{display:none}
+      .table-clientes tbody,
+      .table-maquinas tbody{display:grid; gap:10px; padding:10px}
+      .table-clientes tr,
+      .table-maquinas tr{
+        display:block;
+        border:1px solid #243250;
+        border-radius:14px;
+        background:#0e1627;
+        overflow:hidden;
+      }
+      .table-clientes td,
+      .table-maquinas td{
+        display:block;
+        border-bottom:1px solid rgba(36,50,80,.7);
+        padding:10px 12px;
+      }
+      .table-clientes td:last-child,
+      .table-maquinas td:last-child{border-bottom:0}
+      .table-clientes td::before,
+      .table-maquinas td::before{
+        content:attr(data-label);
+        display:block;
+        margin-bottom:6px;
+        font-size:11px;
+        font-weight:800;
+        text-transform:uppercase;
+        letter-spacing:.05em;
+        color:#94a3b8;
+      }
+      .table-clientes .cell-actions,
+      .table-maquinas .cell-actions{text-align:left}
+      .table-clientes .cell-actions::before,
+      .table-maquinas .cell-actions::before{margin-bottom:10px}
+      .table-clientes .cell-actions .btn,
+      .table-maquinas .cell-actions .btn{
+        width:100%;
+        margin:0 0 8px 0 !important;
+      }
+      .table-clientes .cell-actions .btn:last-child,
+      .table-maquinas .cell-actions .btn:last-child{margin-bottom:0 !important}
+      #tbClientes td:nth-child(2) input,
+      #tbClientes td:nth-child(3) input,
+      #tbClientes td:nth-child(6) input,
+      #tbMaquinas td:nth-child(2) input,
+      #tbMaquinas td:nth-child(3) select{
+        min-width:0;
+        max-width:none;
+        width:100%;
+      }
     }
   </style>
 </head>

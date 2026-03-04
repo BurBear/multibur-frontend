@@ -330,24 +330,24 @@ async function importClientesFromFile(file) {
 function renderClientesTable(rows){
   $("tbClientes").innerHTML = (rows || []).map(c => `
     <tr data-id="${c.id}">
-      <td>${c.id}</td>
-      <td><input class="c_nombre w-100" value="${esc(c.nombre)}"></td>
-      <td><input class="c_telefono w-100" value="${esc(c.telefono)}"></td>
-      <td>
+      <td data-label="ID">${c.id}</td>
+      <td data-label="Nombre"><input class="c_nombre w-100" value="${esc(c.nombre)}"></td>
+      <td data-label="Telefono"><input class="c_telefono w-100" value="${esc(c.telefono)}"></td>
+      <td data-label="Tipo">
         <select class="c_tipo_cliente">
           <option value="DIRECTO" ${normalizeTipoCliente(c.tipo_cliente) === "DIRECTO" ? "selected" : ""}>DIRECTO</option>
           <option value="SERVICIO" ${normalizeTipoCliente(c.tipo_cliente) === "SERVICIO" ? "selected" : ""}>SERVICIO</option>
         </select>
       </td>
-      <td>
+      <td data-label="Documento">
         <select class="c_doc_tipo">
           <option value="RUC" ${c.doc_fiscal_tipo === "RUC" ? "selected" : ""}>RUC</option>
           <option value="SUR" ${c.doc_fiscal_tipo === "SUR" ? "selected" : ""}>SUR</option>
         </select>
       </td>
-      <td><input class="c_doc_numero w-100" value="${esc(c.doc_fiscal_numero)}"></td>
-      <td style="text-align:center; vertical-align:middle"><input class="c_req_oc" type="checkbox" ${c.requiere_oc_default ? "checked" : ""}></td>
-      <td class="cell-actions">
+      <td data-label="Numero documento"><input class="c_doc_numero w-100" value="${esc(c.doc_fiscal_numero)}"></td>
+      <td data-label="Requiere OC" style="text-align:center; vertical-align:middle"><input class="c_req_oc" type="checkbox" ${c.requiere_oc_default ? "checked" : ""}></td>
+      <td data-label="Acciones" class="cell-actions">
         <button class="btn btn-ghost btnSaveCliente">Guardar</button>
         <button class="btn btn-danger btnDelCliente">Eliminar</button>
       </td>
@@ -476,15 +476,15 @@ async function loadMaquinas(){
 
   $("tbMaquinas").innerHTML = (data || []).map(m => `
     <tr data-id="${m.id}">
-      <td>${m.id}</td>
-      <td><input class="m_nombre w-100" value="${esc(m.nombre)}"></td>
-      <td>
+      <td data-label="ID">${m.id}</td>
+      <td data-label="Nombre"><input class="m_nombre w-100" value="${esc(m.nombre)}"></td>
+      <td data-label="Tipo">
         <select class="m_tipo">
           <option value="OFFSET" ${m.tipo==="OFFSET"?"selected":""}>OFFSET</option>
           <option value="DIGITAL" ${m.tipo==="DIGITAL"?"selected":""}>DIGITAL</option>
         </select>
       </td>
-      <td class="cell-actions">
+      <td data-label="Acciones" class="cell-actions">
         <button class="btn btn-ghost btnSaveMaquina">Guardar</button>
         <button class="btn btn-danger btnDelMaquina">Eliminar</button>
       </td>
