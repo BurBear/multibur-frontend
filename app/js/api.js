@@ -259,7 +259,10 @@ export async function fetchOrdenById(ordenId) {
     .from("ordenes")
     .select(`
       id,
+      cliente_id,
+      prioridad,
       estado,
+      responsable_diseno,
       descripcion_trabajo,
       observaciones_generales,
       fecha_entrega,
@@ -270,14 +273,26 @@ export async function fetchOrdenById(ordenId) {
       guia_numero,
       guia_observacion,
       detalles_orden(
+        material_id,
+        formato_id,
         papel_material,
         gramaje,
         medida_ancho,
         medida_alto,
         tipo_impresion,
+        color_mode,
         color_text,
         cantidad_solicitada,
         demasia,
+        corte,
+        empaquetado,
+        doblez,
+        compaginado,
+        troquelado,
+        sectorizado,
+        barniz,
+        plastificado,
+        observacion_tecnica,
         maquina_sugerida_id,
         maquina:maquinas(nombre)
       ),
@@ -464,6 +479,60 @@ export async function createOrdenConDetalles({ orden, detalles }) {
   }
 
   return o;
+}
+
+export async function updateOrdenConDetalles({ ordenId, orden, detalles }) {
+  const oid = Number(ordenId);
+  if (!oid) throw new Error("ordenId invalido para actualizar.");
+
+  let ordenPayload = { ...(orden || {}) };
+  for (let i = 0; i < 10; i++) {
+    const { error } = await supabase.from("ordenes").update(ordenPayload).eq("id", oid);
+    if (!error) break;
+    const miss = parseMissingColumn(error);
+    if (miss && miss.table === "ordenes" && Object.prototype.hasOwnProperty.call(ordenPayload, miss.column)) {
+      delete ordenPayload[miss.column];
+      continue;
+    }
+    throw error;
+  }
+
+  const { data: detailAny, error: detailAnyErr } = await supabase
+    .from("detalles_orden")
+    .select("orden_id")
+    .eq("orden_id", oid)
+    .limit(1);
+  if (detailAnyErr) throw detailAnyErr;
+
+  let detPayload = {
+    ...(detalles || {}),
+    orden_id: oid,
+    material_id: detalles?.material_id ?? null,
+    formato_id: detalles?.formato_id ?? null,
+    maquina_sugerida_id: detalles?.maquina_sugerida_id ?? null
+  };
+
+  const hasExistingDetail = Array.isArray(detailAny) && detailAny.length > 0;
+  for (let i = 0; i < 20; i++) {
+    const resp = hasExistingDetail
+      ? await supabase.from("detalles_orden").update(detPayload).eq("orden_id", oid)
+      : await supabase.from("detalles_orden").insert([detPayload]);
+    if (!resp.error) break;
+    const miss = parseMissingColumn(resp.error);
+    if (miss && miss.table === "detalles_orden" && Object.prototype.hasOwnProperty.call(detPayload, miss.column)) {
+      delete detPayload[miss.column];
+      continue;
+    }
+    throw resp.error;
+  }
+
+  const { data: ordMeta, error: ordMetaErr } = await supabase
+    .from("ordenes")
+    .select("id,numero_orden_fisica,fecha_entrega")
+    .eq("id", oid)
+    .single();
+  if (ordMetaErr) throw ordMetaErr;
+  return ordMeta;
 }
 
 export async function fetchReporteEntregados({

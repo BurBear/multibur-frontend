@@ -9,6 +9,7 @@ import {
   fetchProfilesByIds,
   fetchMaquinasByIds,
   createOrdenConDetalles,
+  updateOrdenConDetalles,
   fetchOrdenById,
   fetchOrdenResumenByIds,
   fetchOrdenesMetaByIds,
@@ -34,6 +35,8 @@ let regsReloadTimer = null;
 let toastWrap = null;
 let liveDurationInterval = null;
 let currentAdminResponsable = "Administrador";
+let ordenModalMode = "create";
+let ordenEditId = null;
 
 const norm = (s) =>
   String(s ?? "")
@@ -310,6 +313,134 @@ function refreshFormState() {
   const miss = validateOrdenForm();
   btn.disabled = miss.length > 0;
   msgCreate(miss.length ? "Completa los campos obligatorios para guardar." : "Formulario listo para guardar.");
+}
+
+function isEditableEstado(estado) {
+  const e = estadoKey(estado);
+  return e === "DISENO" || e === "PLACAS";
+}
+
+function toInputDatetimeLocal(value) {
+  if (!value) return "";
+  const s = String(value).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${da}T${hh}:${mm}`;
+}
+
+function clearOrdenForm() {
+  if ($("o_desc")) $("o_desc").value = "";
+  if ($("o_cliente")) $("o_cliente").value = "";
+  if ($("o_entrega")) $("o_entrega").value = "";
+  if ($("o_prio")) $("o_prio").value = "NORMAL";
+  if ($("o_estado")) $("o_estado").value = "DISENO";
+  if ($("o_obs")) $("o_obs").value = "";
+  if ($("o_tiene_oc")) $("o_tiene_oc").checked = false;
+  if ($("o_oc_numero")) $("o_oc_numero").value = "";
+  if ($("o_oc_obs")) $("o_oc_obs").value = "";
+  if ($("o_externo")) $("o_externo").checked = false;
+
+  if ($("d_material")) $("d_material").value = "";
+  if ($("d_formato")) $("d_formato").value = "";
+  if ($("d_ancho")) $("d_ancho").value = "";
+  if ($("d_alto")) $("d_alto").value = "";
+  if ($("d_cant")) $("d_cant").value = "";
+  if ($("d_dem")) $("d_dem").value = "";
+  if ($("d_maq")) $("d_maq").value = "";
+  if ($("d_tipoimp")) $("d_tipoimp").value = "";
+  if ($("d_color_mode")) $("d_color_mode").value = "FC";
+  if ($("d_color_text")) $("d_color_text").value = "F/C";
+  if ($("d_obs_tecnica")) $("d_obs_tecnica").value = "";
+  if ($("p_plast")) $("p_plast").value = "";
+
+  ["p_corte", "p_empaq", "p_doblez", "p_compa", "p_troq", "p_sect", "p_barniz"].forEach((id) => {
+    if ($(id)) $(id).checked = false;
+  });
+
+  syncResponsableDisenoField();
+  syncClienteSelectedText();
+  syncMaterialSelectedText();
+  syncOcFields();
+  syncExternalFlowUI();
+  syncFormatoFields();
+  $("d_color_mode")?.dispatchEvent(new Event("change"));
+}
+
+function setOrdenModalMode(mode, row = null) {
+  ordenModalMode = mode;
+  ordenEditId = mode === "edit" ? Number(row?.orden_id || 0) : null;
+  setText("ordTitle", mode === "edit" ? `Editar Orden ${row?.numero_orden_fisica || ""}` : "Nueva Orden");
+  const btn = $("btnGuardarOrden");
+  if (btn) btn.textContent = mode === "edit" ? "Guardar Cambios" : "Guardar Orden";
+}
+
+async function openOrdenModalForEdit(row) {
+  if (!row?.orden_id) return;
+  if (!isEditableEstado(row.estado)) {
+    msgJobs("Solo puedes editar ordenes en DISENO o PLACAS.");
+    return;
+  }
+  const full = await fetchOrdenById(row.orden_id);
+  const det = Array.isArray(full?.detalles_orden) ? full.detalles_orden[0] : (full?.detalles_orden || {});
+  const isExt = hasExternalFlow(full?.observaciones_generales);
+
+  clearOrdenForm();
+  setOrdenModalMode("edit", row);
+  $("modalOrdenWrap")?.classList.remove("hide");
+
+  if ($("o_desc")) $("o_desc").value = full?.descripcion_trabajo || row.descripcion_trabajo || "";
+  if ($("o_cliente")) $("o_cliente").value = String(full?.cliente_id || "");
+  if ($("o_entrega")) $("o_entrega").value = toInputDatetimeLocal(full?.fecha_entrega || row.fecha_entrega);
+  if ($("o_prio")) $("o_prio").value = full?.prioridad || row.prioridad || "NORMAL";
+  if ($("o_estado")) $("o_estado").value = (estadoKey(full?.estado) === "PLACAS") ? "PLACAS" : "DISENO";
+  if ($("o_obs")) {
+    const raw = String(full?.observaciones_generales || "");
+    $("o_obs").value = raw.replace(EXTERNAL_TAG, "").trim();
+  }
+  if ($("o_tiene_oc")) $("o_tiene_oc").checked = !!full?.tiene_oc;
+  if ($("o_oc_numero")) $("o_oc_numero").value = full?.oc_numero || "";
+  if ($("o_oc_obs")) $("o_oc_obs").value = full?.oc_observacion || "";
+  if ($("o_externo")) $("o_externo").checked = !!isExt;
+
+  if ($("d_material")) $("d_material").value = det?.material_id ? String(det.material_id) : "";
+  if ($("d_formato")) {
+    if (det?.formato_id) $("d_formato").value = String(det.formato_id);
+    else if (det?.medida_ancho && det?.medida_alto) $("d_formato").value = "__CUSTOM__";
+    else $("d_formato").value = "";
+  }
+  if ($("d_ancho")) $("d_ancho").value = det?.medida_ancho ?? "";
+  if ($("d_alto")) $("d_alto").value = det?.medida_alto ?? "";
+  if ($("d_cant")) $("d_cant").value = det?.cantidad_solicitada ?? "";
+  if ($("d_dem")) $("d_dem").value = det?.demasia ?? "";
+  if ($("d_maq")) $("d_maq").value = det?.maquina_sugerida_id ? String(det.maquina_sugerida_id) : "";
+  if ($("d_tipoimp")) $("d_tipoimp").value = det?.tipo_impresion || "";
+  if ($("d_color_mode")) $("d_color_mode").value = det?.color_mode || "FC";
+  if ($("d_color_text")) $("d_color_text").value = det?.color_text || "F/C";
+  if ($("d_obs_tecnica")) $("d_obs_tecnica").value = det?.observacion_tecnica || "";
+  if ($("p_plast")) $("p_plast").value = det?.plastificado || "";
+
+  if ($("p_corte")) $("p_corte").checked = !!det?.corte;
+  if ($("p_empaq")) $("p_empaq").checked = !!det?.empaquetado;
+  if ($("p_doblez")) $("p_doblez").checked = !!det?.doblez;
+  if ($("p_compa")) $("p_compa").checked = !!det?.compaginado;
+  if ($("p_troq")) $("p_troq").checked = !!det?.troquelado;
+  if ($("p_sect")) $("p_sect").checked = !!det?.sectorizado;
+  if ($("p_barniz")) $("p_barniz").checked = !!det?.barniz;
+
+  syncClienteSelectedText();
+  syncMaterialSelectedText();
+  syncOcFields();
+  syncExternalFlowUI();
+  syncFormatoFields();
+  $("d_color_mode")?.dispatchEvent(new Event("change"));
+  refreshFormState();
 }
 
 function renderClienteSelectBase() {
@@ -947,7 +1078,7 @@ async function loadJobs() {
       <td>${esc(fmtTipoImpresion(r.tipo_impresion))}</td>
       <td>${esc(r.color_text || "-")}</td>
       <td>${esc(r.maquina_sugerida_nombre || "-")}</td>
-      <td><div class="row-actions">${renderAccion(r)}<button class="btn btn-ghost" type="button" data-action="detail" data-oid="${r.orden_id}" style="padding:8px 10px">Detalle</button></div></td>
+      <td><div class="row-actions">${renderAccion(r)}${isEditableEstado(r.estado) ? `<button class="btn btn-ghost" type="button" data-action="edit" data-oid="${r.orden_id}" style="padding:8px 10px">Editar</button>` : ""}<button class="btn btn-ghost" type="button" data-action="detail" data-oid="${r.orden_id}" style="padding:8px 10px">Detalle</button></div></td>
     </tr>`;
   }).join("");
 
@@ -987,6 +1118,17 @@ async function loadJobs() {
     if (!row) return;
     const extra = await fetchOrdenById(oid).catch(() => null);
     openDetalleOrden(row, extra);
+  }));
+
+  tb.querySelectorAll('button[data-action="edit"]').forEach((btn) => btn.addEventListener("click", async () => {
+    const oid = Number(btn.getAttribute("data-oid"));
+    const row = (rows || []).find((x) => Number(x.orden_id) === oid);
+    if (!row) return;
+    try {
+      await openOrdenModalForEdit(row);
+    } catch (e) {
+      msgJobs("ERROR abriendo editor: " + (e?.message || e));
+    }
   }));
 
   msgJobs(`Cargados: ${(rows || []).length} trabajo(s).`);
@@ -1145,22 +1287,31 @@ async function onGuardarOrden() {
       barniz: $("p_barniz")?.checked ?? false,
       plastificado: $("p_plast")?.value || null
     };
-    const res = await createOrdenConDetalles({ orden, detalles });
-    const ordSaved = await fetchOrdenById(res.id).catch(() => null);
-    const entregaSaved = fmtEntrega(ordSaved?.fecha_entrega);
-    msgCreate(
-      `OK Orden creada\nID: ${res.id}\nNro Orden: ${res.numero_orden_fisica || ("#" + res.id)}\nEntrega guardada: ${entregaSaved}`
-    );
+    let res = null;
+    if (ordenModalMode === "edit" && ordenEditId) {
+      const latest = await fetchOrdenById(ordenEditId);
+      if (!isEditableEstado(latest?.estado)) {
+        msgCreate("ERROR: Esta orden ya no esta en DISENO/PLACAS y no puede editarse.");
+        return;
+      }
+      res = await updateOrdenConDetalles({ ordenId: ordenEditId, orden, detalles });
+      const ordSaved = await fetchOrdenById(ordenEditId).catch(() => null);
+      const entregaSaved = fmtEntrega(ordSaved?.fecha_entrega);
+      msgCreate(
+        `OK Orden actualizada\nID: ${ordenEditId}\nNro Orden: ${res?.numero_orden_fisica || ("#" + ordenEditId)}\nEntrega guardada: ${entregaSaved}`
+      );
+    } else {
+      res = await createOrdenConDetalles({ orden, detalles });
+      const ordSaved = await fetchOrdenById(res.id).catch(() => null);
+      const entregaSaved = fmtEntrega(ordSaved?.fecha_entrega);
+      msgCreate(
+        `OK Orden creada\nID: ${res.id}\nNro Orden: ${res.numero_orden_fisica || ("#" + res.id)}\nEntrega guardada: ${entregaSaved}`
+      );
+    }
     await loadJobs();
     await loadRegistros();
-    $("o_desc").value = "";
-    $("o_obs").value = "";
-    if ($("d_obs_tecnica")) $("d_obs_tecnica").value = "";
-    if ($("o_tiene_oc")) $("o_tiene_oc").checked = false;
-    if ($("o_oc_numero")) $("o_oc_numero").value = "";
-    if ($("o_oc_obs")) $("o_oc_obs").value = "";
-    syncResponsableDisenoField();
-    syncOcFields();
+    clearOrdenForm();
+    setOrdenModalMode("create");
     $("modalOrdenWrap")?.classList.add("hide");
   } catch (e) {
     console.error("CREATE_ORDEN_ERROR", {
@@ -1362,13 +1513,21 @@ async function exportReporteEntregadosCsv() {
   $("d_material")?.addEventListener("change", syncMaterialSelectedText);
   $("o_externo")?.addEventListener("change", syncExternalFlowUI);
   $("btnOpenOrden")?.addEventListener("click", () => {
-    syncResponsableDisenoField();
+    setOrdenModalMode("create");
+    clearOrdenForm();
     $("modalOrdenWrap")?.classList.remove("hide");
-    syncExternalFlowUI();
     refreshFormState();
   });
-  $("btnCloseOrden")?.addEventListener("click", () => $("modalOrdenWrap")?.classList.add("hide"));
-  $("modalOrdenWrap")?.addEventListener("click", (ev) => { if (ev.target && ev.target.id === "modalOrdenWrap") $("modalOrdenWrap")?.classList.add("hide"); });
+  $("btnCloseOrden")?.addEventListener("click", () => {
+    setOrdenModalMode("create");
+    $("modalOrdenWrap")?.classList.add("hide");
+  });
+  $("modalOrdenWrap")?.addEventListener("click", (ev) => {
+    if (ev.target && ev.target.id === "modalOrdenWrap") {
+      setOrdenModalMode("create");
+      $("modalOrdenWrap")?.classList.add("hide");
+    }
+  });
   $("btnGuardarOrden")?.addEventListener("click", onGuardarOrden);
 
   $("btnCloseDetail")?.addEventListener("click", closeDetalleOrden);
