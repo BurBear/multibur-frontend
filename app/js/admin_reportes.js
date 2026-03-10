@@ -1,46 +1,22 @@
 import { requireAdmin, logout, getProfileDisplayName } from "./auth.js";
 import { fetchClientes, fetchReporteEntregados, fetchRegistros, fetchProfilesByIds, fetchMaquinasByIds, fetchOrdenResumenByIds } from "./api.js";
 import { $, setText, debounce } from "./ui.js";
+import { escapeHtml } from "./utils/helpers.js";
+import { fmtEntrega, fmtDateTimePE } from "./utils/formatters.js";
+import { fmtTipoImpresion } from "./admin/admin-orders.js";
 
 const msg = (t) => setText("msgReport", t || "");
 let clientesCache = [];
 let previewReqId = 0;
 let activeTab = "entregados";
 
-const esc = (s) =>
-  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-function fmtEntrega(value) {
-  if (!value) return "-";
-  const s = String(value).trim();
-  const hasOffset = /(?:Z|[+-]\d{2}:\d{2})$/i.test(s);
-  if (hasOffset) return new Date(s).toLocaleString("es-PE", { timeZone: "America/Lima" });
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
-  if (m) {
-    const [, y, mo, d, hh, mm, ss = "00"] = m;
-    return `${d}/${mo}/${y}, ${hh}:${mm}:${ss}`;
-  }
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleString("es-PE");
-}
-
-function fmtDTPE(x) {
-  return x ? new Date(x).toLocaleString("es-PE", { timeZone: "America/Lima" }) : "-";
-}
+const esc = escapeHtml;
+const fmtDTPE = fmtDateTimePE;
 
 function normalizeTipoCliente(v) {
   const t = String(v || "").trim().toUpperCase();
   if (t === "SERVICIO_IMPRESION") return "SERVICIO";
   return t || "";
-}
-
-function fmtTipoImpresion(v) {
-  const raw = String(v || "").trim().toUpperCase();
-  if (raw === "TIRA_RETIRA") return "TIRA/RETIRA";
-  if (raw === "TIRA+RETIRA") return "T+R";
-  if (raw === "DOBLE_PINZA") return "DOBLE PINZA";
-  return String(v || "-");
 }
 
 function syncRegsPresetChips() {
@@ -288,6 +264,8 @@ async function loadRegistros() {
     fetchMaquinasByIds(maqIds)
   ]);
   const ordenMap = new Map((ordenes || []).map((o) => [o.orden_id, o.numero_orden_fisica]));
+  const clienteMap = new Map((ordenes || []).map((o) => [o.orden_id, o.cliente_nombre]));
+  const trabajoMap = new Map((ordenes || []).map((o) => [o.orden_id, o.descripcion_trabajo]));
   const userMap = new Map((users || []).map((u) => [u.id, getProfileDisplayName(u) || u.username || u.id]));
   const maqMap = new Map((maqs || []).map((m) => [m.id, m.nombre]));
 
@@ -303,6 +281,8 @@ async function loadRegistros() {
     tb.innerHTML = (regs || []).length
       ? (regs || []).map((r) => `<tr>
           <td>${esc(ordenMap.get(r.orden_id) || ("#" + r.orden_id))}</td>
+          <td>${esc(clienteMap.get(r.orden_id) || "-")}</td>
+          <td>${esc(trabajoMap.get(r.orden_id) || "-")}</td>
           <td>${esc(userMap.get(r.user_id) || r.user_id || "-")}</td>
           <td>${esc(maqMap.get(r.maquina_id) || r.maquina_id || "-")}</td>
           <td>${esc(fmtDTPE(r.hora_inicio))}</td>
@@ -310,7 +290,7 @@ async function loadRegistros() {
           <td>${esc(r.cantidad_buena ?? "-")}</td>
           <td>${esc(r.cantidad_mala ?? 0)}</td>
         </tr>`).join("")
-      : `<tr><td colspan="7" class="preview-empty">No hay registros para los filtros seleccionados.</td></tr>`;
+      : `<tr><td colspan="9" class="preview-empty">No hay registros para los filtros seleccionados.</td></tr>`;
   }
   setText("msgRegs", `Registros cargados: ${(regs || []).length}`);
 }

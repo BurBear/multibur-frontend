@@ -1,6 +1,7 @@
 ﻿import { requireAdmin, logout, getProfileDisplayName } from "./auth.js";
 import { supabase } from "./supabaseClient.js";
 import { $, setText } from "./ui.js";
+import { escapeHtml, normalizeText } from "./utils/helpers.js";
 
 const msgC = (t) => setText("msgClientes", t);
 const msgM = (t) => setText("msgMaquinas", t);
@@ -19,18 +20,8 @@ const CLIENTE_CSV_HEADERS = [
   "requiere_oc_default"
 ];
 
-function esc(s){
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-  }[c]));
-}
-
-function norm(s){
-  return String(s ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
+const esc = escapeHtml;
+const norm = normalizeText;
 
 function normalizeTipoCliente(v){
   const t = String(v || "").trim().toUpperCase();

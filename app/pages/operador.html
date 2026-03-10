@@ -1,766 +1,358 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MultiBur | Registro de Produccion</title>
-  <style>
-    *{box-sizing:border-box}
-    :root{
-      --bg:#07101d;
-      --panel:#121b2e;
-      --panel-2:#0e1627;
-      --line:#243250;
-      --line-2:#2a3b61;
-      --text:#e8eefc;
-      --muted:#a8b8d9;
-      --blue:#2563eb;
-      --blue-soft:#143c77;
-      --green:#22c55e;
-      --green-soft:rgba(34,197,94,.12);
-      --shadow:0 22px 60px rgba(2,8,23,.45);
-    }
-    body{
-      font-family:system-ui,Arial;
-      margin:0;
-      color:var(--text);
-      background:
-        radial-gradient(1200px 700px at 0% 0%, rgba(37,99,235,.14), transparent 45%),
-        radial-gradient(900px 600px at 100% 0%, rgba(34,197,94,.08), transparent 40%),
-        linear-gradient(180deg, #091326 0%, var(--bg) 100%);
-      min-height:100vh;
-    }
-    .top{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      padding:18px 20px;
-      border-bottom:1px solid var(--line);
-      background:rgba(13,23,48,.92);
-      backdrop-filter:blur(10px);
-    }
-    .brand-wrap{display:flex; flex-direction:column; gap:4px}
-    .brand-main{font-size:34px; font-weight:900; letter-spacing:-.03em; line-height:1}
-    .role-chip{
-      width:max-content;
-      font-size:11px;
-      padding:3px 9px;
-      border-radius:999px;
-      border:1px solid #1f7a57;
-      color:var(--green);
-      background:var(--green-soft);
-    }
-    .brand{font-weight:900; font-size:28px; line-height:1.05}
-    .brand-sub{font-size:13px; color:var(--muted)}
-    .top-right{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-    .pill{
-      padding:7px 12px;
-      border:1px solid var(--line-2);
-      border-radius:999px;
-      font-size:12px;
-      opacity:.96;
-      background:rgba(11,22,46,.85);
-    }
-    .wrap{max-width:1220px; margin:0 auto; padding:18px;}
-    .grid{display:grid; grid-template-columns: 1.3fr .7fr; gap:16px; align-items:start;}
-    @media (max-width: 960px){ .grid{grid-template-columns:1fr;} }
 
-    .card{
-      background:var(--panel);
-      border:1px solid var(--line);
-      border-radius:18px;
-      overflow:hidden;
-      box-shadow:var(--shadow);
-    }
-    .card-head{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:12px;
-      padding:16px 16px 14px;
-      border-bottom:1px solid var(--line);
-      background:linear-gradient(180deg, rgba(13,23,48,.94), rgba(13,23,48,.78));
-    }
-    .card-title{margin:0; font-size:16px; font-weight:900}
-    .card-subtitle{margin-top:4px; font-size:12px; color:var(--muted)}
-    .card-body{padding:16px}
-    h2{margin:0 0 10px; font-size:16px;}
-    table{width:100%; border-collapse:collapse; font-size:13px;}
-    th,td{padding:12px 10px; border-bottom:1px solid var(--line); vertical-align:top;}
-    th{
-      opacity:.86;
-      text-align:left;
-      font-weight:800;
-      font-size:11px;
-      letter-spacing:.04em;
-      text-transform:uppercase;
-      color:#c6d6f3;
-    }
-    tr:hover td{background:#112041;}
-    .muted{color:var(--muted)}
-    .btn{
-      padding:11px 14px;
-      border-radius:12px;
-      border:1px solid var(--line-2);
-      cursor:pointer;
-      font-weight:900;
-      background:var(--panel-2);
-      color:var(--text);
-      transition:.16s ease;
-    }
-    .btn:hover{border-color:#3b4f79; transform:translateY(-1px)}
-    .btn-primary{
-      background:linear-gradient(180deg, #22c55e, #16a34a);
-      border-color:#1f7a57;
-      color:#05120a;
-      box-shadow:0 10px 24px rgba(34,197,94,.2);
-    }
-    .btn-warn{
-      background:linear-gradient(180deg, #fbbf24, #f59e0b);
-      border-color:#f59e0b;
-      color:#1d1400;
-    }
-    .btn-info{
-      background:linear-gradient(180deg, #38bdf8, #0ea5e9);
-      border-color:#0ea5e9;
-      color:#042032;
-    }
-    .btn-resume{
-      background:linear-gradient(180deg, #a78bfa, #7c3aed);
-      border-color:#8b5cf6;
-      color:#f5f3ff;
-    }
-    .btn-danger{
-      background:linear-gradient(180deg, rgba(239,68,68,.22), rgba(185,28,28,.32));
-      border-color:rgba(248,113,113,.45);
-      color:#fecaca;
-    }
-    .btn-ghost{background:var(--panel-2); color:var(--text);}
-    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-    select,input,textarea{
-      width:100%;
-      padding:11px 12px;
-      border-radius:12px;
-      border:1px solid var(--line-2);
-      background:var(--panel-2);
-      color:var(--text);
-    }
-    textarea{min-height:96px; resize:vertical;}
-    .small{font-size:12px; color:var(--muted)}
-    .meta{font-size:12px; color:var(--muted)}
-    .kpi{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
-    @media (max-width: 700px){ .kpi{grid-template-columns:repeat(2,1fr);} }
-    .k{
-      background:linear-gradient(180deg, rgba(11,22,46,.92), rgba(14,22,39,.98));
-      border:1px solid var(--line-2);
-      border-radius:14px;
-      padding:12px;
-    }
-    .k .t{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em}
-    .k .v{font-size:18px; font-weight:900; margin-top:6px}
-    .msg{white-space:pre-wrap; font-size:12px; margin-top:10px; color:var(--muted)}
-    .badge{
-      display:inline-block;
-      padding:5px 9px;
-      border-radius:999px;
-      font-size:11px;
-      border:1px solid var(--line-2);
-      background:var(--panel-2);
-    }
-    .hide{display:none;}
-    .pager{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin:10px 0}
-    .pager-left,.pager-right{display:flex; gap:10px; align-items:center}
-    .pager-right{margin-left:auto; justify-content:flex-end; flex-wrap:nowrap}
-    .pager-right .btn,
-    .pager-right .meta,
-    .pager-right label{white-space:nowrap}
-    #pendPageInfo{min-width:40px; text-align:center}
-    #pendLimit{flex:0 0 100px}
-    @media (max-width: 700px){
-      .pager-right{
-        width:100%;
-        justify-content:flex-start;
-        overflow:auto;
-        padding-bottom:2px;
-      }
-    }
-    .tableWrap{
-      overflow:auto;
-      border-radius:16px;
-      border:1px solid var(--line);
-      background:rgba(9,19,38,.55);
-      max-height:calc(100vh - 360px);
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.02);
-    }
-    .tableWrap thead th{position:sticky; top:0; background:#14203a; z-index:1;}
-    @media (max-width: 960px){ .tableWrap{max-height:none;} }
 
-    .hint-strip{
-      display:flex;
-      justify-content:space-between;
-      gap:12px;
-      align-items:center;
-      padding:12px 14px;
-      border:1px solid var(--line);
-      border-radius:14px;
-      background:linear-gradient(180deg, rgba(20,32,58,.75), rgba(11,22,46,.95));
-      margin-bottom:14px;
-    }
-    .hint-label{font-size:12px; color:var(--muted)}
-    .hint-strong{font-size:13px; font-weight:800}
-    .tabs{display:flex; gap:8px; margin:12px 0 14px;}
-    .tab{
-      padding:9px 12px;
-      border:1px solid var(--line-2);
-      border-radius:12px;
-      background:var(--panel-2);
-      color:var(--text);
-      cursor:pointer;
-      font-weight:900;
-      font-size:12px;
-    }
-    .tab.active{
-      background:linear-gradient(180deg, rgba(37,99,235,.28), rgba(20,60,119,.75));
-      border-color:#4f80dc;
-      box-shadow:0 0 0 1px rgba(96,165,250,.2) inset;
-    }
-    .quick-tools{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-      margin-bottom:12px;
-    }
-    .quick-tools .search{flex:1; min-width:240px}
-    .section-label{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      font-size:12px;
-      font-weight:800;
-      text-transform:uppercase;
-      letter-spacing:.06em;
-      color:#c6d6f3;
-      margin-bottom:10px;
-    }
-    .section-label::before{
-      content:"";
-      width:8px;
-      height:8px;
-      border-radius:999px;
-      background:var(--green);
-      box-shadow:0 0 0 6px rgba(34,197,94,.12);
-    }
-    .panel-stack{display:grid; gap:14px}
-    .status-list{display:grid; gap:10px; margin-top:14px}
-    .status-card{
-      border:1px solid var(--line);
-      border-radius:14px;
-      background:linear-gradient(180deg, rgba(17,32,65,.82), rgba(11,22,46,.98));
-      padding:12px;
-    }
-    .status-card .title{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em}
-    .status-card .value{font-size:15px; font-weight:800; margin-top:5px}
-    .status-card .desc{font-size:12px; color:var(--muted); margin-top:6px; line-height:1.45}
-    .action-top{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:12px;
-      margin-bottom:10px;
-    }
-    .btn-alert{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      background:linear-gradient(180deg, rgba(239,68,68,.2), rgba(127,29,29,.34));
-      border-color:rgba(248,113,113,.45);
-      color:#fee2e2;
-      white-space:nowrap;
-    }
-    .btn-alert svg{width:15px; height:15px; flex:0 0 auto}
-
-    /* Modal */
-    .modalWrap{
-      position:fixed; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      background:rgba(0,0,0,.55);
-      backdrop-filter: blur(4px);
-      z-index:9999;
-      padding:18px;
-    }
-    .modal{
-      width:min(920px, 100%);
-      background:var(--panel);
-      border:1px solid var(--line);
-      border-radius:18px;
-      box-shadow:var(--shadow);
-      overflow:hidden;
-      display:flex;
-      flex-direction:column;
-      max-height:min(92vh, 920px);
-    }
-    .modalHead{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:12px 14px;
-      border-bottom:1px solid var(--line);
-      background:#0d1730;
-      position:sticky;
-      top:0;
-      z-index:2;
-    }
-    .modalTitle{font-weight:900}
-    .modalBody{
-      padding:14px;
-      overflow:auto;
-      -webkit-overflow-scrolling:touch;
-      flex:1 1 auto;
-    }
-    .modalGrid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
-    @media (max-width: 900px){ .modalGrid{grid-template-columns:1fr;} }
-    .box{
-      background:var(--panel-2);
-      border:1px solid var(--line-2);
-      border-radius:14px;
-      padding:14px;
-    }
-    .box h3{margin:0 0 10px; font-size:13px; opacity:.9}
-    .twoCol{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    @media (max-width: 700px){ .twoCol{grid-template-columns:1fr;} }
-    .focus-grid{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:10px;
-      margin-bottom:12px;
-    }
-    .focus-stat{
-      border:1px solid var(--line-2);
-      border-radius:14px;
-      background:linear-gradient(180deg, rgba(20,60,119,.35), rgba(11,22,46,.96));
-      padding:12px;
-    }
-    .focus-stat .k{
-      display:block;
-      font-size:11px;
-      text-transform:uppercase;
-      letter-spacing:.05em;
-      color:#c6d6f3;
-      margin-bottom:5px;
-    }
-    .focus-stat .v{
-      display:block;
-      font-size:24px;
-      font-weight:900;
-      line-height:1.05;
-      color:#fff;
-    }
-    .incident-box{
-      margin-top:14px;
-      padding:12px;
-      border:1px solid var(--line);
-      border-radius:14px;
-      background:linear-gradient(180deg, rgba(127,29,29,.12), rgba(11,22,46,.92));
-    }
-    .incident-box h4{
-      margin:0 0 8px;
-      font-size:12px;
-      text-transform:uppercase;
-      letter-spacing:.05em;
-      color:#fecaca;
-    }
-    .incident-steps{
-      margin:0 0 10px;
-      padding-left:18px;
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.5;
-    }
-    .incident-steps li + li{margin-top:4px}
-    .status-banner{
-      margin-bottom:12px;
-      padding:10px 12px;
-      border:1px solid var(--line-2);
-      border-radius:12px;
-      background:rgba(11,22,46,.88);
-      font-size:12px;
-      color:var(--muted);
-    }
-    .status-banner strong{display:block; font-size:13px; color:#fff; margin-bottom:3px}
-    .status-banner.is-paused{
-      border-color:rgba(248,113,113,.45);
-      background:linear-gradient(180deg, rgba(127,29,29,.2), rgba(11,22,46,.95));
-    }
-
-    .help{
-      font-size:12px;
-      color:var(--muted);
-      line-height:1.55;
-      border-top:1px solid var(--line);
-      padding-top:10px;
-    }
-    .incidentModal{
-      width:min(560px, 100%);
-    }
-    .modalWrap.hide{display:none;}
-    @media (max-width: 720px){
-      .top{flex-direction:column; align-items:flex-start; gap:12px; padding:12px}
-      .top-right{width:100%; gap:8px}
-      .brand-main{font-size:28px}
-      .pill{width:100%; text-align:center}
-      .wrap{padding:12px}
-      .card-head{flex-direction:column; align-items:stretch}
-      .card-body{padding:12px}
-      .hint-strip{flex-direction:column; align-items:flex-start}
-      .tabs{display:grid; grid-template-columns:1fr 1fr}
-      .tab{width:100%; text-align:center}
-      .quick-tools{flex-direction:column; align-items:stretch}
-      .quick-tools > *{width:100%}
-      .row > *{width:100%}
-      .modalWrap{padding:0}
-      .modal{
-        width:100%;
-        max-width:none;
-        max-height:100vh;
-        min-height:100vh;
-        border-radius:0;
-        border-left:0;
-        border-right:0;
-      }
-      .modalHead{padding:12px}
-      .modalBody{
-        padding:12px;
-        overflow:auto;
-        -webkit-overflow-scrolling:touch;
-      }
-      .action-top{flex-direction:column; align-items:stretch}
-      .focus-grid{grid-template-columns:1fr}
-    }
-  </style>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/operador.css" />
 </head>
 
-<body>
-<header class="top">
-  <div class="brand-wrap">
-    <div class="brand-main">MultiBur</div>
-    <span class="role-chip">OPERADOR</span>
-  </div>
-  <div>
-    <div class="brand">Registro de Produccion</div>
-    <div class="brand-sub">Panel operativo para seleccionar, iniciar y finalizar trabajos de impresion</div>
-  </div>
-  <div class="top-right">
-    <span id="userPill" class="pill">-</span>
-    <button id="btnLogout" class="btn btn-ghost" type="button">Cerrar sesion</button>
-  </div>
-</header>
-
-<div class="wrap">
-  <div class="grid">
-    <!-- IZQ -->
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">Panel del Operador</div>
-          <div class="card-subtitle">Solo se muestran trabajos listos para imprimir. La accion principal es iniciar desde PLACAS.</div>
-        </div>
-        <button id="btnReload" class="btn btn-ghost" type="button">Recargar</button>
-      </div>
-      <div class="card-body">
-      <div class="hint-strip">
-        <div>
-          <div class="hint-label">Flujo permitido</div>
-          <div class="hint-strong">Solo puedes iniciar cuando el estado es PLACAS</div>
-        </div>
-        <span class="pill">Solo trabajos en PLACAS</span>
-      </div>
-
-      <div class="tabs">
-        <button id="tabPend" class="tab active" type="button">Trabajos por hacer</button>
-        <button id="tabHoy" class="tab" type="button">Lo que hice hoy</button>
-      </div>
-
-      <!-- Pendientes -->
-      <section id="secPend">
-        <div class="section-label">Cola de impresion</div>
-        <div class="quick-tools">
-          <div class="search">
-            <input id="q" placeholder="Buscar: cliente, trabajo, nro orden..." />
-          </div>
-        </div>
-
-        <div class="pager">
-          <div class="pager-left">
-            <div id="pendStats" class="meta">Mostrando 0-0 de 0</div>
-          </div>
-          <div class="pager-right">
-            <label class="small" for="pendLimit">Mostrar</label>
-            <select id="pendLimit" style="max-width:100px">
-              <option value="10">10</option>
-              <option value="20" selected>20</option>
-              <option value="50">50</option>
-            </select>
-            <button id="btnPendPrev" class="btn btn-ghost" type="button">Anterior</button>
-            <div id="pendPageInfo" class="meta">1 / 1</div>
-            <button id="btnPendNext" class="btn btn-ghost" type="button">Siguiente</button>
-          </div>
-        </div>
-
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Orden</th>
-                <th>Cliente</th>
-                <th>Trabajo</th>
-                <th>Formato</th>
-                <th>Impresion</th>
-                <th>Color</th>
-                <th>Maq. sug.</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tb"></tbody>
-          </table>
-        </div>
-
-        <div id="msgLeft" class="msg"></div>
-      </section>
-
-      <!-- Hoy -->
-      <section id="secHoy" class="hide">
-        <div class="section-label">Mi produccion de hoy</div>
-        <div style="margin:10px 0" class="row">
-          <button id="btnReloadHoy" class="btn btn-ghost" type="button">Actualizar hoy</button>
-        </div>
-
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Registro</th>
-                <th>Orden</th>
-                <th>Maquina</th>
-                <th>Inicio</th>
-                <th>Fin</th>
-                <th>Buena</th>
-                <th>Mala</th>
-              </tr>
-            </thead>
-            <tbody id="tbHoy"></tbody>
-          </table>
-        </div>
-
-        <div id="msgHoy" class="msg"></div>
-      </section>
-      </div>
+<body class="page-operador">
+  <header class="top">
+    <div class="brand-wrap">
+      <div class="brand-main">MultiBur</div>
+      <span class="role-chip">OPERADOR</span>
     </div>
-
-    <!-- DER: solo KPIs (el formulario va en modal) -->
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">Mi registro</div>
-          <div class="card-subtitle">Estado actual del operador y guia rapida de trabajo.</div>
-        </div>
-      </div>
-      <div class="card-body">
-      <div class="panel-stack">
-        <div class="kpi">
-          <div class="k"><div class="t">Registro activo</div><div id="kAct" class="v">-</div></div>
-          <div class="k"><div class="t">Orden</div><div id="kOrd" class="v">-</div></div>
-          <div class="k"><div class="t">Maquina</div><div id="kMaq" class="v">-</div></div>
-          <div class="k"><div class="t">Inicio</div><div id="kIni" class="v">-</div></div>
-        </div>
-
-        <div class="status-list">
-          <div class="status-card">
-            <div class="title">Paso 1</div>
-            <div class="value">Elegir trabajo</div>
-            <div class="desc">Selecciona una orden de la cola. El modal mostrara detalle completo antes de iniciar.</div>
-          </div>
-          <div class="status-card">
-            <div class="title">Paso 2</div>
-            <div class="value">Iniciar impresion</div>
-            <div class="desc">Solo puedes iniciar si la orden esta en PLACAS y si no tienes otro registro activo.</div>
-          </div>
-          <div class="status-card">
-            <div class="title">Paso 3</div>
-            <div class="value">Finalizar con cantidades</div>
-            <div class="desc">Registra cantidad buena, mala y observaciones para cerrar correctamente la produccion.</div>
-          </div>
-        </div>
-      </div>
-      </div>
+    <div>
+      <div class="brand">Registro de Produccion</div>
+      <div class="brand-sub">Panel operativo para seleccionar, iniciar y finalizar trabajos de impresion</div>
     </div>
-  </div>
-</div>
-
-<!-- MODAL (Detalle + Acciones) -->
-<div id="modalWrap" class="modalWrap hide" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <div class="modalHead">
-      <div id="modalTitle" class="modalTitle">Detalle de Orden</div>
-      <button id="btnModalClose" class="btn btn-ghost" type="button">Cerrar</button>
+    <div class="top-right">
+      <span id="userPill" class="pill">-</span>
+      <button id="btnLogout" class="btn btn-ghost" type="button">Cerrar sesion</button>
     </div>
+  </header>
 
-    <div class="modalBody">
-      <div class="modalGrid">
-        <!-- Detalle -->
-        <div class="box">
-          <h3>Datos</h3>
-          <div class="focus-grid">
-            <div class="focus-stat">
-              <span class="k">Cantidad</span>
-              <span id="mCantidad" class="v">-</span>
-            </div>
-            <div class="focus-stat">
-              <span class="k">Demasia</span>
-              <span id="mDemasia" class="v">-</span>
-            </div>
+  <div class="wrap">
+    <div class="grid">
+      <!-- IZQ -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Panel del Operador</div>
+            <div class="card-subtitle">Solo se muestran trabajos listos para imprimir. La accion principal es iniciar
+              desde PLACAS.</div>
           </div>
-          <div class="twoCol">
-            <div class="small muted">
-              <div><b>Orden:</b> <span id="mOrden">-</span></div>
-              <div style="margin-top:6px"><b>Estado:</b> <span id="mEstado">-</span></div>
-              <div style="margin-top:6px"><b>Cliente:</b> <span id="mCliente">-</span></div>
-              <div style="margin-top:6px"><b>Trabajo:</b> <span id="mTrabajo">-</span></div>
+          <button id="btnReload" class="btn btn-ghost hide" type="button">Recargar</button>
+        </div>
+        <div class="card-body">
+          <div class="hint-strip">
+            <div>
+              <div class="hint-label">Flujo permitido</div>
+              <div class="hint-strong">Solo puedes iniciar cuando el estado es PLACAS</div>
             </div>
-            <div class="small muted">
-              <div><b>Formato:</b> <span id="mFormato">-</span></div>
-              <div style="margin-top:6px"><b>Material:</b> <span id="mMaterial">-</span></div>
-              <div style="margin-top:6px"><b>Impresion:</b> <span id="mImpresion">-</span></div>
-              <div style="margin-top:6px"><b>Color:</b> <span id="mColor">-</span></div>
-            </div>
+            <span class="pill">Solo trabajos en PLACAS</span>
           </div>
 
-          <div class="twoCol" style="margin-top:10px">
-            <div class="small muted">
-              <div><b>Entrega:</b> <span id="mEntrega">-</span></div>
-            </div>
-            <div class="small muted">
-              <div><b>Maq. sugerida:</b> <span id="mMaqSug">-</span></div>
-            </div>
+          <div class="tabs">
+            <button id="tabPend" class="tab active" type="button">Trabajos por hacer</button>
+            <button id="tabHoy" class="tab" type="button">Lo que hice hoy</button>
           </div>
-          <div class="small muted" style="margin-top:10px">
-            <div><b>Observacion de orden:</b></div>
-            <div id="mObs" style="margin-top:4px; white-space:pre-wrap;">-</div>
+
+          <!-- Pendientes -->
+          <section id="secPend">
+            <div class="section-label">Cola de impresion</div>
+            <div class="quick-tools">
+              <div class="search">
+                <input id="q" placeholder="Buscar: cliente, trabajo, nro orden..." />
+              </div>
+            </div>
+
+            <div class="pager">
+              <div class="pager-left">
+                <div id="pendStats" class="meta">Mostrando 0-0 de 0</div>
+              </div>
+              <div class="pager-right">
+                <label class="small" for="pendLimit">Mostrar</label>
+                <select id="pendLimit" class="inl-1">
+                  <option value="10">10</option>
+                  <option value="20" selected>20</option>
+                  <option value="50">50</option>
+                </select>
+                <button id="btnPendPrev" class="btn btn-ghost" type="button">Anterior</button>
+                <div id="pendPageInfo" class="meta">1 / 1</div>
+                <button id="btnPendNext" class="btn btn-ghost" type="button">Siguiente</button>
+              </div>
+            </div>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Orden</th>
+                    <th>Entrega</th>
+                    <th>Cliente</th>
+                    <th>Trabajo</th>
+                    <th>Cantidad</th>
+                    <th>Formato</th>
+                    <th>Impresion</th>
+                    <th>Color</th>
+                    <th>Maq. sug.</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="tb"></tbody>
+              </table>
+            </div>
+
+            <div id="msgLeft" class="msg"></div>
+          </section>
+
+          <!-- Hoy -->
+          <section id="secHoy" class="hide">
+            <div class="section-label">Mi produccion de hoy</div>
+            <div class="row inl-2">
+              <button id="btnReloadHoy" class="btn btn-ghost hide" type="button">Actualizar hoy</button>
+            </div>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Registro</th>
+                    <th>Orden</th>
+                    <th>Maquina</th>
+                    <th>Inicio</th>
+                    <th>Fin</th>
+                    <th>Buena</th>
+                    <th>Mala</th>
+                  </tr>
+                </thead>
+                <tbody id="tbHoy"></tbody>
+              </table>
+            </div>
+
+            <div id="msgHoy" class="msg"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- DER: solo KPIs (el formulario va en modal) -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Mi registro</div>
+            <div class="card-subtitle">Estado actual del operador y guia rapida de trabajo.</div>
           </div>
         </div>
-
-        <!-- Acciones -->
-        <div class="box">
-          <div class="action-top">
-            <h3 style="margin:0">Acciones (Produccion)</h3>
-            <button id="btnOpenIncident" class="btn btn-alert" type="button">
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 3 3 19h18L12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                <path d="M12 9v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                <circle cx="12" cy="17" r="1" fill="currentColor"/>
-              </svg>
-              Incidencia
-            </button>
-          </div>
-
-          <div id="statusBanner" class="status-banner">
-            <strong>Trabajo listo para iniciar</strong>
-            Completa la maquina y luego inicia. Si surge una incidencia, registrala antes de pausar o devolver.
-          </div>
-
-          <div class="small muted" style="margin-bottom:10px">
-            <div><b>Seleccionada:</b> <span id="selJob" class="badge">Ninguno</span></div>
-            <div style="margin-top:6px"><b>Estado:</b> <span id="selEstado">-</span></div>
-          </div>
-
-          <div style="margin-top:10px">
-            <label class="small">Maquina</label>
-            <select id="maquina"></select>
-          </div>
-
-          <div class="row" style="margin-top:12px">
-            <button id="btnStart" class="btn btn-primary" style="flex:1" type="button">INICIAR</button>
-            <button id="btnStop" class="btn btn-warn" style="flex:1" type="button">FINALIZAR</button>
-          </div>
-
-          <div class="row" style="margin-top:12px">
-            <div style="flex:1">
-              <label class="small">Cantidad buena</label>
-              <input id="good" type="number" min="0" placeholder="Ej: 480" />
+        <div class="card-body">
+          <div class="panel-stack">
+            <div class="kpi">
+              <div class="k">
+                <div class="t">Registro activo</div>
+                <div id="kAct" class="v">-</div>
+              </div>
+              <div class="k">
+                <div class="t">Orden</div>
+                <div id="kOrd" class="v">-</div>
+              </div>
+              <div class="k">
+                <div class="t">Maquina</div>
+                <div id="kMaq" class="v">-</div>
+              </div>
+              <div class="k">
+                <div class="t">Inicio</div>
+                <div id="kIni" class="v">-</div>
+              </div>
             </div>
-            <div style="flex:1">
-              <label class="small">Cantidad mala</label>
-              <input id="bad" type="number" min="0" placeholder="Ej: 10" />
+
+            <div class="status-list">
+              <div class="status-card">
+                <div class="title">Paso 1</div>
+                <div class="value">Elegir trabajo</div>
+                <div class="desc">Selecciona una orden de la cola. El modal mostrara detalle completo antes de iniciar.
+                </div>
+              </div>
+              <div class="status-card">
+                <div class="title">Paso 2</div>
+                <div class="value">Iniciar impresion</div>
+                <div class="desc">Solo puedes iniciar si la orden esta en PLACAS y si no tienes otro registro activo.
+                </div>
+              </div>
+              <div class="status-card">
+                <div class="title">Paso 3</div>
+                <div class="value">Finalizar con cantidades</div>
+                <div class="desc">Registra cantidad buena, mala y observaciones para cerrar correctamente la produccion.
+                </div>
+              </div>
             </div>
           </div>
-
-          <div style="margin-top:12px">
-            <label class="small">Observaciones</label>
-            <textarea id="obs" placeholder="Ej: falta tinta / papel atascado / etc."></textarea>
-          </div>
-
-          <div class="help" style="margin-top:10px">
-            Usa <b>INICIAR</b> para comenzar (solo si esta en <b>PLACAS</b>).
-            Si el trabajo queda pausado, primero debes <b>REANUDAR</b> y luego <b>FINALIZAR</b>.
-          </div>
-
-          <div id="msgRight" class="msg"></div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<div id="incidentWrap" class="modalWrap hide" aria-hidden="true">
-  <div class="modal incidentModal" role="dialog" aria-modal="true" aria-labelledby="incidentTitle">
-    <div class="modalHead">
-      <div id="incidentTitle" class="modalTitle">Gestion de Incidencia</div>
-      <button id="btnIncidentClose" class="btn btn-ghost" type="button">Cerrar</button>
-    </div>
-
-    <div class="modalBody">
-      <div id="incidentBanner" class="status-banner">
-        <strong>Registrar incidencia</strong>
-        Primero registra el motivo. Luego decide si el trabajo debe pausarse, reanudarse o volver a PLACAS.
+  <!-- MODAL (Detalle + Acciones) -->
+  <div id="modalWrap" class="modalWrap hide" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modalHead">
+        <div id="modalTitle" class="modalTitle">Detalle de Orden</div>
+        <button id="btnModalClose" class="btn btn-ghost" type="button">Cerrar</button>
       </div>
 
-      <div class="incident-box" style="margin-top:0">
-        <h4>Incidencia</h4>
-        <ol class="incident-steps">
-          <li>Registra motivo y observacion.</li>
-          <li>Si el problema es temporal, usa <b>PAUSAR</b>.</li>
-          <li>Cuando se resuelva, usa <b>REANUDAR</b> y luego <b>FINALIZAR</b>.</li>
-          <li>Si no se puede continuar, usa <b>DEVOLVER A PLACAS</b>.</li>
-        </ol>
-        <div class="row">
-          <div style="flex:1">
-            <label class="small">Motivo</label>
-            <select id="incMotivo">
-              <option value="">Selecciona motivo</option>
-              <option value="PLACA_MAL">Placa mal</option>
-              <option value="PAPEL_MAL">Papel mal</option>
-              <option value="MAQUINA">Maquina</option>
-              <option value="TINTA">Tinta</option>
-              <option value="ARCHIVO">Archivo</option>
-              <option value="OTRO">Otro</option>
-            </select>
+      <div class="modalBody">
+        <div class="modalGrid">
+          <!-- Detalle -->
+          <div class="box">
+            <h3>Datos</h3>
+            <div class="focus-grid">
+              <div class="focus-stat">
+                <span class="k">Cantidad</span>
+                <span id="mCantidad" class="v">-</span>
+              </div>
+              <div class="focus-stat">
+                <span class="k">Demasia</span>
+                <span id="mDemasia" class="v">-</span>
+              </div>
+            </div>
+            <div class="twoCol">
+              <div class="small muted">
+                <div><b>Orden:</b> <span id="mOrden">-</span></div>
+                <div class="inl-3"><b>Estado:</b> <span id="mEstado">-</span></div>
+                <div class="inl-3"><b>Cliente:</b> <span id="mCliente">-</span></div>
+                <div class="inl-3"><b>Trabajo:</b> <span id="mTrabajo">-</span></div>
+              </div>
+              <div class="small muted">
+                <div><b>Formato:</b> <span id="mFormato">-</span></div>
+                <div class="inl-3"><b>Material:</b> <span id="mMaterial">-</span></div>
+                <div class="inl-3"><b>Impresion:</b> <span id="mImpresion">-</span></div>
+                <div class="inl-3"><b>Color:</b> <span id="mColor">-</span></div>
+              </div>
+            </div>
+
+            <div class="twoCol inl-4">
+              <div class="small muted">
+                <div><b>Entrega:</b> <span id="mEntrega">-</span></div>
+              </div>
+              <div class="small muted">
+                <div><b>Maq. sugerida:</b> <span id="mMaqSug">-</span></div>
+              </div>
+            </div>
+            <div class="small muted inl-4">
+              <div><b>Observacion de orden:</b></div>
+              <div id="mObs" class="inl-5">-</div>
+            </div>
+          </div>
+
+          <!-- Acciones -->
+          <div class="box">
+            <div class="action-top">
+              <h3 class="inl-6">Acciones (Produccion)</h3>
+              <button id="btnOpenIncident" class="btn btn-alert" type="button">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 3 3 19h18L12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+                  <path d="M12 9v5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  <circle cx="12" cy="17" r="1" fill="currentColor" />
+                </svg>
+                Incidencia
+              </button>
+            </div>
+
+            <div id="statusBanner" class="status-banner">
+              <strong>Trabajo listo para iniciar</strong>
+              Completa la maquina y luego inicia. Si surge una incidencia, registrala antes de pausar o devolver.
+            </div>
+
+            <div class="small muted inl-7">
+              <div><b>Seleccionada:</b> <span id="selJob" class="badge">Ninguno</span></div>
+              <div class="inl-3"><b>Estado:</b> <span id="selEstado">-</span></div>
+            </div>
+
+            <div class="inl-4">
+              <label class="small">Maquina</label>
+              <select id="maquina"></select>
+            </div>
+
+            <div class="row inl-8">
+              <button id="btnStart" class="btn btn-primary inl-9" type="button">INICIAR</button>
+              <button id="btnStop" class="btn btn-warn inl-9" type="button">FINALIZAR</button>
+            </div>
+
+            <div class="row inl-8">
+              <div class="inl-9">
+                <label class="small">Cantidad buena</label>
+                <input id="good" type="number" min="0" placeholder="Ej: 480" />
+              </div>
+              <div class="inl-9">
+                <label class="small">Cantidad mala</label>
+                <input id="bad" type="number" min="0" placeholder="Ej: 10" />
+              </div>
+            </div>
+
+            <div class="inl-8">
+              <label class="small">Observaciones</label>
+              <textarea id="obs" placeholder="Ej: falta tinta / papel atascado / etc."></textarea>
+            </div>
+
+            <div class="help inl-4">
+              Usa <b>INICIAR</b> para comenzar (solo si esta en <b>PLACAS</b>).
+              Si el trabajo queda pausado, primero debes <b>REANUDAR</b> y luego <b>FINALIZAR</b>.
+            </div>
+
+            <div id="msgRight" class="msg"></div>
           </div>
         </div>
-        <div style="margin-top:10px">
-          <label class="small">Observacion de incidencia</label>
-          <textarea id="incObs" placeholder="Describe el motivo por el que no se puede continuar."></textarea>
-        </div>
-        <div class="row" style="margin-top:12px">
-          <button id="btnPause" class="btn btn-info" style="flex:1" type="button">PAUSAR</button>
-          <button id="btnResume" class="btn btn-resume" style="flex:1" type="button">REANUDAR</button>
-        </div>
-        <div class="row" style="margin-top:10px">
-          <button id="btnReturnPlacas" class="btn btn-danger" style="flex:1" type="button">DEVOLVER A PLACAS</button>
-        </div>
       </div>
-      <div id="incidentMsg" class="msg"></div>
     </div>
   </div>
-</div>
 
-<script type="module" src="../js/operador.js"></script>
+  <div id="incidentWrap" class="modalWrap hide" aria-hidden="true">
+    <div class="modal incidentModal" role="dialog" aria-modal="true" aria-labelledby="incidentTitle">
+      <div class="modalHead">
+        <div id="incidentTitle" class="modalTitle">Gestion de Incidencia</div>
+        <button id="btnIncidentClose" class="btn btn-ghost" type="button">Cerrar</button>
+      </div>
+
+      <div class="modalBody">
+        <div id="incidentBanner" class="status-banner">
+          <strong>Registrar incidencia</strong>
+          Primero registra el motivo. Luego decide si el trabajo debe pausarse, reanudarse o volver a PLACAS.
+        </div>
+
+        <div class="incident-box inl-10">
+          <h4>Incidencia</h4>
+          <ol class="incident-steps">
+            <li>Registra motivo y observacion.</li>
+            <li>Si el problema es temporal, usa <b>PAUSAR</b>.</li>
+            <li>Cuando se resuelva, usa <b>REANUDAR</b> y luego <b>FINALIZAR</b>.</li>
+            <li>Si no se puede continuar, usa <b>DEVOLVER A PLACAS</b>.</li>
+          </ol>
+          <div class="row">
+            <div class="inl-9">
+              <label class="small">Motivo</label>
+              <select id="incMotivo">
+                <option value="">Selecciona motivo</option>
+                <option value="PLACA_MAL">Placa mal</option>
+                <option value="PAPEL_MAL">Papel mal</option>
+                <option value="MAQUINA">Maquina</option>
+                <option value="TINTA">Tinta</option>
+                <option value="ARCHIVO">Archivo</option>
+                <option value="OTRO">Otro</option>
+              </select>
+            </div>
+          </div>
+          <div class="inl-4">
+            <label class="small">Observacion de incidencia</label>
+            <textarea id="incObs" placeholder="Describe el motivo por el que no se puede continuar."></textarea>
+          </div>
+          <div class="row inl-8">
+            <button id="btnPause" class="btn btn-info inl-9" type="button">PAUSAR</button>
+            <button id="btnResume" class="btn btn-resume inl-9" type="button">REANUDAR</button>
+          </div>
+          <div class="row inl-4">
+            <button id="btnReturnPlacas" class="btn btn-danger inl-9" type="button">DEVOLVER A PLACAS</button>
+          </div>
+        </div>
+        <div id="incidentMsg" class="msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="../js/operador.js"></script>
 </body>
+
 </html>

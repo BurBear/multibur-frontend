@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
@@ -10,178 +10,12 @@
       if (tab) document.documentElement.setAttribute("data-tab", tab.toLowerCase());
     })();
   </script>
-  <style>
-    *{box-sizing:border-box}
-    body{font-family:system-ui,Arial; margin:0; background:#0b1220; color:#e8eefc;}
-    .top{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #243250; background:#0d1730;}
-    .brand-wrap{display:flex; flex-direction:column; gap:4px}
-    .brand{font-size:34px; font-weight:900; letter-spacing:-.02em}
-    .role-chip{width:max-content; font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #1f7a57; color:#22c55e; background:rgba(34,197,94,.12)}
-    .top-right{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-    .nav-link{color:#c6d6f3; text-decoration:none; font-size:14px; opacity:.9}
-    .nav-link:hover{opacity:1}
-    .nav-link.is-active{
-      opacity:1; color:#ffffff; background:#143c77; border:1px solid #2563eb;
-      border-radius:999px; padding:6px 10px; font-weight:700;
-    }
-    .wrap{max-width:1200px; margin:0 auto; padding:16px;}
-    .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
-    @media (max-width: 980px){ .grid{grid-template-columns:1fr;} }
-    html[data-tab="clientes"] .grid,
-    html[data-tab="maquinas"] .grid{grid-template-columns:1fr;}
-    html[data-tab="clientes"] #sectionMaquinas{display:none;}
-    html[data-tab="maquinas"] #sectionClientes{display:none;}
-    .card{background:#121b2e; border:1px solid #243250; border-radius:14px; padding:14px;}
-    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between}
-    .row2{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-    .btn{padding:10px 12px; border-radius:10px; border:1px solid #2a3b61; background:#0e1627; color:#e8eefc; cursor:pointer; font-weight:800}
-    .btn:hover{border-color:#3b4f79}
-    .btn-ghost{background:#0e1627; color:#e8eefc; border:1px solid #2a3b61;}
-    .btn-primary{background:#22c55e; border-color:#22c55e; color:#05120a;}
-    .btn-danger{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.4); color:#fecaca}
-    .pill{padding:6px 10px; border:1px solid #2a3b61; border-radius:999px; font-size:12px; opacity:.95}
-    .small{font-size:12px; opacity:.82}
-    table{width:100%; border-collapse:collapse; font-size:13px;}
-    th,td{padding:9px 8px; border-bottom:1px solid #243250; vertical-align:top;}
-    th{text-align:left; opacity:.85; font-weight:800;}
-    tr:hover td{background:#0e1627;}
-    input,select{
-      padding:9px 10px; border-radius:10px;
-      border:1px solid #2a3b61; background:#0e1627; color:#e8eefc;
-    }
-    .msg{margin-top:10px; font-size:12px; white-space:pre-wrap; opacity:.95}
-    .table-scroll{overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250; max-height:520px}
-    .table-scroll thead th{position:sticky; top:0; z-index:2; background:#101c34}
-    .table-scroll tbody tr:nth-child(odd) td{background:rgba(255,255,255,.01)}
-    .pager{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap}
-    .pager .meta{font-size:12px; opacity:.86}
-    .pager .ctrl{display:flex; align-items:center; gap:8px}
-    .pager .btn{padding:7px 10px; font-size:12px; border-radius:8px}
-    .w-100{width:100%}
-    .col-id{display:none}
-    .col-actions{width:170px}
-    .table-clientes{min-width:1220px}
-    .table-maquinas{min-width:620px}
-    .cell-actions{white-space:nowrap; text-align:center; vertical-align:middle}
-    .cell-actions .btn{
-      padding:5px 8px;
-      font-size:12px;
-      border-radius:8px;
-      min-width:68px;
-    }
-    .cell-actions .btn + .btn{margin-left:6px}
-    #tbClientes td input,
-    #tbClientes td select,
-    #tbMaquinas td input,
-    #tbMaquinas td select{
-      min-height:30px;
-      padding:6px 8px;
-      font-size:12px;
-    }
-    .table-clientes th{padding:8px 10px}
-    #tbClientes td{padding:6px 10px}
-    #tbClientes td input,
-    #tbClientes td select{
-      width:100%;
-      border-radius:11px;
-    }
-    #tbClientes td:nth-child(1), #tbClientes th:nth-child(1){display:none}
-    #tbClientes td:nth-child(2) input{min-width:240px}
-    #tbClientes td:nth-child(3) input{min-width:170px}
-    #tbClientes td:nth-child(4) select{min-width:170px}
-    #tbClientes td:nth-child(5) select{min-width:100px}
-    #tbClientes td:nth-child(6), #tbClientes th:nth-child(6){width:132px; max-width:132px}
-    #tbClientes td:nth-child(6) input{
-      width:11ch;
-      min-width:11ch;
-      max-width:11ch;
-      text-align:left;
-      letter-spacing:0;
-    }
-    #tbClientes td:nth-child(7), #tbClientes th:nth-child(7){text-align:center; vertical-align:middle}
-    #tbClientes td:nth-child(8), #tbClientes th:nth-child(8){text-align:center; vertical-align:middle}
-    #tbMaquinas td:nth-child(2) input{min-width:180px}
-    #tbMaquinas td:nth-child(3) select{min-width:120px}
-    .modal-wrap{position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:16px; z-index:70}
-    .modal-wrap.hide{display:none}
-    .modal{width:min(520px,100%); border:1px solid #243250; border-radius:14px; background:#121b2e; overflow:hidden}
-    .modal-head{padding:12px 14px; border-bottom:1px solid #243250; background:#0d1730; font-weight:800}
-    .modal-body{padding:14px}
-    .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:12px}
-    html[data-tab="clientes"] .lnk-clientes{opacity:1; color:#fff; background:#143c77; border:1px solid #2563eb; border-radius:999px; padding:6px 10px; font-weight:700}
-    html[data-tab="maquinas"] .lnk-maquinas{opacity:1; color:#fff; background:#143c77; border:1px solid #2563eb; border-radius:999px; padding:6px 10px; font-weight:700}
-    @media (max-width:720px){
-      .top{flex-direction:column; align-items:flex-start; gap:12px; padding:12px}
-      .top-right{width:100%; gap:8px}
-      .brand{font-size:28px}
-      .wrap{padding:12px}
-      .row{flex-direction:column; align-items:stretch}
-      .row2{flex-direction:column; align-items:stretch}
-      .row2 > *{width:100% !important; min-width:0 !important}
-      .pill{width:100%; text-align:center}
-      .modal-wrap{padding:0}
-      .modal{width:100%; max-width:none; border-radius:0; min-height:100vh}
-      .modal-actions{flex-direction:column}
-      .modal-actions > *{width:100%}
-      .pager .ctrl{width:100%; flex-wrap:wrap}
-      .table-scroll{max-height:none}
-      .table-clientes,
-      .table-maquinas{min-width:0; width:100%}
-      .table-clientes thead,
-      .table-maquinas thead{display:none}
-      .table-clientes tbody,
-      .table-maquinas tbody{display:grid; gap:10px; padding:10px}
-      .table-clientes tr,
-      .table-maquinas tr{
-        display:block;
-        border:1px solid #243250;
-        border-radius:14px;
-        background:#0e1627;
-        overflow:hidden;
-      }
-      .table-clientes td,
-      .table-maquinas td{
-        display:block;
-        border-bottom:1px solid rgba(36,50,80,.7);
-        padding:10px 12px;
-      }
-      .table-clientes td:last-child,
-      .table-maquinas td:last-child{border-bottom:0}
-      .table-clientes td::before,
-      .table-maquinas td::before{
-        content:attr(data-label);
-        display:block;
-        margin-bottom:6px;
-        font-size:11px;
-        font-weight:800;
-        text-transform:uppercase;
-        letter-spacing:.05em;
-        color:#94a3b8;
-      }
-      .table-clientes .cell-actions,
-      .table-maquinas .cell-actions{text-align:left}
-      .table-clientes .cell-actions::before,
-      .table-maquinas .cell-actions::before{margin-bottom:10px}
-      .table-clientes .cell-actions .btn,
-      .table-maquinas .cell-actions .btn{
-        width:100%;
-        margin:0 0 8px 0 !important;
-      }
-      .table-clientes .cell-actions .btn:last-child,
-      .table-maquinas .cell-actions .btn:last-child{margin-bottom:0 !important}
-      #tbClientes td:nth-child(2) input,
-      #tbClientes td:nth-child(3) input,
-      #tbClientes td:nth-child(6) input,
-      #tbMaquinas td:nth-child(2) input,
-      #tbMaquinas td:nth-child(3) select{
-        min-width:0;
-        max-width:none;
-        width:100%;
-      }
-    }
-  </style>
+  
+
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
 </head>
-<body>
+<body class="page-admin-catalogos">
 <header class="top">
   <div class="brand-wrap">
     <div class="brand">MultiBur</div>
@@ -206,46 +40,46 @@
     <!-- CLIENTES -->
     <section id="sectionClientes" class="card">
       <div class="row">
-        <h3 style="margin:0">Clientes</h3>
+        <h3 class="inl-1">Clientes</h3>
         <div class="row2">
           <button id="btnReloadClientes" class="btn btn-ghost">Recargar</button>
           <button id="btnExportClientes" class="btn btn-ghost">Exportar CSV</button>
           <button id="btnImportClientes" class="btn btn-ghost">Importar CSV</button>
           <button id="btnAddCliente" class="btn btn-primary">Agregar</button>
-          <input id="c_import_file" type="file" accept=".csv,text/csv" style="display:none" />
+          <input id="c_import_file" type="file" accept=".csv,text/csv" class="inl-2">
         </div>
       </div>
 
-      <div class="row2" style="margin-top:10px">
-        <input id="c_nombre" placeholder="Nombre (ej: UPAO)" style="flex:1; min-width:220px" />
-        <input id="c_telefono" placeholder="Telefono (opcional)" style="width:180px" />
+      <div class="row2 inl-3">
+        <input id="c_nombre" placeholder="Nombre (ej: UPAO)" class="inl-4">
+        <input id="c_telefono" placeholder="Telefono (opcional)" class="inl-5">
       </div>
-      <div class="row2" style="margin-top:10px">
-        <select id="c_tipo_cliente" style="width:210px">
+      <div class="row2 inl-3">
+        <select id="c_tipo_cliente" class="inl-6">
           <option value="DIRECTO">DIRECTO</option>
           <option value="SERVICIO">SERVICIO</option>
         </select>
-        <select id="c_doc_tipo" style="width:150px">
+        <select id="c_doc_tipo" class="inl-7">
           <option value="RUC">RUC</option>
           <option value="SUR">SUR</option>
         </select>
-        <input id="c_doc_numero" placeholder="Doc. fiscal numero" style="flex:1; min-width:220px" />
-        <label class="small" style="display:flex; gap:6px; align-items:center; padding:0 4px;">
+        <input id="c_doc_numero" placeholder="Doc. fiscal numero" class="inl-4">
+        <label class="small inl-8">
           <input id="c_req_oc" type="checkbox" />
           Requiere OC por defecto
         </label>
       </div>
-      <div class="row2" style="margin-top:10px">
-        <input id="c_filter" placeholder="Buscar cliente por nombre, telefono o documento..." style="flex:1; min-width:220px" />
+      <div class="row2 inl-3">
+        <input id="c_filter" placeholder="Buscar cliente por nombre, telefono o documento..." class="inl-4">
       </div>
-      <div id="c_import_hint" class="small" style="margin-top:8px">
+      <div id="c_import_hint" class="small inl-9">
         Importar CSV procesa y guarda automaticamente. No necesitas usar el boton Agregar.
       </div>
       <div class="pager">
         <div id="c_stats" class="meta">Clientes: 0</div>
         <div class="ctrl">
           <label class="small" for="c_page_size">Mostrar</label>
-          <select id="c_page_size" style="width:84px">
+          <select id="c_page_size" class="inl-10">
             <option value="10">10</option>
             <option value="20" selected>20</option>
             <option value="50">50</option>
@@ -281,22 +115,22 @@
     <!-- MAQUINAS -->
     <section id="sectionMaquinas" class="card">
       <div class="row">
-        <h3 style="margin:0">Maquinas</h3>
+        <h3 class="inl-1">Maquinas</h3>
         <div class="row2">
           <button id="btnReloadMaquinas" class="btn btn-ghost">Recargar</button>
           <button id="btnAddMaquina" class="btn btn-primary">Agregar</button>
         </div>
       </div>
 
-      <div class="row2" style="margin-top:10px">
-        <input id="m_nombre" placeholder="Nombre (ej: Ryobi #01)" style="flex:1; min-width:220px" />
-        <select id="m_tipo" style="width:180px">
+      <div class="row2 inl-3">
+        <input id="m_nombre" placeholder="Nombre (ej: Ryobi #01)" class="inl-4">
+        <select id="m_tipo" class="inl-5">
           <option value="OFFSET">OFFSET</option>
           <option value="DIGITAL">DIGITAL</option>
         </select>
       </div>
 
-      <div style="overflow:auto; margin-top:12px; border-radius:12px; border:1px solid #243250;">
+      <div class="inl-11">
         <table class="table-maquinas">
           <thead>
             <tr>
@@ -332,6 +166,7 @@
 <script type="module" src="../js/admin_catalogos.js"></script>
 </body>
 </html>
+
 
 
 

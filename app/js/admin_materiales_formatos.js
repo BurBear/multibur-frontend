@@ -1,6 +1,7 @@
 ﻿import { requireAdmin, logout, getProfileDisplayName } from "./auth.js";
 import { supabase } from "./supabaseClient.js";
 import { $, setText } from "./ui.js";
+import { escapeHtml, normalizeText } from "./utils/helpers.js";
 
 const msgMat = (t) => setText("msgMat", t);
 const msgFor = (t) => setText("msgFor", t);
@@ -14,18 +15,9 @@ let formatosPage = 1;
 let formatosPageSize = 20;
 const activeTab = (new URLSearchParams(window.location.search).get("tab") || "").toLowerCase();
 
-function esc(s){
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-  }[c]));
-}
+const esc = escapeHtml;
 
-function norm(s){
-  return String(s ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
+const norm = normalizeText;
 
 function renderMaterialesTable(rows){
   $("tbMat").innerHTML = (rows||[]).map(m => `

@@ -1,250 +1,17 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MultiBur | Admin</title>
-  <style>
-    *{box-sizing:border-box}
-    body{font-family:system-ui,Arial; margin:0; background:#0b1220; color:#e8eefc;}
-    .top{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #243250; background:#0d1730;}
-    .brand-wrap{display:flex; flex-direction:column; gap:4px}
-    .brand{font-size:34px; font-weight:900; letter-spacing:-.02em}
-    .role-chip{width:max-content; font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #1f7a57; color:#22c55e; background:rgba(34,197,94,.12)}
-    .top-right{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-    .nav-link{color:#c6d6f3; text-decoration:none; font-size:14px; opacity:.9}
-    .nav-link:hover{opacity:1}
-    .pill{padding:6px 10px; border:1px solid #2a3b61; border-radius:999px; font-size:12px; opacity:.95}
 
-    .btn{padding:10px 12px; border-radius:10px; border:1px solid #2a3b61; background:#0e1627; color:#e8eefc; cursor:pointer; font-weight:800}
-    .btn:hover{border-color:#3b4f79}
-    .btn:disabled{opacity:.55; cursor:not-allowed}
-    .btn-primary{background:#1d4ed8; border-color:#2563eb; color:#fff}
-    .btn-ghost{background:#0e1627}
-    .btn-deliver{background:#0f766e; border-color:#14b8a6; color:#ecfeff}
-    .btn-deliver:hover{border-color:#2dd4bf; background:#0d615a}
-    .btn-danger{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.4); color:#fecaca}
-    .btn-warn{background:#f59e0b; border-color:#f59e0b; color:#1f1302}
 
-    .main{max-width:1400px; margin:0 auto; padding:16px; display:grid; grid-template-columns:1fr 360px; gap:14px; align-items:start}
-    @media (max-width:1200px){ .main{grid-template-columns:1fr} }
-    .card{background:#121b2e; border:1px solid #243250; border-radius:14px; overflow:hidden}
-    .card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px; border-bottom:1px solid #243250; background:#0d1730}
-    .card-title{margin:0; font-size:16px}
-    .card-sub{margin-top:2px; font-size:12px; opacity:.8}
-    .card-body{padding:14px}
-
-    .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-    .toolbar .grow{flex:1; min-width:230px}
-
-    input,select,textarea{width:100%; max-width:100%; padding:9px 10px; border-radius:10px; border:1px solid #2a3b61; background:#0e1627; color:#e8eefc}
-    input[type="checkbox"]{width:16px; height:16px; padding:0; border-radius:4px; accent-color:#22c55e}
-    textarea{resize:vertical}
-
-    .table-wrap{overflow:auto; border:1px solid #243250; border-radius:12px; margin-top:12px}
-    table{width:100%; border-collapse:collapse; min-width:860px; font-size:13px}
-    th,td{padding:9px 8px; border-bottom:1px solid #243250; text-align:left; vertical-align:top}
-    th{opacity:.86; text-transform:uppercase; font-size:11px; letter-spacing:.04em}
-    tr:hover td{background:#0e1627}
-
-    .small{font-size:12px; opacity:.82}
-    .muted{opacity:.75}
-    .row-actions{display:flex; gap:8px; flex-wrap:wrap}
-    .state-pill{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid #2a3b61;
-      font-size:12px;
-      font-weight:700;
-      line-height:1;
-      white-space:nowrap;
-    }
-    .state-pill.is-ready{
-      color:#dbeafe;
-      background:#0e1c38;
-      border-color:#37558a;
-    }
-    .state-pill.is-printing{
-      color:#86efac;
-      background:rgba(34,197,94,.14);
-      border-color:rgba(34,197,94,.5);
-      box-shadow:0 0 0 1px rgba(34,197,94,.12) inset;
-    }
-    .msg{margin-top:10px; white-space:pre-wrap; font-size:12px; opacity:.92}
-    .hide{display:none !important}
-
-    .prio-badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; border:1px solid #2a3b61; background:#0e1627}
-    .prio-badge.is-urgent{border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.16); color:#fecaca}
-    .prio-badge.is-overdue{
-      border-color:rgba(248,113,113,.7);
-      background:rgba(239,68,68,.22);
-      color:#fecaca;
-      font-weight:800;
-    }
-
-    .filter-box{border:1px solid #243250; border-radius:12px; padding:12px; background:#0e1627}
-    .filter-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
-    .filter-label{font-size:13px; opacity:.92}
-    .preset-row{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px}
-    .regs-chip{border:1px solid #2a3b61; background:#0b162e; color:#e8eefc; border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer}
-    .regs-chip.is-active{border-color:#60a5fa; background:#143c77}
-
-    .f-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
-    @media (max-width:640px){ .f-grid{grid-template-columns:1fr} }
-    .field-lb{display:block; font-size:12px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; opacity:.84}
-    .live-kpis{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:12px 0}
-    .live-kpi{border:1px solid #243250; border-radius:12px; background:#0e1627; padding:10px}
-    .live-kpi .k{display:block; font-size:11px; text-transform:uppercase; opacity:.72; margin-bottom:4px}
-    .live-kpi .v{display:block; font-size:22px; font-weight:900}
-    .live-board{display:grid; grid-template-columns:1fr; gap:12px}
-    .live-section{border:1px solid #243250; border-radius:12px; background:#0e1627; overflow:hidden}
-    .live-section-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-bottom:1px solid #243250}
-    .live-section-title{font-size:13px; font-weight:800}
-    .live-section-sub{font-size:12px; opacity:.74}
-    .live-cards{display:grid; gap:10px; padding:12px; max-height:320px; overflow:auto}
-    .live-card{border:1px solid #243250; border-radius:12px; background:#101a2d; padding:12px}
-    .live-card-top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
-    .live-card-name{font-size:15px; font-weight:800}
-    .live-card-order{font-size:12px; opacity:.82; margin-top:2px}
-    .live-status{display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; font-size:11px; font-weight:800; border:1px solid rgba(34,197,94,.4); background:rgba(34,197,94,.14); color:#86efac}
-    .live-dot{width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 6px rgba(34,197,94,.12)}
-    .live-meta{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px}
-    .live-meta-item{border:1px solid #243250; border-radius:10px; background:#0d1730; padding:8px 10px}
-    .live-meta-item .k{display:block; font-size:10px; text-transform:uppercase; opacity:.66; margin-bottom:4px}
-    .live-meta-item .v{display:block; font-size:13px; font-weight:700}
-    .live-list{max-height:280px; overflow:auto}
-    .live-row{display:grid; grid-template-columns:80px 1fr 92px 1fr; gap:10px; align-items:center; padding:10px 12px; border-bottom:1px solid #243250}
-    .live-row:last-child{border-bottom:none}
-    .live-row .ord{font-weight:800}
-    .live-row .op{font-weight:700}
-    .live-row .time{font-size:12px; opacity:.78}
-    .live-empty{padding:18px 12px; text-align:center; opacity:.74; font-size:12px}
-    @media (max-width:640px){
-      .live-kpis{grid-template-columns:1fr}
-      .live-row{grid-template-columns:1fr; gap:4px}
-      .live-meta{grid-template-columns:1fr}
-    }
-
-    .modal-wrap{position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:16px; z-index:50}
-    .modal-wrap.hide{display:none}
-    .modal{width:min(1100px,100%); max-height:92vh; overflow:auto; border:1px solid #243250; border-radius:14px; background:#121b2e}
-    .modal-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-bottom:1px solid #243250; background:#0d1730; position:sticky; top:0; z-index:2}
-    .modal-body{padding:14px}
-
-    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start}
-    @media (max-width:900px){ .grid2{grid-template-columns:1fr} }
-    .box{border:1px solid #243250; border-radius:12px; background:#0e1627; padding:12px}
-    .box h3{margin:0 0 10px; font-size:13px; opacity:.9}
-    .grid-fields{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    .grid-fields > div{min-width:0}
-    @media (max-width:750px){ .grid-fields{grid-template-columns:1fr} }
-    .check-grid{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px}
-    @media (max-width:900px){ .check-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
-    .check-item{display:flex; gap:6px; align-items:center; font-size:13px}
-    .flow-box{
-      width:100%;
-      border:1px solid #2a3b61;
-      border-radius:10px;
-      background:#0b162e;
-      padding:10px;
-    }
-    .flow-top{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-    }
-    .flow-label{
-      font-size:13px;
-      opacity:.95;
-      font-weight:700;
-    }
-    .flow-switch{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      cursor:pointer;
-      user-select:none;
-      font-size:12px;
-      opacity:.95;
-    }
-    .flow-switch input{
-      width:16px;
-      height:16px;
-      margin:0;
-      accent-color:#22c55e;
-    }
-    .flow-hint{
-      margin-top:8px;
-      font-size:12px;
-      opacity:.85;
-      line-height:1.35;
-    }
-    .flow-hint.is-external{
-      color:#86efac;
-      opacity:1;
-      font-weight:700;
-    }
-    .subtle{font-size:12px; opacity:.8; margin-top:6px}
-
-    .input-pick{display:flex; gap:8px; align-items:center}
-    .input-pick input[readonly]{cursor:pointer}
-
-    .detail-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
-    @media (max-width:720px){ .detail-grid{grid-template-columns:1fr} }
-    .detail-k{display:block; font-size:12px; text-transform:uppercase; opacity:.84}
-    .detail-v{display:block; margin-top:3px; font-size:14px}
-
-    .smart-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:16px; z-index:80}
-    .smart-backdrop.hide{display:none}
-    .smart-modal{width:min(720px,100%); border:1px solid #243250; background:#121b2e; border-radius:14px; overflow:hidden}
-    .smart-head{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid #243250; background:#0d1730}
-    .smart-title{font-size:16px; margin:0}
-    .smart-sub{font-size:12px; opacity:.8; margin-top:2px}
-    .smart-body{padding:12px}
-    .smart-list{max-height:340px; overflow:auto; border:1px solid #243250; border-radius:10px; margin-top:10px}
-    .smart-item{width:100%; text-align:left; border:0; border-bottom:1px solid #243250; background:#0e1627; color:#e8eefc; padding:10px; cursor:pointer; display:flex; justify-content:space-between; gap:10px}
-    .smart-item:last-child{border-bottom:0}
-    .smart-item:hover{background:#112041}
-    .smart-item.is-selected{background:#15325f}
-    .smart-meta{font-size:12px; opacity:.8}
-    .smart-empty{padding:12px; font-size:13px; opacity:.8}
-    .smart-actions{display:flex; justify-content:space-between; gap:10px; margin-top:10px}
-    @media (max-width: 720px){
-      .top{flex-direction:column; align-items:flex-start; gap:12px; padding:12px}
-      .top-right{width:100%; gap:8px}
-      .brand{font-size:28px}
-      .pill{width:100%; text-align:center}
-      .main{padding:12px}
-      .card-head{flex-direction:column; align-items:stretch}
-      .card-body{padding:12px}
-      .toolbar{flex-direction:column; align-items:stretch}
-      .toolbar .grow{min-width:0}
-      .toolbar > *{width:100%; max-width:none !important}
-      .filter-head,.live-section-head,.smart-head{flex-direction:column; align-items:stretch}
-      .flow-top{flex-direction:column; align-items:flex-start}
-      .live-card-top{flex-direction:column}
-      .modal-wrap,.smart-backdrop{padding:0}
-      .modal,.smart-modal{
-        width:100%;
-        max-width:none;
-        max-height:100vh;
-        min-height:100vh;
-        border-radius:0;
-        border-left:0;
-        border-right:0;
-      }
-      .modal-head,.smart-head{padding:12px}
-      .modal-body,.smart-body{padding:12px}
-      .smart-actions{flex-direction:column}
-      .smart-actions > *{width:100%}
-    }
-  </style>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
 </head>
-<body>
+
+<body class="page-admin-main">
   <header class="top">
     <div class="brand-wrap">
       <div class="brand">MultiBur</div>
@@ -270,19 +37,28 @@
         </div>
         <div class="toolbar">
           <button id="btnOpenOrden" class="btn btn-primary" type="button">+ Nueva Orden</button>
-          <button id="btnReloadJobs" class="btn btn-ghost" type="button">Actualizar</button>
+          <button id="btnPrintPendientes" class="btn btn-ghost" type="button">
+            <svg style="width:16px;height:16px;vertical-align:text-bottom;margin-right:4px;" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9V2h12v7"></path>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <path d="M6 14h12v8H6z"></path>
+            </svg>
+            Imprimir
+          </button>
+          <button id="btnReloadJobs" class="btn btn-ghost hide" type="button">Actualizar</button>
         </div>
       </div>
 
       <div class="card-body">
         <div class="toolbar">
           <input id="q" class="grow" placeholder="Buscar por cliente, trabajo o numero de orden..." />
-          <select id="fLimit" style="max-width:120px">
+          <select id="fLimit" class="inl-1">
             <option value="25">25</option>
             <option value="50" selected>50</option>
             <option value="100">100</option>
           </select>
-          <select id="fEstado" style="max-width:220px">
+          <select id="fEstado" class="inl-2">
             <option value="">Activos</option>
             <option value="DISENO">DISENO</option>
             <option value="PLACAS">PLACAS</option>
@@ -293,7 +69,7 @@
           </select>
         </div>
 
-        <div class="table-wrap" style="max-height:640px">
+        <div class="table-wrap inl-3">
           <table>
             <thead>
               <tr>
@@ -301,6 +77,7 @@
                 <th>Entrega</th>
                 <th>Cliente</th>
                 <th>Trabajo</th>
+                <th>Cantidad</th>
                 <th>Formato</th>
                 <th>Impresion</th>
                 <th>Color</th>
@@ -322,7 +99,7 @@
           <h2 class="card-title">Registros Produccion</h2>
           <div class="card-sub">Monitoreo en tiempo real del taller</div>
         </div>
-        <button id="btnReloadRegs" class="btn btn-ghost" type="button">Actualizar</button>
+        <button id="btnReloadRegs" class="btn btn-ghost hide" type="button">Actualizar</button>
       </div>
 
       <div class="card-body">
@@ -352,7 +129,7 @@
             <div id="regsActiveNow" class="live-cards"></div>
           </section>
 
-          <section class="live-section">
+          <section class="live-section" style="display: none;">
             <div class="live-section-head">
               <div>
                 <div class="live-section-title">Movimientos recientes</div>
@@ -379,7 +156,7 @@
           <section class="box">
             <h3>Datos generales</h3>
             <div class="grid-fields">
-              <div style="grid-column:1/-1">
+              <div class="inl-4">
                 <label class="field-lb" for="o_desc">Trabajo</label>
                 <input id="o_desc" placeholder="Ej: Tarjetas personales" />
               </div>
@@ -419,14 +196,14 @@
                 <input id="o_resp" placeholder="Cargando administrador..." readonly />
               </div>
 
-              <div style="grid-column:1/-1">
+              <div class="inl-4">
                 <label class="field-lb">Datos comerciales del cliente</label>
                 <div class="flow-box">
                   <div class="small">Tipo: <b id="o_cli_tipo">-</b> | Documento: <b id="o_cli_doc">-</b></div>
                 </div>
               </div>
 
-              <div style="grid-column:1/-1">
+              <div class="inl-4">
                 <label class="field-lb" for="o_tiene_oc">Orden de compra (OC)</label>
                 <div class="flow-box">
                   <div class="flow-top">
@@ -436,7 +213,7 @@
                       <span>Activar</span>
                     </label>
                   </div>
-                  <div class="grid-fields" style="margin-top:10px">
+                  <div class="grid-fields inl-5">
                     <div>
                       <label class="field-lb" for="o_oc_numero">OC numero</label>
                       <input id="o_oc_numero" placeholder="Ej: OC-2026-00125" />
@@ -449,7 +226,7 @@
                 </div>
               </div>
 
-              <div style="grid-column:1/-1">
+              <div class="inl-4">
                 <label class="field-lb" for="o_externo">Flujo externo</label>
                 <div class="flow-box">
                   <div class="flow-top">
@@ -459,11 +236,12 @@
                       <span>Activar</span>
                     </label>
                   </div>
-                  <div id="o_externo_hint" class="flow-hint">Flujo normal: DISENO -> PLACAS -> IMPRESION -> ACABADOS</div>
+                  <div id="o_externo_hint" class="flow-hint">Flujo normal: DISENO -> PLACAS -> IMPRESION -> ACABADOS
+                  </div>
                 </div>
               </div>
 
-              <div style="grid-column:1/-1">
+              <div class="inl-4">
                 <label class="field-lb" for="o_obs">Observaciones</label>
                 <textarea id="o_obs" rows="3" placeholder="Notas generales"></textarea>
               </div>
@@ -486,7 +264,7 @@
                 <div id="d_formato_hint" class="subtle">Usa el catalogo o elige medida personalizada.</div>
               </div>
 
-              <div id="d_medida_wrap" class="hide" style="grid-column:1/-1">
+              <div id="d_medida_wrap" class="hide inl-4">
                 <div class="grid-fields">
                   <div>
                     <label class="field-lb" for="d_ancho">Ancho personalizado</label>
@@ -539,7 +317,7 @@
                 <input id="d_color_text" value="F/C" />
               </div>
 
-              <div style="grid-column:1/-1">
+              <div class="inl-4">
                 <label class="field-lb" for="p_plast">Plastificado</label>
                 <select id="p_plast">
                   <option value="">Ninguno</option>
@@ -549,7 +327,7 @@
               </div>
             </div>
 
-            <div style="margin-top:12px">
+            <div class="inl-6">
               <label class="field-lb">Procesos acabados</label>
               <div class="check-grid">
                 <label class="check-item"><input id="p_corte" type="checkbox" /> Corte</label>
@@ -561,14 +339,14 @@
                 <label class="check-item"><input id="p_barniz" type="checkbox" /> Barniz</label>
               </div>
             </div>
-            <div style="margin-top:12px">
+            <div class="inl-6">
               <label class="field-lb" for="d_obs_tecnica">Observacion tecnica (impresor)</label>
               <textarea id="d_obs_tecnica" rows="3" placeholder="Indicaciones de impresion"></textarea>
             </div>
           </section>
         </div>
 
-        <div class="toolbar" style="margin-top:12px; justify-content:flex-end;">
+        <div class="toolbar inl-7">
           <button id="btnGuardarOrden" class="btn btn-primary" type="button">Guardar Orden</button>
         </div>
         <div id="msgCreate" class="msg"></div>
@@ -577,7 +355,7 @@
   </div>
 
   <div id="jobDetailWrap" class="modal-wrap hide" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="detailTitle" style="width:min(900px,100%)">
+    <div class="modal inl-8" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
       <div class="modal-head">
         <strong id="detailTitle">Detalle de orden</strong>
         <div class="toolbar">
@@ -592,15 +370,15 @@
   </div>
 
   <div id="entregaWrap" class="modal-wrap hide" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="entregaTitle" style="width:min(760px,100%)">
+    <div class="modal inl-9" role="dialog" aria-modal="true" aria-labelledby="entregaTitle">
       <div class="modal-head">
         <strong id="entregaTitle">Registrar Entrega</strong>
         <button id="btnCloseEntrega" class="btn btn-ghost" type="button">Cerrar</button>
       </div>
       <div class="modal-body">
-        <div id="entregaOrdenInfo" class="small" style="margin-bottom:10px"></div>
+        <div id="entregaOrdenInfo" class="small inl-10"></div>
         <div class="grid-fields">
-          <div style="grid-column:1/-1">
+          <div class="inl-4">
             <label class="field-lb" for="e_tiene_guia">Guia de remision</label>
             <div class="flow-box">
               <div class="flow-top">
@@ -610,8 +388,8 @@
                   <span>Activar</span>
                 </label>
               </div>
-              <div id="e_guia_rule" class="subtle" style="margin-top:8px"></div>
-              <div class="grid-fields" style="margin-top:10px">
+              <div id="e_guia_rule" class="subtle inl-11"></div>
+              <div class="grid-fields inl-5">
                 <div>
                   <label class="field-lb" for="e_guia_numero">Guia numero</label>
                   <input id="e_guia_numero" placeholder="Ej: T001-00012345" />
@@ -623,12 +401,12 @@
               </div>
             </div>
           </div>
-          <div style="grid-column:1/-1">
+          <div class="inl-4">
             <label class="field-lb" for="e_obs_entrega">Observacion entrega</label>
             <textarea id="e_obs_entrega" rows="3" placeholder="Opcional"></textarea>
           </div>
         </div>
-        <div class="toolbar" style="margin-top:12px; justify-content:flex-end;">
+        <div class="toolbar inl-7">
           <button id="btnConfirmEntrega" class="btn btn-primary" type="button">Confirmar Entrega</button>
         </div>
       </div>
@@ -658,4 +436,5 @@
 
   <script type="module" src="../js/admin.js"></script>
 </body>
+
 </html>

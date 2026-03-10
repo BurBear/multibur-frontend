@@ -1,7 +1,8 @@
 import { supabase } from "./supabaseClient.js";
+import { byId, setDisplayById } from "./utils/dom.js";
 import { getMyProfile, goByRole, logout } from "./auth.js";
 
-const $ = (id) => document.getElementById(id);
+const $ = byId;
 const msg = (t) => ($("msg").textContent = t || "");
 const REMEMBER_EMAIL_KEY = "multibur_login_email";
 
@@ -122,3 +123,4 @@ loadRememberedEmail();
 $("showPass") && ($("showPass").dataset.visible = "false");
 syncPasswordVisibility();
 refreshUI();
+
