@@ -1,6 +1,29 @@
 let operatorRealtimeBound = false;
 let trabajoReloadTimer = null;
 let hoyReloadTimer = null;
+let operadorOrdenesChannel = null;
+let operadorRegistroChannel = null;
+
+function cleanupOperadorRealtimeChannels(supabase) {
+  if (!supabase) return;
+  if (operadorOrdenesChannel) {
+    supabase.removeChannel(operadorOrdenesChannel);
+    operadorOrdenesChannel = null;
+  }
+  if (operadorRegistroChannel) {
+    supabase.removeChannel(operadorRegistroChannel);
+    operadorRegistroChannel = null;
+  }
+}
+
+export function unbindOperadorRealtime(supabase) {
+  clearTimeout(trabajoReloadTimer);
+  clearTimeout(hoyReloadTimer);
+  trabajoReloadTimer = null;
+  hoyReloadTimer = null;
+  cleanupOperadorRealtimeChannels(supabase);
+  operatorRealtimeBound = false;
+}
 
 export function bindOperadorRealtime({
   supabase,
@@ -12,7 +35,9 @@ export function bindOperadorRealtime({
   loadHoy,
   resumeIfActive
 }) {
-  if (operatorRealtimeBound) return;
+  if (operatorRealtimeBound) {
+    unbindOperadorRealtime(supabase);
+  }
   operatorRealtimeBound = true;
 
   function scheduleLoadTrabajos(delay = 350) {
@@ -29,7 +54,7 @@ export function bindOperadorRealtime({
     }, delay);
   }
 
-  supabase.channel("operador-ordenes-watch")
+  operadorOrdenesChannel = supabase.channel("operador-ordenes-watch")
     .on("postgres_changes", { event: "*", schema: "public", table: "ordenes" }, (payload) => {
       const next = payload?.new || null;
       const prev = payload?.old || null;
@@ -53,7 +78,7 @@ export function bindOperadorRealtime({
     })
     .subscribe();
 
-  supabase.channel("operador-registro-watch")
+  operadorRegistroChannel = supabase.channel("operador-registro-watch")
     .on("postgres_changes", { event: "*", schema: "public", table: "registro_produccion" }, (payload) => {
       const row = payload?.new || payload?.old;
       const currentUser = getCurrentUser();

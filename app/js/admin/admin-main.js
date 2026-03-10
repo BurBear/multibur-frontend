@@ -116,6 +116,19 @@ function fmtEntrega(value) {
   return d.toLocaleString("es-PE");
 }
 
+function splitEntregaLabel(value) {
+  const raw = String(value || "-").trim();
+  if (!raw || raw === "-") return { date: "-", time: "" };
+  const parts = raw.split(",");
+  if (parts.length >= 2) {
+    return {
+      date: parts[0].trim() || "-",
+      time: parts.slice(1).join(",").trim()
+    };
+  }
+  return { date: raw, time: "" };
+}
+
 
 
 function normalizeTipoCliente(v) {
@@ -879,10 +892,21 @@ async function loadJobs() {
   tb.innerHTML = (rows || []).map((r) => {
     const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
     const entrega = fmtEntrega(r.fecha_entrega);
+    const entregaLabel = splitEntregaLabel(entrega);
     const overdue = isOrdenOverdue(r.fecha_entrega, r.estado);
     return `<tr style="border-left: 5px solid ${getClientColor(r.cliente_nombre)}; background-color: ${getClientBgColor(r.cliente_nombre)};">
-      <td><b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b><div class="small muted">${esc(r.estado)} - ${renderPrioridadBadge(r.prioridad)} ${renderIncidenciaBadge({ motivo_incidencia: r.incidencia_motivo, obs_incidencia: r.incidencia_obs, estado_registro: r.incidencia_estado })}</div></td>
-      <td>${esc(entrega)}<div class="small">${renderOverdueBadge(overdue)}</div></td>
+      <td>
+        <b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b>
+        <div class="small muted order-meta">
+          <div class="order-state-line">${esc(r.estado)}</div>
+          <div class="order-priority-line">${renderPrioridadBadge(r.prioridad)} ${renderIncidenciaBadge({ motivo_incidencia: r.incidencia_motivo, obs_incidencia: r.incidencia_obs, estado_registro: r.incidencia_estado })}</div>
+        </div>
+      </td>
+      <td>
+        <div class="entrega-date">${esc(entregaLabel.date)}</div>
+        ${entregaLabel.time ? `<div class="small muted entrega-time">${esc(entregaLabel.time)}</div>` : ""}
+        <div class="small">${renderOverdueBadge(overdue)}</div>
+      </td>
       <td><div class="text-elide" style="max-width: 110px" title="${esc(r.cliente_nombre || '-')}">${esc(r.cliente_nombre || "-")}</div></td>
       <td><div class="text-elide" style="max-width: 130px" title="${esc(r.descripcion_trabajo || '-')}">${esc(r.descripcion_trabajo || "-")}</div></td>
       <td><b>${esc(r.cantidad_solicitada || "-")}</b>${r.demasia ? `<div class="small muted">+${esc(r.demasia)} demasía</div>` : ''}</td>
@@ -890,7 +914,15 @@ async function loadJobs() {
       <td>${esc(fmtTipoImpresion(r.tipo_impresion))}</td>
       <td>${esc(r.color_text || "-")}</td>
       <td>${esc(r.maquina_sugerida_nombre || "-")}</td>
-      <td><div class="row-actions">${renderAccion(r)}${isEditableEstado(r.estado) ? `<button class="btn btn-ghost" type="button" data-action="edit" data-oid="${r.orden_id}" style="padding:5px 8px">Editar</button>` : ""}<button class="btn btn-ghost" type="button" data-action="detail" data-oid="${r.orden_id}" style="padding:5px 8px">Detalle</button></div></td>
+      <td>
+        <div class="row-actions">
+          <div class="row-actions-main">${renderAccion(r)}</div>
+          <div class="row-actions-secondary">
+            ${isEditableEstado(r.estado) ? `<button class="btn btn-ghost" type="button" data-action="edit" data-oid="${r.orden_id}" style="padding:5px 8px">Editar</button>` : ""}
+            <button class="btn btn-ghost" type="button" data-action="detail" data-oid="${r.orden_id}" style="padding:5px 8px">Detalle</button>
+          </div>
+        </div>
+      </td>
     </tr>`;
   }).join("");
 

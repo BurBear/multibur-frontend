@@ -1,6 +1,29 @@
 let adminRealtimeBound = false;
 let jobsReloadTimer = null;
 let regsReloadTimer = null;
+let adminRegistroChannel = null;
+let adminOrdenesChannel = null;
+
+function cleanupAdminRealtimeChannels(supabase) {
+  if (!supabase) return;
+  if (adminRegistroChannel) {
+    supabase.removeChannel(adminRegistroChannel);
+    adminRegistroChannel = null;
+  }
+  if (adminOrdenesChannel) {
+    supabase.removeChannel(adminOrdenesChannel);
+    adminOrdenesChannel = null;
+  }
+}
+
+export function unbindAdminRealtime(supabase) {
+  clearTimeout(jobsReloadTimer);
+  clearTimeout(regsReloadTimer);
+  jobsReloadTimer = null;
+  regsReloadTimer = null;
+  cleanupAdminRealtimeChannels(supabase);
+  adminRealtimeBound = false;
+}
 
 export function bindAdminRealtime({
   supabase,
@@ -11,7 +34,9 @@ export function bindAdminRealtime({
   loadJobs,
   loadRegistros
 }) {
-  if (adminRealtimeBound) return;
+  if (adminRealtimeBound) {
+    unbindAdminRealtime(supabase);
+  }
   adminRealtimeBound = true;
 
   function scheduleLoadJobs(delay = 400) {
@@ -53,7 +78,7 @@ export function bindAdminRealtime({
     else if (after === "ACTIVO" && before === "PAUSADO") showToast(`${operador} reanudo ${orden}.`, "info");
   }
 
-  supabase.channel("admin-registro-watch")
+  adminRegistroChannel = supabase.channel("admin-registro-watch")
     .on("postgres_changes", { event: "*", schema: "public", table: "registro_produccion" }, async (payload) => {
       try {
         await notifyRegistroRealtime(payload);
@@ -65,7 +90,7 @@ export function bindAdminRealtime({
     })
     .subscribe();
 
-  supabase.channel("admin-ordenes-watch")
+  adminOrdenesChannel = supabase.channel("admin-ordenes-watch")
     .on("postgres_changes", { event: "*", schema: "public", table: "ordenes" }, () => {
       scheduleLoadJobs();
     })

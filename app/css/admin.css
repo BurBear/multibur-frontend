@@ -255,8 +255,47 @@ tr:hover td {
 
 .row-actions {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
+  min-width: 168px;
+}
+
+.row-actions-main {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+}
+
+.row-actions-secondary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.order-meta {
+  margin-top: 2px;
+}
+
+.order-state-line {
+  line-height: 1.15;
+}
+
+.order-priority-line {
+  margin-top: 3px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
   flex-wrap: wrap;
+}
+
+.entrega-date {
+  line-height: 1.2;
+}
+
+.entrega-time {
+  line-height: 1.15;
+  margin-top: 2px;
 }
 
 .state-pill {
