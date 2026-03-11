@@ -829,6 +829,30 @@ tr:hover td {
   font-weight: 700;
 }
 
+.placas-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.placas-item {
+  border: 1px solid #2a3b61;
+  border-radius: 10px;
+  background: #0f1a34;
+  padding: 8px;
+}
+
+.placas-item .small {
+  margin-bottom: 6px;
+  display: block;
+}
+
+@media (max-width:900px) {
+  .placas-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 .subtle {
   font-size: 12px;
   opacity: .8;

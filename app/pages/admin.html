@@ -303,6 +303,30 @@
                 </select>
               </div>
 
+              <div id="d_multi_placas_section" class="inl-4">
+                <label class="field-lb" for="d_multi_placas">Juegos de placas</label>
+                <div class="flow-box">
+                  <div class="flow-top">
+                    <span class="flow-label">Trabajo con multiples placas</span>
+                    <input id="d_multi_placas" type="checkbox" class="hide" checked />
+                  </div>
+                  <div id="d_multi_placas_hint" class="flow-hint">Para revista/libro puedes dividir en TIRA/RETIRA y nombrar cada placa.</div>
+                  <div id="d_multi_placas_wrap" class="grid-fields inl-5 hide">
+                    <div>
+                      <label class="field-lb" for="d_placas_total">Cantidad de juegos</label>
+                      <input id="d_placas_total" type="number" min="2" step="1" value="2" />
+                    </div>
+                    <div>
+                      <label class="field-lb">&nbsp;</label>
+                      <button id="btnPlacasGenerar" class="btn btn-ghost w-100" type="button">Generar nombres</button>
+                    </div>
+                    <div class="inl-4">
+                      <div id="d_placas_list" class="placas-list"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label class="field-lb" for="d_color_mode">Modo color</label>
                 <select id="d_color_mode">

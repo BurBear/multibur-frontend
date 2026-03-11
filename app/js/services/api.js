@@ -180,7 +180,7 @@ export async function fetchRegistros({
 
   let q = supabase
     .from("registro_produccion")
-    .select("id, orden_id, user_id, maquina_id, hora_inicio, hora_fin, cantidad_buena, cantidad_mala")
+    .select("id, orden_id, user_id, maquina_id, hora_inicio, hora_fin, cantidad_buena, cantidad_mala, juego_num, cara_impresion")
     .order("hora_inicio", { ascending: false })
     .limit(limit);
 
@@ -243,7 +243,7 @@ export async function fetchMisRegistrosHoy(userId) {
 
   const { data, error } = await supabase
     .from("registro_produccion")
-    .select("id, orden_id, maquina_id, hora_inicio, hora_fin, cantidad_buena, cantidad_mala, estado_registro, motivo_incidencia")
+    .select("id, orden_id, maquina_id, hora_inicio, hora_fin, cantidad_buena, cantidad_mala, estado_registro, motivo_incidencia, juego_num, cara_impresion")
     .eq("user_id", userId)
     .gte("hora_inicio", peStart.toISOString())
     .lt("hora_inicio", peEnd.toISOString())
@@ -271,7 +271,7 @@ export async function fetchClienteTiposByOrdenIds(orderIds = []) {
 }
 
 export async function fetchOrdenById(ordenId) {
-  const { data, error } = await supabase
+  const runQuery = async (withJuegosPlaca) => supabase
     .from("ordenes")
     .select(`
       id,
@@ -309,6 +309,7 @@ export async function fetchOrdenById(ordenId) {
         barniz,
         plastificado,
         observacion_tecnica,
+        ${withJuegosPlaca ? "requiere_juegos_placa,juegos_placa_total,juegos_placa_detalle," : ""}
         maquina_sugerida_id,
         maquina:maquinas(nombre)
       ),
@@ -316,6 +317,16 @@ export async function fetchOrdenById(ordenId) {
     `)
     .eq("id", ordenId)
     .single();
+
+  let data = null;
+  let error = null;
+  ({ data, error } = await runQuery(true));
+  if (error) {
+    const miss = parseMissingColumn(error);
+    if (miss && miss.table === "detalles_orden" && ["requiere_juegos_placa", "juegos_placa_total", "juegos_placa_detalle"].includes(miss.column)) {
+      ({ data, error } = await runQuery(false));
+    }
+  }
 
   if (error) throw error;
   return data;
@@ -343,7 +354,7 @@ export async function rpcIniciarTrabajo({ ordenId, maquinaId }) {
 export async function fetchMiRegistroActivo(userId) {
   const { data, error } = await supabase
     .from("registro_produccion")
-    .select("id, orden_id, maquina_id, hora_inicio, hora_fin, estado_registro, hora_pausa, motivo_incidencia, obs_incidencia")
+    .select("id, orden_id, maquina_id, hora_inicio, hora_fin, estado_registro, hora_pausa, motivo_incidencia, obs_incidencia, orden_juego_id, juego_num, cara_impresion, buena_reportada, mala_reportada")
     .eq("user_id", userId)
     .is("hora_fin", null)
     .order("hora_inicio", { ascending: false })
@@ -363,6 +374,50 @@ export async function rpcFinalizarTrabajo({ registroId, buena, mala, observacion
   });
   if (error) throw error;
   return data?.[0];
+}
+
+export async function fetchOrdenJuegosTR(ordenId) {
+  const { data, error } = await supabase
+    .from("orden_juegos_tr")
+    .select("id,orden_id,juego_num,cara,nombre,cantidad_objetivo,estado")
+    .eq("orden_id", ordenId)
+    .order("juego_num", { ascending: true })
+    .order("cara", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchOrdenJuegosActivos(ordenId) {
+  const { data, error } = await supabase
+    .from("registro_produccion")
+    .select("juego_num,cara_impresion")
+    .eq("orden_id", ordenId)
+    .is("hora_fin", null)
+    .not("juego_num", "is", null);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function rpcIniciarTrabajoJuego({ ordenId, juegoNum, cara, maquinaId }) {
+  const { data, error } = await supabase.rpc("iniciar_trabajo_juego", {
+    p_orden_id: ordenId,
+    p_juego_num: juegoNum,
+    p_cara: cara,
+    p_maquina_id: maquinaId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcFinalizarTrabajoJuego({ registroId, buena, mala, observaciones = null }) {
+  const { data, error } = await supabase.rpc("finalizar_trabajo_juego", {
+    p_registro_id: registroId,
+    p_buena: buena,
+    p_mala: mala,
+    p_observaciones: observaciones
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
 }
 
 export async function rpcPausarTrabajo({ registroId, motivoIncidencia, obsIncidencia = null }) {

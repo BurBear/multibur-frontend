@@ -28,12 +28,16 @@ import {
   fetchTrabajosAdminBoard,
   fetchMiRegistroActivo,
   rpcIniciarTrabajo,
+  rpcIniciarTrabajoJuego,
   rpcPausarTrabajo,
   rpcReanudarTrabajo,
   rpcDevolverTrabajoAPlacas,
   rpcFinalizarTrabajo,
+  rpcFinalizarTrabajoJuego,
   fetchMisRegistrosHoy,
-  fetchOrdenById
+  fetchOrdenById,
+  fetchOrdenJuegosTR,
+  fetchOrdenJuegosActivos
 } from "../api.js";
 
 const esc = escapeHtml;
@@ -56,6 +60,8 @@ let pendientesPage = 1;
 let pendientesPageSize = 20;
 let maquinasMap = new Map();
 let lastAlertedOrderIds = new Set();
+let selectedOrderRequiresJuegos = false;
+let selectedOrderJuegos = [];
 
 /* =========================
    MODAL
@@ -100,6 +106,89 @@ function bindRealtime() {
   });
 }
 
+function buildJuegoCaraLabel(item) {
+  const cara = String(item?.cara || "-");
+  const juegoNum = Number(item?.juego_num || 0) || "-";
+  const nombre = String(item?.nombre || "").trim();
+  const nombreBase = nombre || `${cara} ${juegoNum}`;
+  return nombreBase;
+}
+
+function parseJuegoCaraValue(v) {
+  const raw = String(v || "");
+  const [juegoPart, caraPart] = raw.split("|");
+  const juegoNum = Number(juegoPart || 0);
+  const cara = String(caraPart || "").toUpperCase();
+  if (!juegoNum || !cara) return null;
+  return { juegoNum, cara };
+}
+
+function formatSelJob(ordenId, juegoNum = null, cara = null) {
+  if (!ordenId) return "Ninguno";
+  if (juegoNum && cara) return `Orden ID: ${ordenId} | Juego ${juegoNum} ${cara}`;
+  return `Orden ID: ${ordenId}`;
+}
+
+function normalizeJuegoEstado(v) {
+  return String(v || "").trim().toUpperCase();
+}
+
+async function syncJuegoCaraUI({ ordenId, requiereJuegos }) {
+  const wrap = el("juegoCaraWrap");
+  const sel = el("juegoCara");
+  selectedOrderRequiresJuegos = !!requiereJuegos;
+  selectedOrderJuegos = [];
+
+  if (!wrap || !sel || !ordenId || !selectedOrderRequiresJuegos) {
+    if (wrap) wrap.classList.add("hide");
+    if (sel) sel.innerHTML = "";
+    return;
+  }
+
+  const [juegos, juegosActivos] = await Promise.all([
+    fetchOrdenJuegosTR(ordenId).catch(() => []),
+    fetchOrdenJuegosActivos(ordenId).catch(() => [])
+  ]);
+  const juegosBloqueadosPorRegActivos = new Set(
+    (juegosActivos || [])
+      .map((x) => Number(x?.juego_num || 0))
+      .filter((n) => n > 0)
+  );
+  const juegosOrdenados = (juegos || []).slice().sort((a, b) => {
+    const jDiff = Number(a?.juego_num || 0) - Number(b?.juego_num || 0);
+    if (jDiff !== 0) return jDiff;
+    const rank = (v) => (String(v || "").toUpperCase() === "TIRA" ? 0 : 1);
+    return rank(a?.cara) - rank(b?.cara);
+  });
+
+  // No mostrar FINALIZADO. Mostrar EN_PROCESO pero bloqueado para que el operador lo vea ocupado.
+  selectedOrderJuegos = juegosOrdenados.filter((j) => normalizeJuegoEstado(j?.estado) !== "FINALIZADO");
+  // Si una cara del juego esta EN_PROCESO, bloquea ambas caras del mismo juego en el combo.
+  const juegosBloqueadosPorEstado = new Set(
+    selectedOrderJuegos
+      .filter((j) => normalizeJuegoEstado(j?.estado) === "EN_PROCESO")
+      .map((j) => Number(j?.juego_num || 0))
+      .filter((n) => n > 0)
+  );
+
+  const opciones = (selectedOrderJuegos || []).map((j) => {
+    const value = `${j.juego_num}|${j.cara}`;
+    const estado = normalizeJuegoEstado(j?.estado);
+    const juegoNum = Number(j?.juego_num || 0);
+    const bloqueado = estado === "EN_PROCESO"
+      || juegosBloqueadosPorRegActivos.has(juegoNum)
+      || juegosBloqueadosPorEstado.has(juegoNum);
+    const baseLabel = buildJuegoCaraLabel(j);
+    const label = bloqueado ? `${baseLabel} [BLOQUEADO]` : baseLabel;
+    return `<option value="${esc(value)}" ${bloqueado ? "disabled" : ""}>${esc(label)}</option>`;
+  }).join("");
+
+  sel.innerHTML = opciones || `<option value="">Sin juegos disponibles</option>`;
+  const primeraDisponible = selectedOrderJuegos.find((j) => normalizeJuegoEstado(j?.estado) !== "EN_PROCESO");
+  sel.value = primeraDisponible ? `${primeraDisponible.juego_num}|${primeraDisponible.cara}` : "";
+  wrap.classList.remove("hide");
+}
+
 function setModalDetails(row) {
   if (!row) {
     setVal("mCantidad", "-");
@@ -142,6 +231,7 @@ function setModalDetails(row) {
 async function loadModalDetails(row) {
   if (!row?.orden_id) {
     setModalDetails(row);
+    await syncJuegoCaraUI({ ordenId: null, requiereJuegos: false });
     return;
   }
 
@@ -168,8 +258,13 @@ async function loadModalDetails(row) {
       cantidad_solicitada: det?.cantidad_solicitada ?? row.cantidad_solicitada,
       demasia: det?.demasia ?? row.demasia
     });
+    await syncJuegoCaraUI({
+      ordenId: Number((row?.orden_id ?? ord?.id) || 0),
+      requiereJuegos: !!det?.requiere_juegos_placa
+    });
   } catch {
     setModalDetails(row);
+    await syncJuegoCaraUI({ ordenId: null, requiereJuegos: false });
   }
 }
 
@@ -189,6 +284,9 @@ function setKPIs() {
   setDisabled("btnResume", !activeRegistro || !isPausedRegistro(activeRegistro));
   setDisabled("btnStop", !activeRegistro || isPausedRegistro(activeRegistro));
   setDisabled("btnReturnPlacas", !activeRegistro);
+
+  // Si hay un trabajo activo, no se permite cambiar juego/cara hasta finalizar/devolver.
+  setDisabled("juegoCara", !!activeRegistro);
 
   setDisabled("good", !activeRegistro);
   setDisabled("bad", !activeRegistro);
@@ -252,7 +350,7 @@ function renderPendientes(rows) {
       selectedOrderEstado = String(btn.getAttribute("data-est") || "");
       selectedRow = allPendientes.find(x => Number(x.orden_id) === selectedOrderId) || null;
 
-      setVal("selJob", selectedOrderId ? ("Orden ID: " + selectedOrderId) : "Ninguno");
+      setVal("selJob", formatSelJob(selectedOrderId));
       setVal("selEstado", selectedOrderEstado || "-");
 
       await loadModalDetails(selectedRow);
@@ -263,10 +361,18 @@ function renderPendientes(rows) {
         return;
       }
 
-      if (selectedOrderEstado !== "PLACAS") {
-        msgR("AVISO: Trabajo seleccionado, pero no puedes iniciar todavia.\nSolo se puede INICIAR cuando el estado es PLACAS.");
+      const est = String(selectedOrderEstado || "").toUpperCase();
+      const canStart = selectedOrderRequiresJuegos
+        ? (est === "PLACAS" || est === "IMPRESION")
+        : est === "PLACAS";
+      if (!canStart) {
+        msgR(selectedOrderRequiresJuegos
+          ? "AVISO: Trabajo seleccionado, pero no puedes iniciar todavia.\nPara T+R solo se permite iniciar en PLACAS o IMPRESION."
+          : "AVISO: Trabajo seleccionado, pero no puedes iniciar todavia.\nSolo se puede INICIAR cuando el estado es PLACAS.");
       } else {
-        msgR("OK Trabajo seleccionado (PLACAS). Elige maquina y presiona INICIAR.");
+        msgR(selectedOrderRequiresJuegos
+          ? "OK Trabajo seleccionado.\nElige maquina, Juego/Cara y luego INICIAR."
+          : "OK Trabajo seleccionado (PLACAS). Elige maquina y presiona INICIAR.");
       }
     });
   });
@@ -295,7 +401,11 @@ async function loadTrabajos() {
   msgL("");
 
   const q = getValue("q");
-  const rows = filterTrabajosByQuery(await fetchTrabajosAdminBoard({ estado: "PLACAS" }), q);
+  const allRows = await fetchTrabajosAdminBoard({});
+  const rows = filterTrabajosByQuery(
+    (allRows || []).filter((r) => ["PLACAS", "IMPRESION"].includes(String(r.estado || "").toUpperCase())),
+    q
+  );
 
   allPendientes = rows || [];
   filteredPendientes = allPendientes.slice();
@@ -309,7 +419,7 @@ async function loadActiveRegistro() {
 
   if (activeRegistro) {
     selectedOrderId = Number(activeRegistro.orden_id);
-    setVal("selJob", "Orden ID: " + selectedOrderId);
+    setVal("selJob", formatSelJob(selectedOrderId, activeRegistro?.juego_num, activeRegistro?.cara_impresion));
     setVal("selEstado", activeRegistro.estado_registro || "ACTIVO");
 
     openModal();
@@ -335,10 +445,12 @@ async function loadHoy() {
 
   tb.innerHTML = (rows || []).map(r => {
     const maq = r.maquina_id ? (maquinasMap.get(Number(r.maquina_id)) || r.maquina_id) : "-";
+    const juegoCara = r.juego_num && r.cara_impresion ? `${r.juego_num} ${r.cara_impresion}` : "-";
     return `
       <tr>
         <td><b>#${esc(r.id)}</b></td>
         <td>${esc(r.orden_id)}</td>
+        <td>${esc(juegoCara)}</td>
         <td>${esc(maq)}</td>
         <td>${esc(r.hora_inicio ? fmtTimePE(r.hora_inicio) : "-")}</td>
         <td>${esc(r.hora_fin ? fmtTimePE(r.hora_fin) : (r.estado_registro || "-"))}</td>
@@ -360,11 +472,15 @@ async function resumeIfActive() {
 
   openModal();
 
-  setVal("selJob", "Orden ID: " + activeRegistro.orden_id);
+  setVal("selJob", formatSelJob(activeRegistro.orden_id, activeRegistro?.juego_num, activeRegistro?.cara_impresion));
   setVal("selEstado", activeRegistro.estado_registro || "ACTIVO");
 
   const row = allPendientes.find(x => Number(x.orden_id) === Number(activeRegistro.orden_id)) || { orden_id: activeRegistro.orden_id };
   await loadModalDetails(row);
+  if (activeRegistro?.juego_num && activeRegistro?.cara_impresion) {
+    const jc = el("juegoCara");
+    if (jc) jc.value = `${activeRegistro.juego_num}|${activeRegistro.cara_impresion}`;
+  }
 
   const sel = el("maquina");
   if (sel && activeRegistro.maquina_id) {
@@ -409,23 +525,44 @@ async function startRegistro() {
     msgR("Selecciona un trabajo primero (boton 'Elegir').");
     return;
   }
-  if (selectedOrderEstado !== "PLACAS") {
-    msgR("No se puede iniciar.\nEste trabajo no esta en PLACAS.");
+  const estado = String(selectedOrderEstado || "").toUpperCase();
+  const canStart = selectedOrderRequiresJuegos
+    ? (estado === "PLACAS" || estado === "IMPRESION")
+    : estado === "PLACAS";
+  if (!canStart) {
+    msgR(selectedOrderRequiresJuegos
+      ? "No se puede iniciar.\nPara T+R este trabajo debe estar en PLACAS o IMPRESION."
+      : "No se puede iniciar.\nEste trabajo no esta en PLACAS.");
     return;
   }
 
   const maquinaId = Number(getValue("maquina"));
+  const juegoCaraSelected = parseJuegoCaraValue(getValue("juegoCara"));
+  if (selectedOrderRequiresJuegos && !juegoCaraSelected) {
+    msgR("Selecciona Juego y Cara antes de iniciar.");
+    return;
+  }
 
   try {
-    const res = await rpcIniciarTrabajo({ ordenId: selectedOrderId, maquinaId });
+    const res = selectedOrderRequiresJuegos
+      ? await rpcIniciarTrabajoJuego({
+        ordenId: selectedOrderId,
+        juegoNum: juegoCaraSelected?.juegoNum,
+        cara: juegoCaraSelected?.cara,
+        maquinaId
+      })
+      : await rpcIniciarTrabajo({ ordenId: selectedOrderId, maquinaId });
 
     activeRegistro = {
-      id: res?.registro_id,
+      id: res?.registro_id || res?.id,
       orden_id: selectedOrderId,
       maquina_id: maquinaId,
       hora_inicio: new Date().toISOString(),
       hora_fin: null,
       estado_registro: "ACTIVO",
+      orden_juego_id: res?.orden_juego_id || null,
+      juego_num: juegoCaraSelected?.juegoNum || null,
+      cara_impresion: juegoCaraSelected?.cara || null,
       motivo_incidencia: null,
       obs_incidencia: null
     };
@@ -434,7 +571,8 @@ async function startRegistro() {
 
     msgR(
       "OK Registro iniciado.\n" +
-      `Registro ID: ${res?.registro_id ?? "-"}\n` +
+      `Registro ID: ${res?.registro_id ?? res?.id ?? "-"}\n` +
+      `${activeRegistro?.juego_num && activeRegistro?.cara_impresion ? `Juego: ${activeRegistro.juego_num} ${activeRegistro.cara_impresion}\n` : ""}` +
       `Nuevo estado: ${res?.nuevo_estado ?? "IMPRESION"}`
     );
 
@@ -553,16 +691,25 @@ async function stopRegistro() {
   }
 
   try {
-    const res = await rpcFinalizarTrabajo({
-      registroId: activeRegistro.id,
-      buena,
-      mala,
-      observaciones: obs
-    });
+    const finishedOrderId = Number(activeRegistro?.orden_id || selectedOrderId || 0);
+    const res = activeRegistro?.juego_num && activeRegistro?.cara_impresion
+      ? await rpcFinalizarTrabajoJuego({
+        registroId: activeRegistro.id,
+        buena,
+        mala,
+        observaciones: obs
+      })
+      : await rpcFinalizarTrabajo({
+        registroId: activeRegistro.id,
+        buena,
+        mala,
+        observaciones: obs
+      });
 
     msgR(
       "OK Registro finalizado.\n" +
-      `Orden: ${res?.orden_id ?? "-"}\n` +
+      `Orden: ${res?.orden_id ?? activeRegistro?.orden_id ?? "-"}\n` +
+      `${res?.juego_num && res?.cara ? `Juego: ${res.juego_num} ${res.cara}\n` : ""}` +
       `Nuevo estado: ${res?.nuevo_estado ?? "-"}`
     );
 
@@ -572,18 +719,36 @@ async function stopRegistro() {
     clearIncidenciaFields(el);
 
     activeRegistro = null;
-    selectedOrderId = null;
-    selectedOrderEstado = null;
-    selectedRow = null;
-    setVal("selJob", "Ninguno");
-    setVal("selEstado", "-");
-
     setKPIs();
 
     await loadTrabajos();
     await loadHoy();
-
-    closeModal();
+    selectedOrderId = finishedOrderId || selectedOrderId;
+    selectedRow = allPendientes.find((x) => Number(x.orden_id) === Number(selectedOrderId)) || selectedRow;
+    selectedOrderEstado = String(selectedRow?.estado || res?.nuevo_estado || selectedOrderEstado || "-");
+    setVal("selJob", formatSelJob(selectedOrderId));
+    setVal("selEstado", selectedOrderEstado);
+    await loadModalDetails(selectedRow || { orden_id: selectedOrderId, estado: selectedOrderEstado });
+    if (!selectedOrderRequiresJuegos) {
+      selectedOrderId = null;
+      selectedOrderEstado = null;
+      selectedRow = null;
+      setVal("selJob", "Ninguno");
+      setVal("selEstado", "-");
+      closeModal();
+      return;
+    }
+    if (selectedOrderRequiresJuegos && selectedOrderJuegos.length === 0) {
+      selectedOrderId = null;
+      selectedOrderEstado = null;
+      selectedRow = null;
+      setVal("selJob", "Ninguno");
+      setVal("selEstado", "-");
+      closeModal();
+      msgL("Orden finalizada: no hay juegos/caras disponibles.");
+      return;
+    }
+    openModal();
   } catch (e) {
     msgR("Error al finalizar: " + (e?.message || e));
   }

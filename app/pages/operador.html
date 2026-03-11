@@ -35,7 +35,7 @@
           <div>
             <div class="card-title">Panel del Operador</div>
             <div class="card-subtitle">Solo se muestran trabajos listos para imprimir. La accion principal es iniciar
-              desde PLACAS.</div>
+              segun su estado operativo.</div>
           </div>
           <button id="btnReload" class="btn btn-ghost hide" type="button">Recargar</button>
         </div>
@@ -43,9 +43,9 @@
           <div class="hint-strip">
             <div>
               <div class="hint-label">Flujo permitido</div>
-              <div class="hint-strong">Solo puedes iniciar cuando el estado es PLACAS</div>
+              <div class="hint-strong">Normal: inicia en PLACAS. T+R: inicia en PLACAS o IMPRESION</div>
             </div>
-            <span class="pill">Solo trabajos en PLACAS</span>
+            <span class="pill">PLACAS + IMPRESION (T+R)</span>
           </div>
 
           <div class="tabs">
@@ -115,6 +115,7 @@
                   <tr>
                     <th>Registro</th>
                     <th>Orden</th>
+                    <th>Juego/Cara</th>
                     <th>Maquina</th>
                     <th>Inicio</th>
                     <th>Fin</th>
@@ -265,6 +266,12 @@
             <div class="inl-4">
               <label class="small">Maquina</label>
               <select id="maquina"></select>
+            </div>
+
+            <div id="juegoCaraWrap" class="inl-4 hide">
+              <label class="small">Juego y cara</label>
+              <select id="juegoCara"></select>
+              <div class="small muted inl-3">Para T+R selecciona el juego/cara que vas a trabajar.</div>
             </div>
 
             <div class="row inl-8">

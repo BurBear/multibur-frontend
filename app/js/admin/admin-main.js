@@ -143,6 +143,131 @@ function normalizeTipoCliente(v) {
 
 
 
+function sanitizePlacasTotal(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return 2;
+  return Math.max(2, Math.floor(n));
+}
+
+function buildDefaultPlacasDetalle(total) {
+  const safeTotal = sanitizePlacasTotal(total);
+  const out = [];
+  for (let i = 1; i <= safeTotal; i += 1) {
+    const grupo = Math.ceil(i / 2);
+    const isTira = i % 2 === 1;
+    const suf = isTira ? "A" : "B";
+    const cara = isTira ? "TIRA" : "RETIRA";
+    out.push({
+      orden: i,
+      cara,
+      nombre: `${cara} ${grupo}${suf}`
+    });
+  }
+  return out;
+}
+
+function parseJuegosPlacaDetalle(raw, fallbackTotal = 2) {
+  let data = raw;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      data = null;
+    }
+  }
+  if (!Array.isArray(data) || !data.length) return buildDefaultPlacasDetalle(fallbackTotal);
+  return data.map((item, idx) => {
+    const pos = idx + 1;
+    const isTira = pos % 2 === 1;
+    const grupo = Math.ceil(pos / 2);
+    const defaultName = `${isTira ? "TIRA" : "RETIRA"} ${grupo}${isTira ? "A" : "B"}`;
+    const nombre = String(item?.nombre || item?.name || "").trim() || defaultName;
+    return {
+      orden: Number(item?.orden || item?.index || pos) || pos,
+      cara: String(item?.cara || item?.side || (isTira ? "TIRA" : "RETIRA")).toUpperCase(),
+      nombre
+    };
+  });
+}
+
+function renderJuegosPlacaDetalle(rows) {
+  const wrap = $("d_placas_list");
+  if (!wrap) return;
+  wrap.innerHTML = (rows || []).map((r, idx) => `
+    <div class="placas-item">
+      <span class="small muted">Juego ${idx + 1} - ${esc(r.cara || "-")}</span>
+      <input class="placa-name-input" data-placa-index="${idx}" value="${esc(r.nombre || "")}" placeholder="Ej: TIRA ${Math.ceil((idx + 1) / 2)}A" />
+    </div>
+  `).join("");
+}
+
+function collectJuegosPlacaDetalle() {
+  const names = Array.from(document.querySelectorAll("#d_placas_list .placa-name-input"));
+  return names.map((inp, idx) => {
+    const pos = idx + 1;
+    const isTira = pos % 2 === 1;
+    const grupo = Math.ceil(pos / 2);
+    const fallbackName = `${isTira ? "TIRA" : "RETIRA"} ${grupo}${isTira ? "A" : "B"}`;
+    const nombre = String(inp?.value || "").trim() || fallbackName;
+    return {
+      orden: pos,
+      cara: isTira ? "TIRA" : "RETIRA",
+      nombre
+    };
+  });
+}
+
+function syncJuegosPlacaUI({ forceRegenerate = false } = {}) {
+  const section = $("d_multi_placas_section");
+  const isExternal = $("o_externo")?.checked ?? false;
+  const tipoImpDb = toDbTipoImpresion($("d_tipoimp")?.value);
+  const canUse = !isExternal && tipoImpDb === "TIRA+RETIRA";
+  if (canUse && forceRegenerate && $("d_multi_placas") && !$("d_multi_placas").checked) {
+    $("d_multi_placas").checked = true;
+  }
+  const isOn = $("d_multi_placas")?.checked ?? false;
+  const wrap = $("d_multi_placas_wrap");
+  const hint = $("d_multi_placas_hint");
+  const totalInput = $("d_placas_total");
+  if (section) section.classList.toggle("hide", !canUse);
+  if (!canUse) {
+    if ($("d_multi_placas")) $("d_multi_placas").checked = false;
+    if (wrap) wrap.classList.add("hide");
+    const list = $("d_placas_list");
+    if (list) list.innerHTML = "";
+    refreshFormState();
+    return;
+  }
+  if (wrap) wrap.classList.toggle("hide", !isOn);
+  if (hint) {
+    hint.textContent = isOn
+      ? "Define y nombra cada placa para que el operador tenga la secuencia correcta."
+      : "Activalo cuando la orden se divide en varias placas (revista, libro u otros).";
+  }
+  if (!isOn) {
+    const list = $("d_placas_list");
+    if (list) list.innerHTML = "";
+    refreshFormState();
+    return;
+  }
+  if (totalInput) totalInput.value = String(sanitizePlacasTotal(totalInput.value));
+  const currentCount = document.querySelectorAll("#d_placas_list .placa-name-input").length;
+  const expectedCount = sanitizePlacasTotal(totalInput?.value || 2);
+  if (forceRegenerate || currentCount !== expectedCount) {
+    renderJuegosPlacaDetalle(buildDefaultPlacasDetalle(expectedCount));
+  }
+  refreshFormState();
+}
+
+function wireJuegosPlaca() {
+  $("d_multi_placas")?.addEventListener("change", () => syncJuegosPlacaUI({ forceRegenerate: true }));
+  $("d_tipoimp")?.addEventListener("change", () => syncJuegosPlacaUI({ forceRegenerate: true }));
+  $("d_placas_total")?.addEventListener("input", refreshFormState);
+  $("d_placas_total")?.addEventListener("change", () => syncJuegosPlacaUI({ forceRegenerate: true }));
+  $("btnPlacasGenerar")?.addEventListener("click", () => syncJuegosPlacaUI({ forceRegenerate: true }));
+  $("d_placas_list")?.addEventListener("input", refreshFormState);
+}
+
 function validateOrdenForm() {
   const isExt = $("o_externo")?.checked ?? false;
   const req = ["o_desc", "o_cliente", "o_entrega", "d_cant", "d_color_mode"];
@@ -158,6 +283,13 @@ function validateOrdenForm() {
     if (!String($("d_alto")?.value ?? "").trim()) miss.push("d_alto");
     if ((Number($("d_ancho")?.value || 0)) <= 0) miss.push("d_ancho");
     if ((Number($("d_alto")?.value || 0)) <= 0) miss.push("d_alto");
+  }
+  if ($("d_multi_placas")?.checked) {
+    const total = sanitizePlacasTotal($("d_placas_total")?.value || 2);
+    if (total < 2) miss.push("d_placas_total");
+    const detalle = collectJuegosPlacaDetalle();
+    if (detalle.length !== total) miss.push("d_placas_total");
+    if (detalle.some((x) => !String(x.nombre || "").trim())) miss.push("d_placas_list");
   }
   if ((Number($("d_cant")?.value || 0)) <= 0) miss.push("d_cant");
   return miss;
@@ -212,6 +344,9 @@ function clearOrdenForm() {
   if ($("d_color_text")) $("d_color_text").value = "F/C";
   if ($("d_obs_tecnica")) $("d_obs_tecnica").value = "";
   if ($("p_plast")) $("p_plast").value = "";
+  if ($("d_multi_placas")) $("d_multi_placas").checked = false;
+  if ($("d_placas_total")) $("d_placas_total").value = "2";
+  if ($("d_placas_list")) $("d_placas_list").innerHTML = "";
 
   ["p_corte", "p_empaq", "p_doblez", "p_compa", "p_troq", "p_sect", "p_barniz"].forEach((id) => {
     if ($(id)) $(id).checked = false;
@@ -223,6 +358,7 @@ function clearOrdenForm() {
   syncOcFields();
   syncExternalFlowUI();
   syncFormatoFields();
+  syncJuegosPlacaUI();
   $("d_color_mode")?.dispatchEvent(new Event("change"));
 }
 
@@ -278,6 +414,14 @@ async function openOrdenModalForEdit(row) {
   if ($("d_color_text")) $("d_color_text").value = det?.color_text || "F/C";
   if ($("d_obs_tecnica")) $("d_obs_tecnica").value = det?.observacion_tecnica || "";
   if ($("p_plast")) $("p_plast").value = det?.plastificado || "";
+  if ($("d_multi_placas")) $("d_multi_placas").checked = !!det?.requiere_juegos_placa;
+  if ($("d_placas_total")) {
+    const totalSaved = sanitizePlacasTotal(det?.juegos_placa_total || 2);
+    $("d_placas_total").value = String(totalSaved);
+    if (det?.requiere_juegos_placa) {
+      renderJuegosPlacaDetalle(parseJuegosPlacaDetalle(det?.juegos_placa_detalle, totalSaved));
+    }
+  }
 
   if ($("p_corte")) $("p_corte").checked = !!det?.corte;
   if ($("p_empaq")) $("p_empaq").checked = !!det?.empaquetado;
@@ -292,6 +436,7 @@ async function openOrdenModalForEdit(row) {
   syncOcFields();
   syncExternalFlowUI();
   syncFormatoFields();
+  syncJuegosPlacaUI();
   $("d_color_mode")?.dispatchEvent(new Event("change"));
   refreshFormState();
 }
@@ -563,6 +708,7 @@ function syncExternalFlowUI() {
     // Keep color text aligned to selected mode for external flow.
     $("d_color_mode")?.dispatchEvent(new Event("change"));
   }
+  syncJuegosPlacaUI();
   refreshFormState();
 }
 
@@ -1038,11 +1184,17 @@ async function loadRegistros() {
         const tipoBadge = tipoC ? ` - ${tipoC}` : "";
         const operador = userMap.get(r.user_id) || r.user_id || "-";
         const maq = maqMap.get(r.maquina_id) || r.maquina_id || "-";
+        const cara = String(r.cara_impresion || "").toUpperCase();
+        const juegoNum = Number(r.juego_num || 0);
+        const sufijoCara = cara === "TIRA" ? "A" : (cara === "RETIRA" ? "B" : "");
+        const juegoCaraLabel = (juegoNum && (cara === "TIRA" || cara === "RETIRA"))
+          ? `${cara} ${juegoNum}${sufijoCara}`
+          : "";
         return `<article class="live-card">
           <div class="live-card-top">
             <div>
               <div class="live-card-name">${esc(operador)}</div>
-              <div class="live-card-order">Orden ${esc(ordenNum)}</div>
+              <div class="live-card-order">Orden ${esc(ordenNum)}${juegoCaraLabel ? ` | ${esc(juegoCaraLabel)}` : ""}</div>
             </div>
             <div class="live-status"><span class="live-dot"></span>En curso</div>
           </div>
@@ -1133,6 +1285,9 @@ async function onGuardarOrden() {
     const altoFinal = toNumOrNull($("d_alto")?.value) ?? formatoAlto;
     const cantFinal = toNumOrNull($("d_cant")?.value);
     const demasiaFinal = isExt ? null : toNumOrNull($("d_dem")?.value);
+    const multiPlacasOn = $("d_multi_placas")?.checked ?? false;
+    const juegosPlacaTotal = multiPlacasOn ? sanitizePlacasTotal($("d_placas_total")?.value || 2) : null;
+    const juegosPlacaDetalle = multiPlacasOn ? collectJuegosPlacaDetalle() : [];
 
     if (!cantFinal || cantFinal <= 0) {
       msgCreate("ERROR: La cantidad debe ser mayor a 0.");
@@ -1151,6 +1306,9 @@ async function onGuardarOrden() {
       maquina_sugerida_id: isExt ? null : (Number($("d_maq").value) || null),
       tipo_impresion: isExt ? null : toDbTipoImpresion($("d_tipoimp")?.value),
       observacion_tecnica: isExt ? null : ($("d_obs_tecnica")?.value?.trim() || null),
+      requiere_juegos_placa: multiPlacasOn,
+      juegos_placa_total: juegosPlacaTotal,
+      juegos_placa_detalle: multiPlacasOn ? JSON.stringify(juegosPlacaDetalle) : null,
       color_mode: toDbColorMode($("d_color_mode")?.value),
       color_text: $("d_color_text")?.value?.trim() || "F/C",
       corte: $("p_corte")?.checked ?? false,
@@ -1373,9 +1531,11 @@ async function exportReporteEntregadosCsv() {
   await loadCombosClientesMaquinas();
   await loadCombosMaterialesFormatos();
   wireAutoFillMaterialFormato();
+  wireJuegosPlaca();
   syncOcFields();
   syncEntregaGuiaFields();
   syncExternalFlowUI();
+  syncJuegosPlacaUI();
   refreshFormState();
   bindRealtime();
   await loadJobs();
