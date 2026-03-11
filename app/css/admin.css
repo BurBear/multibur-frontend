@@ -2726,8 +2726,8 @@ body.page-admin-main .client-tag.c8 {
 /* --- PRINT STYLES (Modo Ahorro / Blanco y Negro) --- */
 @media print {
   @page {
-    size: portrait;
-    margin: 0.5cm;
+    size: landscape;
+    margin: 0.7cm;
     /* Margen mínimo para aprovechar al máximo */
   }
 
@@ -2785,7 +2785,7 @@ body.page-admin-main .client-tag.c8 {
   table {
     min-width: 100%;
     color: #000;
-    font-size: 9px;
+    font-size: 11px;
     /* Fuente minúscula pero legible en físico */
     border-collapse: collapse;
     /* Evita doble borde */
@@ -2804,10 +2804,10 @@ body.page-admin-main .client-tag.c8 {
   td {
     display: table-cell !important;
     border: 1px solid #777 !important;
-    padding: 2px 4px !important;
+    padding: 4px 6px !important;
     /* Mínimo relleno para comprimir filas */
     color: #000 !important;
-    font-size: 9px !important;
+    font-size: 10px !important;
     vertical-align: middle;
   }
 
@@ -2826,7 +2826,7 @@ body.page-admin-main .client-tag.c8 {
   .small.muted {
     opacity: 1;
     color: #333;
-    font-size: 8px;
+    font-size: 9px;
     /* Detalle mini */
     margin-top: 1px;
     display: block;
