@@ -927,8 +927,18 @@ async function loadJobs() {
         <div class="row-actions">
           <div class="row-actions-main">${renderAccion(r)}</div>
           <div class="row-actions-secondary">
-            ${isEditableEstado(r.estado) ? `<button class="btn btn-ghost" type="button" data-action="edit" data-oid="${r.orden_id}" style="padding:5px 8px">Editar</button>` : ""}
-            <button class="btn btn-ghost" type="button" data-action="detail" data-oid="${r.orden_id}" style="padding:5px 8px">Detalle</button>
+            ${isEditableEstado(r.estado) ? `<button class="btn btn-ghost row-icon-btn" type="button" data-action="edit" data-oid="${r.orden_id}" title="Editar" aria-label="Editar">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+            </button>` : ""}
+            <button class="btn btn-ghost row-icon-btn" type="button" data-action="detail" data-oid="${r.orden_id}" title="Detalle" aria-label="Detalle">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
           </div>
         </div>
       </td>

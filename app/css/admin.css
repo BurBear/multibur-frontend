@@ -259,18 +259,40 @@ tr:hover td {
   align-items: flex-start;
   gap: 8px;
   min-width: 168px;
+  width: 168px;
 }
 
 .row-actions-main {
   display: flex;
   align-items: center;
   min-height: 30px;
+  width: 100%;
+}
+
+.row-actions-main>* {
+  width: 100%;
+  justify-content: center;
 }
 
 .row-actions-secondary {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: nowrap;
+  width: 100%;
+}
+
+.row-icon-btn {
+  flex: 1 1 0;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+.row-icon-btn svg {
+  display: block;
 }
 
 .order-meta {
