@@ -894,12 +894,21 @@ async function loadJobs() {
     const entrega = fmtEntrega(r.fecha_entrega);
     const entregaLabel = splitEntregaLabel(entrega);
     const overdue = isOrdenOverdue(r.fecha_entrega, r.estado);
+    const prioridadBadge = renderPrioridadBadge(r.prioridad);
+    const incidenciaBadge = renderIncidenciaBadge({
+      motivo_incidencia: r.incidencia_motivo,
+      obs_incidencia: r.incidencia_obs,
+      estado_registro: r.incidencia_estado
+    });
     return `<tr style="border-left: 5px solid ${getClientColor(r.cliente_nombre)}; background-color: ${getClientBgColor(r.cliente_nombre)};">
       <td>
         <b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b>
         <div class="small muted order-meta">
           <div class="order-state-line">${esc(r.estado)}</div>
-          <div class="order-priority-line">${renderPrioridadBadge(r.prioridad)} ${renderIncidenciaBadge({ motivo_incidencia: r.incidencia_motivo, obs_incidencia: r.incidencia_obs, estado_registro: r.incidencia_estado })}</div>
+          <div class="order-priority-line">
+            <div class="order-priority-main">${prioridadBadge}</div>
+            ${incidenciaBadge ? `<div class="order-priority-inc">${incidenciaBadge}</div>` : ""}
+          </div>
         </div>
       </td>
       <td>
