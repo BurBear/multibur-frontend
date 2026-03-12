@@ -974,34 +974,37 @@ function printOrden(r, extra = null) {
   const ocNum = extra?.oc_numero || "-";
   const juegosLabel = juegosPlacaLabel(r);
   const juegosNombres = juegosPlacaNombres(r, extra);
+  const cliTipoNorm = String(cliTipo || "").trim().toUpperCase();
+  const showOcField = cliTipoNorm === "DIRECTO";
+  const showTrFields = isTipoImpresionTR(r.tipo_impresion);
   const html = `
 <!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</title>
 <style>
-@page{size:A5 portrait;margin:0}
-:root{--line:#d4d4d8;--muted:#52525b;--ink:#111827}*{box-sizing:border-box}
-html,body{width:148mm;height:210mm;margin:0;padding:0}
+@page{size:A5 portrait;margin:6mm}
+:root{--line:#d4d4d8;--muted:#52525b;--ink:#111827}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}
 body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 .sheet{
-  width:148mm;
-  min-height:210mm;
+  width:100%;
+  min-height:calc(210mm - 12mm);
   margin:0;
-  padding:8mm;
   display:flex;
   flex-direction:column;
 }
-.head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;border-bottom:1.8px solid var(--ink);padding-bottom:6px;margin-bottom:8px}
-.brand h1{font-size:13px;line-height:1.08;margin:0}.brand small{display:block;color:var(--muted);margin-top:3px;font-size:9px}
-.meta{text-align:right}.meta .n{font-size:13px;font-weight:800}.meta .s{font-size:9px;color:var(--muted);margin-top:2px}
-.section{border:1px solid var(--line);border-radius:7px;padding:6px 7px;margin-bottom:6px;break-inside:avoid}
-.section h3{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 5px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 8px}
-.k{display:block;color:var(--muted);font-size:11px}
-.v{display:block;font-size:13px;font-weight:600;margin-top:1px;line-height:1.22}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;border-bottom:1.4px solid var(--ink);padding-bottom:5px;margin-bottom:6px}
+.brand h1{font-size:12px;line-height:1.06;margin:0}
+.brand small{display:block;color:var(--muted);margin-top:2px;font-size:8px}
+.meta{text-align:right}
+.meta .n{font-size:12px;font-weight:800}
+.meta .s{font-size:8px;color:var(--muted);margin-top:2px}
+.section{border:1px solid var(--line);border-radius:6px;padding:5px 6px;margin-bottom:5px;break-inside:avoid}
+.section h3{font-size:8px;text-transform:uppercase;letter-spacing:.45px;color:var(--muted);margin:0 0 4px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 6px}
+.k{display:block;color:var(--muted);font-size:9.5px}
+.v{display:block;font-size:11px;font-weight:600;margin-top:1px;line-height:1.16;word-break:break-word}
 .wide{grid-column:1/-1}
-.sign-space{min-height:14mm}
-.signs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:auto}
-.sign{padding-top:10px;border-top:1px solid #a1a1aa;text-align:center;font-size:9px;color:#3f3f46}
-.foot{margin-top:6px;font-size:8px;color:#71717a;text-align:right}
+.foot{margin-top:5px;font-size:7.5px;color:#71717a;text-align:right}
 </style></head><body><div class="sheet">
 <header class="head"><div class="brand"><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
 <section class="section"><h3>Datos generales</h3><div class="grid">
@@ -1011,7 +1014,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 <div><span class="k">Documento fiscal</span><span class="v">${esc(`${cliDocTipo} ${cliDocNum}`)}</span></div>
 <div><span class="k">Estado</span><span class="v">${esc(r.estado || "-")}</span></div>
 <div><span class="k">Prioridad</span><span class="v">${esc(r.prioridad || "NORMAL")}</span></div>
-<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}</span></div>
+${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}</span></div>` : ""}
 <div class="wide"><span class="k">Trabajo</span><span class="v">${esc(r.descripcion_trabajo || "-")}</span></div>
 </div></section>
 <section class="section"><h3>Ficha tecnica</h3><div class="grid">
@@ -1019,16 +1022,14 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
   <div><span class="k">Formato</span><span class="v">${esc(formato)}</span></div>
   <div><span class="k">Material</span><span class="v">${esc(material)}</span></div>
   <div><span class="k">Impresion / Color</span><span class="v">${esc(fmtTipoImpresion(r.tipo_impresion))} / ${esc(r.color_text || "-")}</span></div>
-  <div><span class="k">Juegos de placa</span><span class="v">${esc(juegosLabel || "-")}</span></div>
-  <div class="wide"><span class="k">Nombres de juegos</span><span class="v">${esc(juegosNombres || "-")}</span></div>
+  ${showTrFields ? `<div><span class="k">Juegos de placa</span><span class="v">${esc(juegosLabel || "-")}</span></div>` : ""}
+  ${showTrFields ? `<div class="wide"><span class="k">Nombres de juegos</span><span class="v">${esc(juegosNombres || "-")}</span></div>` : ""}
   <div><span class="k">Cantidad</span><span class="v">${esc(cantidad)}</span></div>
   <div><span class="k">Demasia</span><span class="v">${esc(demasia)}</span></div>
   <div class="wide"><span class="k">Procesos acabados</span><span class="v">${esc(procesosAcabados)}</span></div>
   <div class="wide"><span class="k">Observacion tecnica (impresor)</span><span class="v">${esc(obsTecnica)}</span></div>
   <div class="wide"><span class="k">Observacion acabados</span><span class="v">${esc(obsAcabados)}</span></div>
 </div></section>
-<div class="sign-space"></div>
-<section class="signs"><div class="sign">Diseno / Preprensa</div><div class="sign">Produccion</div><div class="sign">Control de calidad</div></section>
 <div class="foot">Orden interna MultiBur</div>
 </div></body></html>`;
   const w = window.open("", "_blank", "width=900,height=700");

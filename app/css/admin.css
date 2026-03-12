@@ -2623,6 +2623,9 @@ body.page-admin-main .client-tag.c8 {
 /* Fix for full-width layout in reportes, overriding the default 1fr 360px grid from .main */
 .page-admin-reportes .main {
   display: block;
+  width: 100%;
+  max-width: 1700px;
+  margin: 0 auto;
 }
 
 /* Modificamos f-grid exclusivamente para reportes para que aproveche todo el ancho con 4 columnas */

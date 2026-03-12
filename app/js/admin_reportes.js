@@ -1,5 +1,5 @@
 import { requireAdmin, logout, getProfileDisplayName } from "./auth.js";
-import { fetchClientes, fetchReporteEntregados, fetchRegistros, fetchProfilesByIds, fetchMaquinasByIds, fetchOrdenResumenByIds } from "./api.js";
+import { fetchClientes, fetchReporteEntregados, fetchRegistros, fetchProfilesByIds, fetchMaquinasByIds, fetchOrdenesProduccionByIds, fetchOrdenJuegosByIds } from "./api.js";
 import { $, setText, debounce } from "./ui.js";
 import { escapeHtml } from "./utils/helpers.js";
 import { fmtEntrega, fmtDateTimePE } from "./utils/formatters.js";
@@ -12,6 +12,14 @@ let activeTab = "entregados";
 
 const esc = escapeHtml;
 const fmtDTPE = fmtDateTimePE;
+
+function buildPlacaFallback(juegoNum, cara) {
+  const n = Number(juegoNum || 0);
+  const c = String(cara || "").toUpperCase();
+  if (!n || !c) return "";
+  const suf = c === "TIRA" ? "A" : (c === "RETIRA" ? "B" : "");
+  return `${c} ${n}${suf}`;
+}
 
 function normalizeTipoCliente(v) {
   const t = String(v || "").trim().toUpperCase();
@@ -252,22 +260,44 @@ async function loadRegistros() {
   const preset = $("rgPreset")?.value || "today";
   const fromDate = $("rgFrom")?.value || "";
   const toDate = $("rgTo")?.value || "";
-  const ordenId = $("rgOrden")?.value ? Number($("rgOrden").value) : null;
+  const ordenSearch = ($("rgOrden")?.value || "").trim();
+  const ordenId = /^\d+$/.test(ordenSearch) ? Number(ordenSearch) : null;
   const userId = $("rgOperador")?.value || "";
-  const regs = await fetchRegistros({ preset, fromDate, toDate, ordenId, userId, limit: 300 });
+  let regs = await fetchRegistros({ preset, fromDate, toDate, ordenId, userId, limit: 300 });
   const orderIds = [...new Set((regs || []).map((r) => r.orden_id).filter(Boolean))];
   const userIds = [...new Set((regs || []).map((r) => r.user_id).filter(Boolean))];
   const maqIds = [...new Set((regs || []).map((r) => r.maquina_id).filter(Boolean))];
-  const [ordenes, users, maqs] = await Promise.all([
-    fetchOrdenResumenByIds(orderIds),
+  const juegoIds = [...new Set((regs || []).map((r) => r.orden_juego_id).filter(Boolean))];
+  const [ordenes, users, maqs, juegos] = await Promise.all([
+    fetchOrdenesProduccionByIds(orderIds),
     fetchProfilesByIds(userIds),
-    fetchMaquinasByIds(maqIds)
+    fetchMaquinasByIds(maqIds),
+    fetchOrdenJuegosByIds(juegoIds)
   ]);
   const ordenMap = new Map((ordenes || []).map((o) => [o.orden_id, o.numero_orden_fisica]));
   const clienteMap = new Map((ordenes || []).map((o) => [o.orden_id, o.cliente_nombre]));
   const trabajoMap = new Map((ordenes || []).map((o) => [o.orden_id, o.descripcion_trabajo]));
+  const tipoImpMap = new Map((ordenes || []).map((o) => [o.orden_id, o.tipo_impresion]));
+  const totalDemMap = new Map((ordenes || []).map((o) => {
+    const cant = o?.cantidad_solicitada;
+    const dem = o?.demasia;
+    const label = cant != null
+      ? `${cant}${dem != null ? ` +${dem}` : ""}`
+      : "-";
+    return [o.orden_id, label];
+  }));
   const userMap = new Map((users || []).map((u) => [u.id, getProfileDisplayName(u) || u.username || u.id]));
   const maqMap = new Map((maqs || []).map((m) => [m.id, m.nombre]));
+  const juegoMap = new Map((juegos || []).map((j) => [Number(j.id), j]));
+
+  if (ordenSearch) {
+    const q = ordenSearch.toLowerCase();
+    regs = (regs || []).filter((r) => {
+      const ord = String(ordenMap.get(r.orden_id) || ("#" + r.orden_id)).toLowerCase();
+      const cli = String(clienteMap.get(r.orden_id) || "").toLowerCase();
+      return ord.includes(q) || cli.includes(q);
+    });
+  }
 
   const selOperador = $("rgOperador");
   if (selOperador) {
@@ -283,14 +313,20 @@ async function loadRegistros() {
           <td>${esc(ordenMap.get(r.orden_id) || ("#" + r.orden_id))}</td>
           <td>${esc(clienteMap.get(r.orden_id) || "-")}</td>
           <td>${esc(trabajoMap.get(r.orden_id) || "-")}</td>
+          <td>${esc(
+            String(juegoMap.get(Number(r.orden_juego_id || 0))?.nombre || "").trim()
+            || buildPlacaFallback(r.juego_num, r.cara_impresion)
+            || fmtTipoImpresion(tipoImpMap.get(r.orden_id) || "-")
+          )}</td>
           <td>${esc(userMap.get(r.user_id) || r.user_id || "-")}</td>
           <td>${esc(maqMap.get(r.maquina_id) || r.maquina_id || "-")}</td>
           <td>${esc(fmtDTPE(r.hora_inicio))}</td>
           <td>${esc(fmtDTPE(r.hora_fin))}</td>
+          <td>${esc(totalDemMap.get(r.orden_id) || "-")}</td>
           <td>${esc(r.cantidad_buena ?? "-")}</td>
           <td>${esc(r.cantidad_mala ?? 0)}</td>
         </tr>`).join("")
-      : `<tr><td colspan="9" class="preview-empty">No hay registros para los filtros seleccionados.</td></tr>`;
+      : `<tr><td colspan="11" class="preview-empty">No hay registros para los filtros seleccionados.</td></tr>`;
   }
   setText("msgRegs", `Registros cargados: ${(regs || []).length}`);
 }
