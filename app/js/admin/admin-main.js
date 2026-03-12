@@ -138,8 +138,8 @@ function normalizeTipoCliente(v) {
 }
 
 function isTipoImpresionTR(v) {
-  const s = String(v || "").toUpperCase();
-  return s.includes("RETIRA");
+  const s = String(v || "").trim().toUpperCase();
+  return s === "T+R" || s === "TIRA+RETIRA";
 }
 
 function juegosPlacaLabel(row) {
@@ -1003,6 +1003,9 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 6px}
 .k{display:block;color:var(--muted);font-size:9.5px}
 .v{display:block;font-size:11px;font-weight:600;margin-top:1px;line-height:1.16;word-break:break-word}
+.section-tecnica .k{font-size:10.5px}
+.section-tecnica .v{font-size:12.5px;line-height:1.2}
+.section-tecnica .grid{gap:5px 7px}
 .wide{grid-column:1/-1}
 .foot{margin-top:5px;font-size:7.5px;color:#71717a;text-align:right}
 </style></head><body><div class="sheet">
@@ -1017,7 +1020,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 ${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}</span></div>` : ""}
 <div class="wide"><span class="k">Trabajo</span><span class="v">${esc(r.descripcion_trabajo || "-")}</span></div>
 </div></section>
-<section class="section"><h3>Ficha tecnica</h3><div class="grid">
+<section class="section section-tecnica"><h3>Ficha tecnica</h3><div class="grid">
   <div><span class="k">Maquina sugerida</span><span class="v">${esc(r.maquina_sugerida_nombre || "-")}</span></div>
   <div><span class="k">Formato</span><span class="v">${esc(formato)}</span></div>
   <div><span class="k">Material</span><span class="v">${esc(material)}</span></div>
