@@ -137,6 +137,32 @@ function normalizeTipoCliente(v) {
   return t || "";
 }
 
+function isTipoImpresionTR(v) {
+  const s = String(v || "").toUpperCase();
+  return s.includes("RETIRA");
+}
+
+function juegosPlacaLabel(row) {
+  const total = Number(row?.juegos_placa_total || 0);
+  if (!row?.requiere_juegos_placa || !isTipoImpresionTR(row?.tipo_impresion) || total <= 0) return "";
+  return `Juegos: ${total}`;
+}
+
+function juegosPlacaNombres(row, extra = null) {
+  const det = Array.isArray(extra?.detalles_orden) ? extra.detalles_orden[0] : extra?.detalles_orden;
+  const requiere = det?.requiere_juegos_placa ?? row?.requiere_juegos_placa;
+  const tipoImpresion = det?.tipo_impresion ?? row?.tipo_impresion;
+  if (!requiere || !isTipoImpresionTR(tipoImpresion)) return "";
+
+  const total = Number(det?.juegos_placa_total ?? row?.juegos_placa_total ?? 0);
+  const raw = det?.juegos_placa_detalle ?? null;
+  const rows = parseJuegosPlacaDetalle(raw, total > 0 ? total : 2);
+  const names = (rows || [])
+    .map((x) => String(x?.nombre || "").trim())
+    .filter(Boolean);
+  return names.join(" | ");
+}
+
 
 
 
@@ -885,6 +911,8 @@ function openDetalleOrden(r, extra = null) {
   const guiaObs = extra?.guia_observacion || "-";
   const incMotivo = r?.incidencia_motivo || "-";
   const incObs = r?.incidencia_obs || "-";
+  const juegosLabel = juegosPlacaLabel(r);
+  const juegosNombres = juegosPlacaNombres(r, extra);
   $("jobDetailBody").innerHTML = `
     <div class="detail-grid">
       <div><span class="detail-k">Orden</span><span class="detail-v">${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</span></div>
@@ -904,11 +932,13 @@ function openDetalleOrden(r, extra = null) {
       <div><span class="detail-k">Formato</span><span class="detail-v">${esc(formato)}</span></div>
       <div><span class="detail-k">Material</span><span class="detail-v">${esc(r.papel_material || "-")} ${esc(r.gramaje ? `(${r.gramaje}g)` : "")}</span></div>
       <div><span class="detail-k">Tipo impresion</span><span class="detail-v">${esc(fmtTipoImpresion(r.tipo_impresion))}</span></div>
+      <div><span class="detail-k">Juegos de placa</span><span class="detail-v">${esc(juegosLabel || "-")}</span></div>
       <div><span class="detail-k">Color</span><span class="detail-v">${esc(r.color_text || "-")}</span></div>
       <div><span class="detail-k">Cantidad</span><span class="detail-v">${esc(cantidad)}</span></div>
       <div><span class="detail-k">Demasia</span><span class="detail-v">${esc(demasia)}</span></div>
       <div><span class="detail-k">Motivo incidencia</span><span class="detail-v">${esc(incMotivo)}</span></div>
       <div><span class="detail-k">Observacion incidencia</span><span class="detail-v">${esc(incObs)}</span></div>
+      <div style="grid-column:1/-1"><span class="detail-k">Nombres de juegos</span><span class="detail-v">${esc(juegosNombres || "-")}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Procesos acabados</span><span class="detail-v">${esc(procesosAcabados)}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Trabajo</span><span class="detail-v">${esc(r.descripcion_trabajo || "-")}</span></div>
       <div style="grid-column:1/-1"><span class="detail-k">Observacion tecnica (impresor)</span><span class="detail-v">${esc(obsTecnica)}</span></div>
@@ -942,6 +972,8 @@ function printOrden(r, extra = null) {
   const cliDocTipo = extra?.cliente?.doc_fiscal_tipo || "-";
   const cliDocNum = extra?.cliente?.doc_fiscal_numero || "-";
   const ocNum = extra?.oc_numero || "-";
+  const juegosLabel = juegosPlacaLabel(r);
+  const juegosNombres = juegosPlacaNombres(r, extra);
   const html = `
 <!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</title>
 <style>
@@ -987,6 +1019,8 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
   <div><span class="k">Formato</span><span class="v">${esc(formato)}</span></div>
   <div><span class="k">Material</span><span class="v">${esc(material)}</span></div>
   <div><span class="k">Impresion / Color</span><span class="v">${esc(fmtTipoImpresion(r.tipo_impresion))} / ${esc(r.color_text || "-")}</span></div>
+  <div><span class="k">Juegos de placa</span><span class="v">${esc(juegosLabel || "-")}</span></div>
+  <div class="wide"><span class="k">Nombres de juegos</span><span class="v">${esc(juegosNombres || "-")}</span></div>
   <div><span class="k">Cantidad</span><span class="v">${esc(cantidad)}</span></div>
   <div><span class="k">Demasia</span><span class="v">${esc(demasia)}</span></div>
   <div class="wide"><span class="k">Procesos acabados</span><span class="v">${esc(procesosAcabados)}</span></div>
@@ -1046,6 +1080,7 @@ async function loadJobs() {
       obs_incidencia: r.incidencia_obs,
       estado_registro: r.incidencia_estado
     });
+    const juegosLabel = juegosPlacaLabel(r);
     return `<tr style="border-left: 5px solid ${getClientColor(r.cliente_nombre)}; background-color: ${getClientBgColor(r.cliente_nombre)};">
       <td>
         <b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b>
@@ -1064,7 +1099,7 @@ async function loadJobs() {
       </td>
       <td><div class="text-elide" style="max-width: 110px" title="${esc(r.cliente_nombre || '-')}">${esc(r.cliente_nombre || "-")}</div></td>
       <td><div class="text-elide" style="max-width: 130px" title="${esc(r.descripcion_trabajo || '-')}">${esc(r.descripcion_trabajo || "-")}</div></td>
-      <td><b>${esc(r.cantidad_solicitada || "-")}</b>${r.demasia ? `<div class="small muted">+${esc(r.demasia)} demasía</div>` : ''}</td>
+      <td><b>${esc(r.cantidad_solicitada || "-")}</b>${r.demasia ? `<div class="small muted">+${esc(r.demasia)} demasía</div>` : ""}${juegosLabel ? `<div class="small muted">${esc(juegosLabel)}</div>` : ""}</td>
       <td><b>${esc(formato)}</b><div class="small muted">${esc(r.papel_material || "")} ${esc(r.gramaje ? (r.gramaje + "g") : "")}</div></td>
       <td>${esc(fmtTipoImpresion(r.tipo_impresion))}</td>
       <td>${esc(r.color_text || "-")}</td>
@@ -1308,7 +1343,7 @@ async function onGuardarOrden() {
       observacion_tecnica: isExt ? null : ($("d_obs_tecnica")?.value?.trim() || null),
       requiere_juegos_placa: multiPlacasOn,
       juegos_placa_total: juegosPlacaTotal,
-      juegos_placa_detalle: multiPlacasOn ? JSON.stringify(juegosPlacaDetalle) : null,
+      juegos_placa_detalle: multiPlacasOn ? juegosPlacaDetalle : null,
       color_mode: toDbColorMode($("d_color_mode")?.value),
       color_text: $("d_color_text")?.value?.trim() || "F/C",
       corte: $("p_corte")?.checked ?? false,

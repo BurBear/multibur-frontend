@@ -47,7 +47,7 @@ export async function fetchTrabajosPendientes({ estado = "" } = {}) {
 }
 
 export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
-  const runQuery = async (withObsTecnica) => {
+  const runQuery = async (withObsTecnica, withJuegosPlaca) => {
     let q = supabase
       .from("ordenes")
       .select(`
@@ -68,6 +68,7 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
           color_text,
           cantidad_solicitada,
           demasia,
+          ${withJuegosPlaca ? "requiere_juegos_placa,juegos_placa_total," : ""}
           corte,
           empaquetado,
           doblez,
@@ -91,11 +92,17 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
 
   let data = null;
   let error = null;
-  ({ data, error } = await runQuery(true));
+  ({ data, error } = await runQuery(true, true));
   if (error) {
     const miss = parseMissingColumn(error);
-    if (miss && miss.table === "detalles_orden" && miss.column === "observacion_tecnica") {
-      ({ data, error } = await runQuery(false));
+    if (miss && miss.table === "detalles_orden" && ["observacion_tecnica", "requiere_juegos_placa", "juegos_placa_total"].includes(miss.column)) {
+      ({ data, error } = await runQuery(miss.column !== "observacion_tecnica", false));
+    }
+    if (error) {
+      const miss2 = parseMissingColumn(error);
+      if (miss2 && miss2.table === "detalles_orden" && miss2.column === "observacion_tecnica") {
+        ({ data, error } = await runQuery(false, false));
+      }
     }
   }
   if (error) throw error;
@@ -119,6 +126,8 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
       color_text: det.color_text || "-",
       cantidad_solicitada: det.cantidad_solicitada ?? null,
       demasia: det.demasia ?? null,
+      requiere_juegos_placa: !!det.requiere_juegos_placa,
+      juegos_placa_total: det.juegos_placa_total ?? null,
       corte: !!det.corte,
       empaquetado: !!det.empaquetado,
       doblez: !!det.doblez,
