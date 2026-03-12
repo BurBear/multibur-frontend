@@ -23,7 +23,9 @@ function buildPlacaFallback(juegoNum, cara) {
 
 function normalizeTipoCliente(v) {
   const t = String(v || "").trim().toUpperCase();
-  if (t === "SERVICIO_IMPRESION") return "SERVICIO";
+  if (!t) return "";
+  if (t.includes("SERVICIO")) return "SERVICIO";
+  if (t.includes("DIRECTO")) return "DIRECTO";
   return t || "";
 }
 

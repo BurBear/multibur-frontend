@@ -133,7 +133,9 @@ function splitEntregaLabel(value) {
 
 function normalizeTipoCliente(v) {
   const t = String(v || "").trim().toUpperCase();
-  if (t === "SERVICIO_IMPRESION") return "SERVICIO";
+  if (!t) return "";
+  if (t.includes("SERVICIO")) return "SERVICIO";
+  if (t.includes("DIRECTO")) return "DIRECTO";
   return t || "";
 }
 
@@ -1051,17 +1053,24 @@ async function loadJobs() {
   msgJobs("");
   const estadoRaw = $("fEstado")?.value || "";
   const estado = toDbEstado(estadoRaw);
-  const limit = Number($("fLimit")?.value || 50);
+  const tipoClienteFiltro = String($("fTipoCliente")?.value || "").trim().toUpperCase();
   const q = ($("q")?.value || "").trim().toLowerCase();
   let rows = await fetchTrabajosAdminBoard({ estado });
-  const metas = await fetchOrdenesMetaByIds((rows || []).map((r) => Number(r.orden_id)).filter(Boolean)).catch(() => []);
+  const orderIds = (rows || []).map((r) => Number(r.orden_id)).filter(Boolean);
+  const metas = await fetchOrdenesMetaByIds(orderIds).catch(() => []);
   const metaMap = new Map((metas || []).map((m) => [Number(m.id), m]));
-  const incidencias = await fetchUltimasIncidenciasByOrdenIds((rows || []).map((r) => Number(r.orden_id)).filter(Boolean)).catch(() => []);
+  const incidencias = await fetchUltimasIncidenciasByOrdenIds(orderIds).catch(() => []);
   const incidenciaMap = new Map((incidencias || []).map((i) => [Number(i.orden_id), i]));
+  const clienteTipos = await fetchClienteTiposByOrdenIds(orderIds).catch(() => []);
+  const tipoClienteMap = new Map(
+    (clienteTipos || []).map((o) => [Number(o.id), normalizeTipoCliente(o?.cliente?.tipo_cliente)])
+  );
   rows = (rows || []).map((r) => {
     const inc = incidenciaMap.get(Number(r.orden_id)) || null;
+    const tipoCliente = normalizeTipoCliente(r?.cliente_tipo || tipoClienteMap.get(Number(r.orden_id)) || "");
     return {
       ...r,
+      cliente_tipo: tipoCliente || "",
       is_external: hasExternalFlow(metaMap.get(Number(r.orden_id))?.observaciones_generales),
       incidencia_motivo: inc?.motivo_incidencia || null,
       incidencia_obs: inc?.obs_incidencia || null,
@@ -1069,8 +1078,10 @@ async function loadJobs() {
     };
   });
   if (!estado) rows = rows.filter((r) => estadoKey(r.estado) !== estadoKey(ESTADO_ENTREGADO));
+  if (tipoClienteFiltro) {
+    rows = rows.filter((r) => normalizeTipoCliente(r.cliente_tipo) === tipoClienteFiltro);
+  }
   if (q) rows = rows.filter((r) => [r.numero_orden_fisica, r.cliente_nombre, r.descripcion_trabajo, r.estado, r.tipo_impresion, r.color_text, r.maquina_sugerida_nombre].join(" ").toLowerCase().includes(q));
-  rows = rows.slice(0, Number.isFinite(limit) && limit > 0 ? limit : 50);
   const tb = $("tbJobs");
   if (!tb) return;
   tb.innerHTML = (rows || []).map((r) => {

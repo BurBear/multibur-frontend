@@ -14,7 +14,7 @@ export function bindAdminEvents(deps) {
   $("btnReloadRegs")?.addEventListener("click", loadRegistros);
   $("btnApplyRegs")?.addEventListener("click", loadRegistros);
   $("q")?.addEventListener("input", debounce(loadJobs, 250));
-  $("fLimit")?.addEventListener("change", loadJobs);
+  $("fTipoCliente")?.addEventListener("change", loadJobs);
   $("fEstado")?.addEventListener("change", loadJobs);
   $("o_cliente")?.addEventListener("change", syncClienteSelectedText);
   $("o_tiene_oc")?.addEventListener("change", () => { syncOcFields(); refreshFormState(); });

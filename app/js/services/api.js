@@ -57,7 +57,7 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
         fecha_entrega,
         prioridad,
         estado,
-        cliente:clientes(nombre),
+        cliente:clientes(nombre,tipo_cliente),
         detalles_orden(
           orden_id,
           papel_material,
@@ -288,6 +288,7 @@ export async function fetchOrdenesProduccionByIds(orderIds = []) {
       orden_id: o.id,
       numero_orden_fisica: o.numero_orden_fisica || `#${o.id}`,
       cliente_nombre: o.cliente?.nombre || "-",
+      cliente_tipo: o.cliente?.tipo_cliente || "-",
       descripcion_trabajo: o.descripcion_trabajo || "-",
       tipo_impresion: det?.tipo_impresion || null,
       cantidad_solicitada: det?.cantidad_solicitada ?? null,
