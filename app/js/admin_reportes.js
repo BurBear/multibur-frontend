@@ -182,6 +182,7 @@ async function exportReporteEntregados() {
   `).join("");
 
   const stamp = new Date().toLocaleString("es-PE", { timeZone: "America/Lima" });
+  const logoUrl = `${window.location.origin}/app/assets/logo.svg`;
   const printHtml = `
 <!doctype html>
 <html lang="es">
@@ -192,6 +193,8 @@ async function exportReporteEntregados() {
     @page { size: A4 landscape; margin: 10mm; }
     body{font-family:Arial, sans-serif; margin:24px; color:#111827}
     .head{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #111827; padding-bottom:10px; margin-bottom:16px}
+    .brand{display:flex; align-items:center; gap:10px}
+    .brand-logo{width:34px; height:34px; object-fit:contain}
     h1{margin:0; font-size:22px}
     .sub{color:#4b5563; font-size:12px}
     .kpis{display:flex; gap:14px; margin:10px 0 16px}
@@ -210,11 +213,14 @@ async function exportReporteEntregados() {
     <button class="btn" onclick="window.print()">Imprimir / Guardar PDF</button>
   </div>
   <div class="head">
-    <div>
-      <h1>Reporte de Trabajos Entregados</h1>
-      <div class="sub">MultiBur - generado: ${esc(stamp)}</div>
-      <div class="sub">Filtro cliente: ${esc(selectedCliente)} | Rango fecha entregado: ${esc(filtroFecha)}</div>
-      <div class="sub">${isServicioOnly ? "Formato: Servicio (sin OC ni guia)." : "Formato: Completo."}</div>
+    <div class="brand">
+      <img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" />
+      <div>
+        <h1>Reporte de Trabajos Entregados</h1>
+        <div class="sub">MultiBur - generado: ${esc(stamp)}</div>
+        <div class="sub">Filtro cliente: ${esc(selectedCliente)} | Rango fecha entregado: ${esc(filtroFecha)}</div>
+        <div class="sub">${isServicioOnly ? "Formato: Servicio (sin OC ni guia)." : "Formato: Completo."}</div>
+      </div>
     </div>
   </div>
   <div class="kpis">

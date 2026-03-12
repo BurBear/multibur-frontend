@@ -979,6 +979,7 @@ function printOrden(r, extra = null) {
   const cliTipoNorm = String(cliTipo || "").trim().toUpperCase();
   const showOcField = cliTipoNorm === "DIRECTO";
   const showTrFields = isTipoImpresionTR(r.tipo_impresion);
+  const logoUrl = `${window.location.origin}/app/assets/logo.svg`;
   const html = `
 <!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</title>
 <style>
@@ -995,6 +996,8 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
   flex-direction:column;
 }
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;border-bottom:1.4px solid var(--ink);padding-bottom:5px;margin-bottom:6px}
+.brand{display:flex;align-items:center;gap:7px}
+.brand-logo{width:22px;height:22px;display:block}
 .brand h1{font-size:12px;line-height:1.06;margin:0}
 .brand small{display:block;color:var(--muted);margin-top:2px;font-size:8px}
 .meta{text-align:right}
@@ -1011,7 +1014,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 .wide{grid-column:1/-1}
 .foot{margin-top:5px;font-size:7.5px;color:#71717a;text-align:right}
 </style></head><body><div class="sheet">
-<header class="head"><div class="brand"><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
+<header class="head"><div class="brand"><img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" /><div><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
 <section class="section"><h3>Datos generales</h3><div class="grid">
 <div><span class="k">Cliente</span><span class="v">${esc(r.cliente_nombre || "-")}</span></div>
 <div><span class="k">Fecha entrega</span><span class="v">${esc(entrega)}</span></div>
@@ -1461,6 +1464,7 @@ async function exportReporteEntregadosCsv() {
     `).join("");
 
     const stamp = new Date().toLocaleString("es-PE", { timeZone: "America/Lima" });
+    const logoUrl = `${window.location.origin}/app/assets/logo.svg`;
     const printHtml = `
 <!doctype html>
 <html lang="es">
@@ -1471,6 +1475,8 @@ async function exportReporteEntregadosCsv() {
     @page { size: A4 landscape; margin: 10mm; }
     body{font-family:Arial, sans-serif; margin:24px; color:#111827}
     .head{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #111827; padding-bottom:10px; margin-bottom:16px}
+    .brand{display:flex; align-items:center; gap:10px}
+    .brand-logo{width:34px; height:34px; object-fit:contain}
     h1{margin:0; font-size:22px}
     .sub{color:#4b5563; font-size:12px}
     .kpis{display:flex; gap:14px; margin:10px 0 16px}
@@ -1489,11 +1495,14 @@ async function exportReporteEntregadosCsv() {
     <button class="btn" onclick="window.print()">Imprimir / Guardar PDF</button>
   </div>
   <div class="head">
-    <div>
-      <h1>Reporte de Trabajos Entregados</h1>
-      <div class="sub">MultiBur - generado: ${esc(stamp)}</div>
-      <div class="sub">Filtro cliente: ${esc(selectedCliente)} | Rango fecha entregado: ${esc(filtroFecha)}</div>
-      <div class="sub">${isServicioOnly ? "Formato: Servicio de impresion (sin OC ni guia)." : "Formato: Completo."}</div>
+    <div class="brand">
+      <img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" />
+      <div>
+        <h1>Reporte de Trabajos Entregados</h1>
+        <div class="sub">MultiBur - generado: ${esc(stamp)}</div>
+        <div class="sub">Filtro cliente: ${esc(selectedCliente)} | Rango fecha entregado: ${esc(filtroFecha)}</div>
+        <div class="sub">${isServicioOnly ? "Formato: Servicio de impresion (sin OC ni guia)." : "Formato: Completo."}</div>
+      </div>
     </div>
   </div>
   <div class="kpis">
