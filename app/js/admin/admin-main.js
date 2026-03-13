@@ -133,13 +133,15 @@ function splitEntregaLabel(value) {
 
 function normalizeTipoCliente(v) {
   const t = String(v || "").trim().toUpperCase();
-  if (t === "SERVICIO_IMPRESION") return "SERVICIO";
+  if (!t) return "";
+  if (t.includes("SERVICIO")) return "SERVICIO";
+  if (t.includes("DIRECTO")) return "DIRECTO";
   return t || "";
 }
 
 function isTipoImpresionTR(v) {
-  const s = String(v || "").toUpperCase();
-  return s.includes("RETIRA");
+  const s = String(v || "").trim().toUpperCase();
+  return s === "T+R" || s === "TIRA+RETIRA";
 }
 
 function juegosPlacaLabel(row) {
@@ -974,36 +976,45 @@ function printOrden(r, extra = null) {
   const ocNum = extra?.oc_numero || "-";
   const juegosLabel = juegosPlacaLabel(r);
   const juegosNombres = juegosPlacaNombres(r, extra);
+  const cliTipoNorm = String(cliTipo || "").trim().toUpperCase();
+  const showOcField = cliTipoNorm === "DIRECTO";
+  const showTrFields = isTipoImpresionTR(r.tipo_impresion);
+  const logoUrl = `${window.location.origin}/app/assets/logo.svg`;
   const html = `
 <!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</title>
 <style>
-@page{size:A5 portrait;margin:0}
-:root{--line:#d4d4d8;--muted:#52525b;--ink:#111827}*{box-sizing:border-box}
-html,body{width:148mm;height:210mm;margin:0;padding:0}
+@page{size:A5 portrait;margin:6mm}
+:root{--line:#d4d4d8;--muted:#52525b;--ink:#111827}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}
 body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 .sheet{
-  width:148mm;
-  min-height:210mm;
+  width:100%;
+  min-height:calc(210mm - 12mm);
   margin:0;
-  padding:8mm;
   display:flex;
   flex-direction:column;
 }
-.head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;border-bottom:1.8px solid var(--ink);padding-bottom:6px;margin-bottom:8px}
-.brand h1{font-size:13px;line-height:1.08;margin:0}.brand small{display:block;color:var(--muted);margin-top:3px;font-size:9px}
-.meta{text-align:right}.meta .n{font-size:13px;font-weight:800}.meta .s{font-size:9px;color:var(--muted);margin-top:2px}
-.section{border:1px solid var(--line);border-radius:7px;padding:6px 7px;margin-bottom:6px;break-inside:avoid}
-.section h3{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 5px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 8px}
-.k{display:block;color:var(--muted);font-size:11px}
-.v{display:block;font-size:13px;font-weight:600;margin-top:1px;line-height:1.22}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;border-bottom:1.4px solid var(--ink);padding-bottom:5px;margin-bottom:6px}
+.brand{display:flex;align-items:center;gap:7px}
+.brand-logo{width:22px;height:22px;display:block}
+.brand h1{font-size:12px;line-height:1.06;margin:0}
+.brand small{display:block;color:var(--muted);margin-top:2px;font-size:8px}
+.meta{text-align:right}
+.meta .n{font-size:12px;font-weight:800}
+.meta .s{font-size:8px;color:var(--muted);margin-top:2px}
+.section{border:1px solid var(--line);border-radius:6px;padding:5px 6px;margin-bottom:5px;break-inside:avoid}
+.section h3{font-size:8px;text-transform:uppercase;letter-spacing:.45px;color:var(--muted);margin:0 0 4px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 6px}
+.k{display:block;color:var(--muted);font-size:9.5px}
+.v{display:block;font-size:11px;font-weight:600;margin-top:1px;line-height:1.16;word-break:break-word}
+.section-tecnica .k{font-size:10.5px}
+.section-tecnica .v{font-size:12.5px;line-height:1.2}
+.section-tecnica .grid{gap:5px 7px}
 .wide{grid-column:1/-1}
-.sign-space{min-height:14mm}
-.signs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:auto}
-.sign{padding-top:10px;border-top:1px solid #a1a1aa;text-align:center;font-size:9px;color:#3f3f46}
-.foot{margin-top:6px;font-size:8px;color:#71717a;text-align:right}
+.foot{margin-top:5px;font-size:7.5px;color:#71717a;text-align:right}
 </style></head><body><div class="sheet">
-<header class="head"><div class="brand"><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
+<header class="head"><div class="brand"><img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" /><div><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
 <section class="section"><h3>Datos generales</h3><div class="grid">
 <div><span class="k">Cliente</span><span class="v">${esc(r.cliente_nombre || "-")}</span></div>
 <div><span class="k">Fecha entrega</span><span class="v">${esc(entrega)}</span></div>
@@ -1011,24 +1022,22 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 <div><span class="k">Documento fiscal</span><span class="v">${esc(`${cliDocTipo} ${cliDocNum}`)}</span></div>
 <div><span class="k">Estado</span><span class="v">${esc(r.estado || "-")}</span></div>
 <div><span class="k">Prioridad</span><span class="v">${esc(r.prioridad || "NORMAL")}</span></div>
-<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}</span></div>
+${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}</span></div>` : ""}
 <div class="wide"><span class="k">Trabajo</span><span class="v">${esc(r.descripcion_trabajo || "-")}</span></div>
 </div></section>
-<section class="section"><h3>Ficha tecnica</h3><div class="grid">
+<section class="section section-tecnica"><h3>Ficha tecnica</h3><div class="grid">
   <div><span class="k">Maquina sugerida</span><span class="v">${esc(r.maquina_sugerida_nombre || "-")}</span></div>
   <div><span class="k">Formato</span><span class="v">${esc(formato)}</span></div>
   <div><span class="k">Material</span><span class="v">${esc(material)}</span></div>
   <div><span class="k">Impresion / Color</span><span class="v">${esc(fmtTipoImpresion(r.tipo_impresion))} / ${esc(r.color_text || "-")}</span></div>
-  <div><span class="k">Juegos de placa</span><span class="v">${esc(juegosLabel || "-")}</span></div>
-  <div class="wide"><span class="k">Nombres de juegos</span><span class="v">${esc(juegosNombres || "-")}</span></div>
+  ${showTrFields ? `<div><span class="k">Juegos de placa</span><span class="v">${esc(juegosLabel || "-")}</span></div>` : ""}
+  ${showTrFields ? `<div class="wide"><span class="k">Nombres de juegos</span><span class="v">${esc(juegosNombres || "-")}</span></div>` : ""}
   <div><span class="k">Cantidad</span><span class="v">${esc(cantidad)}</span></div>
   <div><span class="k">Demasia</span><span class="v">${esc(demasia)}</span></div>
   <div class="wide"><span class="k">Procesos acabados</span><span class="v">${esc(procesosAcabados)}</span></div>
   <div class="wide"><span class="k">Observacion tecnica (impresor)</span><span class="v">${esc(obsTecnica)}</span></div>
   <div class="wide"><span class="k">Observacion acabados</span><span class="v">${esc(obsAcabados)}</span></div>
 </div></section>
-<div class="sign-space"></div>
-<section class="signs"><div class="sign">Diseno / Preprensa</div><div class="sign">Produccion</div><div class="sign">Control de calidad</div></section>
 <div class="foot">Orden interna MultiBur</div>
 </div></body></html>`;
   const w = window.open("", "_blank", "width=900,height=700");
@@ -1047,17 +1056,24 @@ async function loadJobs() {
   msgJobs("");
   const estadoRaw = $("fEstado")?.value || "";
   const estado = toDbEstado(estadoRaw);
-  const limit = Number($("fLimit")?.value || 50);
+  const tipoClienteFiltro = String($("fTipoCliente")?.value || "").trim().toUpperCase();
   const q = ($("q")?.value || "").trim().toLowerCase();
   let rows = await fetchTrabajosAdminBoard({ estado });
-  const metas = await fetchOrdenesMetaByIds((rows || []).map((r) => Number(r.orden_id)).filter(Boolean)).catch(() => []);
+  const orderIds = (rows || []).map((r) => Number(r.orden_id)).filter(Boolean);
+  const metas = await fetchOrdenesMetaByIds(orderIds).catch(() => []);
   const metaMap = new Map((metas || []).map((m) => [Number(m.id), m]));
-  const incidencias = await fetchUltimasIncidenciasByOrdenIds((rows || []).map((r) => Number(r.orden_id)).filter(Boolean)).catch(() => []);
+  const incidencias = await fetchUltimasIncidenciasByOrdenIds(orderIds).catch(() => []);
   const incidenciaMap = new Map((incidencias || []).map((i) => [Number(i.orden_id), i]));
+  const clienteTipos = await fetchClienteTiposByOrdenIds(orderIds).catch(() => []);
+  const tipoClienteMap = new Map(
+    (clienteTipos || []).map((o) => [Number(o.id), normalizeTipoCliente(o?.cliente?.tipo_cliente)])
+  );
   rows = (rows || []).map((r) => {
     const inc = incidenciaMap.get(Number(r.orden_id)) || null;
+    const tipoCliente = normalizeTipoCliente(r?.cliente_tipo || tipoClienteMap.get(Number(r.orden_id)) || "");
     return {
       ...r,
+      cliente_tipo: tipoCliente || "",
       is_external: hasExternalFlow(metaMap.get(Number(r.orden_id))?.observaciones_generales),
       incidencia_motivo: inc?.motivo_incidencia || null,
       incidencia_obs: inc?.obs_incidencia || null,
@@ -1065,8 +1081,10 @@ async function loadJobs() {
     };
   });
   if (!estado) rows = rows.filter((r) => estadoKey(r.estado) !== estadoKey(ESTADO_ENTREGADO));
+  if (tipoClienteFiltro) {
+    rows = rows.filter((r) => normalizeTipoCliente(r.cliente_tipo) === tipoClienteFiltro);
+  }
   if (q) rows = rows.filter((r) => [r.numero_orden_fisica, r.cliente_nombre, r.descripcion_trabajo, r.estado, r.tipo_impresion, r.color_text, r.maquina_sugerida_nombre].join(" ").toLowerCase().includes(q));
-  rows = rows.slice(0, Number.isFinite(limit) && limit > 0 ? limit : 50);
   const tb = $("tbJobs");
   if (!tb) return;
   tb.innerHTML = (rows || []).map((r) => {
@@ -1099,9 +1117,12 @@ async function loadJobs() {
       </td>
       <td><div class="text-elide" style="max-width: 110px" title="${esc(r.cliente_nombre || '-')}">${esc(r.cliente_nombre || "-")}</div></td>
       <td><div class="text-elide" style="max-width: 130px" title="${esc(r.descripcion_trabajo || '-')}">${esc(r.descripcion_trabajo || "-")}</div></td>
-      <td><b>${esc(r.cantidad_solicitada || "-")}</b>${r.demasia ? `<div class="small muted">+${esc(r.demasia)} demasía</div>` : ""}${juegosLabel ? `<div class="small muted">${esc(juegosLabel)}</div>` : ""}</td>
+      <td><b>${esc(r.cantidad_solicitada || "-")}</b>${r.demasia ? `<div class="small muted">+${esc(r.demasia)} demasía</div>` : ""}</td>
       <td><b>${esc(formato)}</b><div class="small muted">${esc(r.papel_material || "")} ${esc(r.gramaje ? (r.gramaje + "g") : "")}</div></td>
-      <td>${esc(fmtTipoImpresion(r.tipo_impresion))}</td>
+      <td>
+        ${esc(fmtTipoImpresion(r.tipo_impresion))}
+        ${isTipoImpresionTR(r.tipo_impresion) && juegosLabel ? `<div class="small muted">${esc(juegosLabel)}</div>` : ""}
+      </td>
       <td>${esc(r.color_text || "-")}</td>
       <td>${esc(r.maquina_sugerida_nombre || "-")}</td>
       <td>
@@ -1446,6 +1467,7 @@ async function exportReporteEntregadosCsv() {
     `).join("");
 
     const stamp = new Date().toLocaleString("es-PE", { timeZone: "America/Lima" });
+    const logoUrl = `${window.location.origin}/app/assets/logo.svg`;
     const printHtml = `
 <!doctype html>
 <html lang="es">
@@ -1456,6 +1478,8 @@ async function exportReporteEntregadosCsv() {
     @page { size: A4 landscape; margin: 10mm; }
     body{font-family:Arial, sans-serif; margin:24px; color:#111827}
     .head{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #111827; padding-bottom:10px; margin-bottom:16px}
+    .brand{display:flex; align-items:center; gap:10px}
+    .brand-logo{width:34px; height:34px; object-fit:contain}
     h1{margin:0; font-size:22px}
     .sub{color:#4b5563; font-size:12px}
     .kpis{display:flex; gap:14px; margin:10px 0 16px}
@@ -1474,11 +1498,14 @@ async function exportReporteEntregadosCsv() {
     <button class="btn" onclick="window.print()">Imprimir / Guardar PDF</button>
   </div>
   <div class="head">
-    <div>
-      <h1>Reporte de Trabajos Entregados</h1>
-      <div class="sub">MultiBur - generado: ${esc(stamp)}</div>
-      <div class="sub">Filtro cliente: ${esc(selectedCliente)} | Rango fecha entregado: ${esc(filtroFecha)}</div>
-      <div class="sub">${isServicioOnly ? "Formato: Servicio de impresion (sin OC ni guia)." : "Formato: Completo."}</div>
+    <div class="brand">
+      <img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" />
+      <div>
+        <h1>Reporte de Trabajos Entregados</h1>
+        <div class="sub">MultiBur - generado: ${esc(stamp)}</div>
+        <div class="sub">Filtro cliente: ${esc(selectedCliente)} | Rango fecha entregado: ${esc(filtroFecha)}</div>
+        <div class="sub">${isServicioOnly ? "Formato: Servicio de impresion (sin OC ni guia)." : "Formato: Completo."}</div>
+      </div>
     </div>
   </div>
   <div class="kpis">

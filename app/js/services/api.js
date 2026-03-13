@@ -57,7 +57,7 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
         fecha_entrega,
         prioridad,
         estado,
-        cliente:clientes(nombre),
+        cliente:clientes(nombre,tipo_cliente),
         detalles_orden(
           orden_id,
           papel_material,
@@ -189,7 +189,7 @@ export async function fetchRegistros({
 
   let q = supabase
     .from("registro_produccion")
-    .select("id, orden_id, user_id, maquina_id, hora_inicio, hora_fin, cantidad_buena, cantidad_mala, juego_num, cara_impresion")
+    .select("id, orden_id, user_id, maquina_id, hora_inicio, hora_fin, cantidad_buena, cantidad_mala, orden_juego_id, juego_num, cara_impresion")
     .order("hora_inicio", { ascending: false })
     .limit(limit);
 
@@ -265,6 +265,44 @@ export async function fetchMisRegistrosHoy(userId) {
 export async function fetchOrdenResumenByIds(orderIds = []) {
   if (!orderIds.length) return [];
   const { data, error } = await supabase.from("v_trabajos_pendientes").select("*").in("orden_id", orderIds);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchOrdenesProduccionByIds(orderIds = []) {
+  if (!orderIds.length) return [];
+  const { data, error } = await supabase
+    .from("ordenes")
+    .select(`
+      id,
+      numero_orden_fisica,
+      descripcion_trabajo,
+      cliente:clientes(nombre),
+      detalles_orden(tipo_impresion,cantidad_solicitada,demasia)
+    `)
+    .in("id", orderIds);
+  if (error) throw error;
+  return (data || []).map((o) => {
+    const det = Array.isArray(o.detalles_orden) ? o.detalles_orden[0] : o.detalles_orden;
+    return {
+      orden_id: o.id,
+      numero_orden_fisica: o.numero_orden_fisica || `#${o.id}`,
+      cliente_nombre: o.cliente?.nombre || "-",
+      cliente_tipo: o.cliente?.tipo_cliente || "-",
+      descripcion_trabajo: o.descripcion_trabajo || "-",
+      tipo_impresion: det?.tipo_impresion || null,
+      cantidad_solicitada: det?.cantidad_solicitada ?? null,
+      demasia: det?.demasia ?? null
+    };
+  });
+}
+
+export async function fetchOrdenJuegosByIds(ids = []) {
+  if (!ids.length) return [];
+  const { data, error } = await supabase
+    .from("orden_juegos_tr")
+    .select("id,orden_id,juego_num,cara,nombre")
+    .in("id", ids);
   if (error) throw error;
   return data || [];
 }

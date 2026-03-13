@@ -114,6 +114,10 @@ input {
 
 input::placeholder {
   color: #475569;
+  font-size: 15px;
+  font-family: inherit;
+  letter-spacing: normal;
+  opacity: 1;
 }
 
 input:focus {
@@ -124,7 +128,7 @@ input:focus {
 
 input[type="password"]:not(:placeholder-shown) {
   font-family: Verdana, sans-serif;
-  letter-spacing: 0.2em;
+  letter-spacing: normal;
 }
 
 .password-wrap {
@@ -157,6 +161,10 @@ input[type="password"]:not(:placeholder-shown) {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.08);
   color: #fff;
+}
+
+.pass-toggle:active {
+  transform: translateY(-50%);
 }
 
 .pass-toggle svg {

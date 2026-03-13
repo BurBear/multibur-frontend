@@ -5,6 +5,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MultiBur | Admin</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg" />
 
 
   <link rel="stylesheet" href="../css/global.css" />
@@ -32,6 +33,11 @@
     <section class="card">
       <div class="card-head">
         <div>
+          <img class="print-logo" src="../assets/logo.svg" alt="Logo MultiBur" style="display:none" />
+          <div class="print-header-text" style="display:none">
+            <div class="print-title-main">Pizarra Global</div>
+            <div class="print-title-sub">Reporte de Produccion</div>
+          </div>
           <h2 class="card-title">Pizarra Global</h2>
           <div class="card-sub">Cola de produccion activa y seguimiento</div>
         </div>
@@ -53,10 +59,10 @@
       <div class="card-body">
         <div class="toolbar">
           <input id="q" class="grow" placeholder="Buscar por cliente, trabajo o numero de orden..." />
-          <select id="fLimit" class="inl-1">
-            <option value="25">25</option>
-            <option value="50" selected>50</option>
-            <option value="100">100</option>
+          <select id="fTipoCliente" class="inl-1">
+            <option value="">Todos</option>
+            <option value="SERVICIO">Servicio</option>
+            <option value="DIRECTO">Directo</option>
           </select>
           <select id="fEstado" class="inl-2">
             <option value="">Activos</option>

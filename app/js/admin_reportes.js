@@ -1,5 +1,5 @@
 import { requireAdmin, logout, getProfileDisplayName } from "./auth.js";
-import { fetchClientes, fetchReporteEntregados, fetchRegistros, fetchProfilesByIds, fetchMaquinasByIds, fetchOrdenResumenByIds } from "./api.js";
+import { fetchClientes, fetchReporteEntregados, fetchRegistros, fetchProfilesByIds, fetchMaquinasByIds, fetchOrdenesProduccionByIds, fetchOrdenJuegosByIds } from "./api.js";
 import { $, setText, debounce } from "./ui.js";
 import { escapeHtml } from "./utils/helpers.js";
 import { fmtEntrega, fmtDateTimePE } from "./utils/formatters.js";
@@ -13,9 +13,19 @@ let activeTab = "entregados";
 const esc = escapeHtml;
 const fmtDTPE = fmtDateTimePE;
 
+function buildPlacaFallback(juegoNum, cara) {
+  const n = Number(juegoNum || 0);
+  const c = String(cara || "").toUpperCase();
+  if (!n || !c) return "";
+  const suf = c === "TIRA" ? "A" : (c === "RETIRA" ? "B" : "");
+  return `${c} ${n}${suf}`;
+}
+
 function normalizeTipoCliente(v) {
   const t = String(v || "").trim().toUpperCase();
-  if (t === "SERVICIO_IMPRESION") return "SERVICIO";
+  if (!t) return "";
+  if (t.includes("SERVICIO")) return "SERVICIO";
+  if (t.includes("DIRECTO")) return "DIRECTO";
   return t || "";
 }
 
@@ -172,6 +182,7 @@ async function exportReporteEntregados() {
   `).join("");
 
   const stamp = new Date().toLocaleString("es-PE", { timeZone: "America/Lima" });
+  const logoUrl = `${window.location.origin}/app/assets/logo.svg`;
   const printHtml = `
 <!doctype html>
 <html lang="es">
@@ -182,6 +193,8 @@ async function exportReporteEntregados() {
     @page { size: A4 landscape; margin: 10mm; }
     body{font-family:Arial, sans-serif; margin:24px; color:#111827}
     .head{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #111827; padding-bottom:10px; margin-bottom:16px}
+    .brand{display:flex; align-items:center; gap:10px}
+    .brand-logo{width:34px; height:34px; object-fit:contain}
     h1{margin:0; font-size:22px}
     .sub{color:#4b5563; font-size:12px}
     .kpis{display:flex; gap:14px; margin:10px 0 16px}
@@ -200,11 +213,14 @@ async function exportReporteEntregados() {
     <button class="btn" onclick="window.print()">Imprimir / Guardar PDF</button>
   </div>
   <div class="head">
-    <div>
-      <h1>Reporte de Trabajos Entregados</h1>
-      <div class="sub">MultiBur - generado: ${esc(stamp)}</div>
-      <div class="sub">Filtro cliente: ${esc(selectedCliente)} | Rango fecha entregado: ${esc(filtroFecha)}</div>
-      <div class="sub">${isServicioOnly ? "Formato: Servicio (sin OC ni guia)." : "Formato: Completo."}</div>
+    <div class="brand">
+      <img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" />
+      <div>
+        <h1>Reporte de Trabajos Entregados</h1>
+        <div class="sub">MultiBur - generado: ${esc(stamp)}</div>
+        <div class="sub">Filtro cliente: ${esc(selectedCliente)} | Rango fecha entregado: ${esc(filtroFecha)}</div>
+        <div class="sub">${isServicioOnly ? "Formato: Servicio (sin OC ni guia)." : "Formato: Completo."}</div>
+      </div>
     </div>
   </div>
   <div class="kpis">
@@ -252,22 +268,44 @@ async function loadRegistros() {
   const preset = $("rgPreset")?.value || "today";
   const fromDate = $("rgFrom")?.value || "";
   const toDate = $("rgTo")?.value || "";
-  const ordenId = $("rgOrden")?.value ? Number($("rgOrden").value) : null;
+  const ordenSearch = ($("rgOrden")?.value || "").trim();
+  const ordenId = /^\d+$/.test(ordenSearch) ? Number(ordenSearch) : null;
   const userId = $("rgOperador")?.value || "";
-  const regs = await fetchRegistros({ preset, fromDate, toDate, ordenId, userId, limit: 300 });
+  let regs = await fetchRegistros({ preset, fromDate, toDate, ordenId, userId, limit: 300 });
   const orderIds = [...new Set((regs || []).map((r) => r.orden_id).filter(Boolean))];
   const userIds = [...new Set((regs || []).map((r) => r.user_id).filter(Boolean))];
   const maqIds = [...new Set((regs || []).map((r) => r.maquina_id).filter(Boolean))];
-  const [ordenes, users, maqs] = await Promise.all([
-    fetchOrdenResumenByIds(orderIds),
+  const juegoIds = [...new Set((regs || []).map((r) => r.orden_juego_id).filter(Boolean))];
+  const [ordenes, users, maqs, juegos] = await Promise.all([
+    fetchOrdenesProduccionByIds(orderIds),
     fetchProfilesByIds(userIds),
-    fetchMaquinasByIds(maqIds)
+    fetchMaquinasByIds(maqIds),
+    fetchOrdenJuegosByIds(juegoIds)
   ]);
   const ordenMap = new Map((ordenes || []).map((o) => [o.orden_id, o.numero_orden_fisica]));
   const clienteMap = new Map((ordenes || []).map((o) => [o.orden_id, o.cliente_nombre]));
   const trabajoMap = new Map((ordenes || []).map((o) => [o.orden_id, o.descripcion_trabajo]));
+  const tipoImpMap = new Map((ordenes || []).map((o) => [o.orden_id, o.tipo_impresion]));
+  const totalDemMap = new Map((ordenes || []).map((o) => {
+    const cant = o?.cantidad_solicitada;
+    const dem = o?.demasia;
+    const label = cant != null
+      ? `${cant}${dem != null ? ` +${dem}` : ""}`
+      : "-";
+    return [o.orden_id, label];
+  }));
   const userMap = new Map((users || []).map((u) => [u.id, getProfileDisplayName(u) || u.username || u.id]));
   const maqMap = new Map((maqs || []).map((m) => [m.id, m.nombre]));
+  const juegoMap = new Map((juegos || []).map((j) => [Number(j.id), j]));
+
+  if (ordenSearch) {
+    const q = ordenSearch.toLowerCase();
+    regs = (regs || []).filter((r) => {
+      const ord = String(ordenMap.get(r.orden_id) || ("#" + r.orden_id)).toLowerCase();
+      const cli = String(clienteMap.get(r.orden_id) || "").toLowerCase();
+      return ord.includes(q) || cli.includes(q);
+    });
+  }
 
   const selOperador = $("rgOperador");
   if (selOperador) {
@@ -283,14 +321,20 @@ async function loadRegistros() {
           <td>${esc(ordenMap.get(r.orden_id) || ("#" + r.orden_id))}</td>
           <td>${esc(clienteMap.get(r.orden_id) || "-")}</td>
           <td>${esc(trabajoMap.get(r.orden_id) || "-")}</td>
+          <td>${esc(
+            String(juegoMap.get(Number(r.orden_juego_id || 0))?.nombre || "").trim()
+            || buildPlacaFallback(r.juego_num, r.cara_impresion)
+            || fmtTipoImpresion(tipoImpMap.get(r.orden_id) || "-")
+          )}</td>
           <td>${esc(userMap.get(r.user_id) || r.user_id || "-")}</td>
           <td>${esc(maqMap.get(r.maquina_id) || r.maquina_id || "-")}</td>
           <td>${esc(fmtDTPE(r.hora_inicio))}</td>
           <td>${esc(fmtDTPE(r.hora_fin))}</td>
+          <td>${esc(totalDemMap.get(r.orden_id) || "-")}</td>
           <td>${esc(r.cantidad_buena ?? "-")}</td>
           <td>${esc(r.cantidad_mala ?? 0)}</td>
         </tr>`).join("")
-      : `<tr><td colspan="9" class="preview-empty">No hay registros para los filtros seleccionados.</td></tr>`;
+      : `<tr><td colspan="11" class="preview-empty">No hay registros para los filtros seleccionados.</td></tr>`;
   }
   setText("msgRegs", `Registros cargados: ${(regs || []).length}`);
 }

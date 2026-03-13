@@ -5,6 +5,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MultiBur | Reportes</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg" />
 
 
   <link rel="stylesheet" href="../css/global.css" />
@@ -129,8 +130,8 @@
 
             <div class="f-grid">
               <div>
-                <label class="field-lb" for="rgOrden">N Orden</label>
-                <input id="rgOrden" type="number" min="1" placeholder="Ej: 7" />
+                <label class="field-lb" for="rgOrden">Orden / Cliente</label>
+                <input id="rgOrden" type="text" placeholder="Ej: 7 o Juan Burgos" />
               </div>
               <div>
                 <label class="field-lb" for="rgOperador">Operador</label>
@@ -156,17 +157,19 @@
                   <th>Orden</th>
                   <th>Cliente</th>
                   <th>Trabajo</th>
+                  <th>Placa</th>
                   <th>Operador</th>
                   <th>Maquina</th>
                   <th>Inicio</th>
                   <th>Fin</th>
+                  <th>Total + Dem</th>
                   <th>Buena</th>
                   <th>Mala</th>
                 </tr>
               </thead>
               <tbody id="tbRegs">
                 <tr>
-                  <td colspan="7" class="preview-empty">Ajusta los filtros para consultar registros.</td>
+                  <td colspan="11" class="preview-empty">Ajusta los filtros para consultar registros.</td>
                 </tr>
               </tbody>
             </table>
