@@ -20,7 +20,7 @@
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   margin: 0;
-  background: radial-gradient(circle at top right, #1e293b, var(--bg-dark));
+  background: var(--bg-dark);
   color: var(--text-main);
   display: grid;
   place-items: center;
@@ -28,25 +28,35 @@ body {
   line-height: 1.5;
 }
 
-body::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  opacity: 0.1;
-  z-index: -1;
-  pointer-events: none;
-}
-
 .card {
-  width: min(400px, 90vw);
+  position: relative;
+  isolation: isolate;
+  width: min(420px, 90vw);
   background: var(--card-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.26);
   border-radius: 24px;
   padding: 40px 32px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    0 28px 70px -28px rgba(2, 6, 23, 0.9),
+    0 0 0 1px rgba(34, 197, 94, 0.08),
+    0 0 38px rgba(34, 197, 94, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   animation: fadeIn 0.5s ease-out;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid rgba(74, 222, 128, 0.22);
+  box-shadow: 0 0 26px rgba(34, 197, 94, 0.12);
+  opacity: 0.9;
+  z-index: -1;
+  pointer-events: none;
+  animation: cardPulse 5.8s ease-in-out infinite;
 }
 
 @keyframes fadeIn {
@@ -66,26 +76,75 @@ body::before {
   margin-bottom: 32px;
 }
 
+.brand-subtitle {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.brand-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.brand-logo-shell {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  display: grid;
+  place-items: center;
+}
+
+.brand-logo-shell::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.28) 0%, rgba(34, 197, 94, 0.12) 42%, rgba(34, 197, 94, 0) 72%);
+  filter: blur(12px);
+  opacity: 0.95;
+  z-index: -2;
+}
+
+.brand-logo-shell::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 0 0 1px rgba(34, 197, 94, 0.08),
+    0 0 20px rgba(34, 197, 94, 0.08);
+  opacity: 0.7;
+}
+
+.brand-logo-orbit {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  border: 1px solid rgba(34, 197, 94, 0.16);
+  opacity: 0.5;
+}
+
+.brand-logo {
+  width: 74px;
+  height: 74px;
+  display: block;
+  filter: drop-shadow(0 10px 16px rgba(34, 197, 94, 0.18));
+}
+
 h1 {
   margin: 0 0 8px;
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.025em;
   color: #fff;
-}
-
-.brand-subtitle {
-  font-size: 14px;
-  color: var(--primary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-}
-
-p {
-  margin: 8px 0 0;
-  color: var(--text-muted);
-  font-size: 14px;
 }
 
 label {
@@ -270,11 +329,49 @@ button:disabled {
   box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2) !important;
 }
 
+@keyframes cardPulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    box-shadow: 0 0 18px rgba(34, 197, 94, 0.08);
+  }
+
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.18);
+  }
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 34px 22px 28px;
+  }
+
+  .brand-logo-shell {
+    width: 78px;
+    height: 78px;
+  }
+
+  .brand-logo {
+    width: 64px;
+    height: 64px;
+  }
+
+  .brand-subtitle {
+    font-size: 14px;
+    letter-spacing: 0.05em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card::before {
+    animation: none;
+  }
+}
+
 /* --- login.html : converted inline style attrs --- */
 .inl-1 {
   display: none;
 }
 
-.inl-2 {
-  opacity: 0.6
-}

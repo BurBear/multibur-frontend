@@ -18,7 +18,12 @@
     <div class="header">
       <div class="brand-subtitle">Sistema de Produccion</div>
       <h1>Multigrafica Burgos</h1>
-      <p>Ingresa tus credenciales para acceder</p>
+      <div class="brand-lockup">
+        <div class="brand-logo-shell">
+          <span class="brand-logo-orbit" aria-hidden="true"></span>
+          <img class="brand-logo" src="../assets/logo-green.svg" alt="Logo de Multigrafica Burgos" />
+        </div>
+      </div>
     </div>
 
     <div class="input-group">
@@ -27,10 +32,10 @@
     </div>
 
     <div class="input-group">
-      <label for="pass">Contrasena</label>
+      <label for="pass">Contraseña</label>
       <div class="password-wrap">
         <input id="pass" type="password" placeholder="********" autocomplete="current-password" />
-        <button id="showPass" class="pass-toggle" type="button" aria-label="Mostrar contrasena" aria-pressed="false">
+        <button id="showPass" class="pass-toggle" type="button" aria-label="Mostrar contraseña" aria-pressed="false">
           <svg id="showPassIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" stroke-width="1.8"/>
             <circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/>
@@ -56,8 +61,7 @@
     <div id="msg" class="msg"></div>
 
     <div class="footer-help">
-      &copy; 2026 Multigrafica Burgos. <br>
-      <span class="inl-2">Gestion de usuarios via Supabase Auth.</span>
+      &copy; 2026 Multigrafica Burgos.
     </div>
   </div>
 
