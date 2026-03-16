@@ -10,6 +10,11 @@ import { renderPrioridadBadge, renderIncidenciaBadge, getProcesosAcabadosText, r
 import { syncRegsPresetChips, createLiveDurationHelpers } from "./admin-registros.js";
 import { csvCell, downloadCsv } from "./admin-actions.js";
 import {
+  buildExternalObservaciones,
+  resolveExternalFlag,
+  stripLegacyExternalTag
+} from "../orders/external-flow.js";
+import {
   fetchClientes,
   fetchMaquinas,
   fetchTrabajosAdminBoard,
@@ -30,7 +35,6 @@ import { supabase } from "../supabaseClient.js";
 
 const ESTADO_FINAL = "TERMINADO";
 const ESTADO_ENTREGADO = "ENTREGADO";
-const EXTERNAL_TAG = "[EXTERNO]";
 let clientesCache = [];
 let materialesCache = [];
 let detailRowCtx = null;
@@ -69,7 +73,7 @@ function syncResponsableDisenoField() {
 
 
 function hasExternalFlow(obs) {
-  return String(obs || "").toUpperCase().includes(EXTERNAL_TAG);
+  return resolveExternalFlag({ observacionesGenerales: obs });
 }
 
 function toDbEstado(v) {
@@ -80,6 +84,19 @@ function toDbEstado(v) {
 
 function estadoKey(v) {
   return norm(v).toUpperCase();
+}
+
+function toCanonicalDbEstado(v) {
+  const n = norm(v);
+  if (n === "diseno") return "DISENO";
+  return String(v || "");
+}
+
+function resolveExternalCompat(row = null) {
+  return resolveExternalFlag({
+    esExterno: row?.es_externo,
+    observacionesGenerales: row?.observaciones_generales
+  });
 }
 
 
@@ -406,7 +423,7 @@ async function openOrdenModalForEdit(row) {
   }
   const full = await fetchOrdenById(row.orden_id);
   const det = Array.isArray(full?.detalles_orden) ? full.detalles_orden[0] : (full?.detalles_orden || {});
-  const isExt = hasExternalFlow(full?.observaciones_generales);
+  const isExt = resolveExternalCompat(full);
 
   clearOrdenForm();
   setOrdenModalMode("edit", row);
@@ -417,10 +434,7 @@ async function openOrdenModalForEdit(row) {
   if ($("o_entrega")) $("o_entrega").value = toInputDatetimeLocal(full?.fecha_entrega || row.fecha_entrega);
   if ($("o_prio")) $("o_prio").value = full?.prioridad || row.prioridad || "NORMAL";
   if ($("o_estado")) $("o_estado").value = (estadoKey(full?.estado) === "PLACAS") ? "PLACAS" : "DISENO";
-  if ($("o_obs")) {
-    const raw = String(full?.observaciones_generales || "");
-    $("o_obs").value = raw.replace(EXTERNAL_TAG, "").trim();
-  }
+  if ($("o_obs")) $("o_obs").value = stripLegacyExternalTag(full?.observaciones_generales);
   if ($("o_tiene_oc")) $("o_tiene_oc").checked = !!full?.tiene_oc;
   if ($("o_oc_numero")) $("o_oc_numero").value = full?.oc_numero || "";
   if ($("o_oc_obs")) $("o_oc_obs").value = full?.oc_observacion || "";
@@ -1070,11 +1084,15 @@ async function loadJobs() {
   );
   rows = (rows || []).map((r) => {
     const inc = incidenciaMap.get(Number(r.orden_id)) || null;
+    const meta = metaMap.get(Number(r.orden_id)) || null;
     const tipoCliente = normalizeTipoCliente(r?.cliente_tipo || tipoClienteMap.get(Number(r.orden_id)) || "");
     return {
       ...r,
       cliente_tipo: tipoCliente || "",
-      is_external: hasExternalFlow(metaMap.get(Number(r.orden_id))?.observaciones_generales),
+      is_external: resolveExternalCompat({
+        es_externo: r?.es_externo ?? meta?.es_externo,
+        observaciones_generales: meta?.observaciones_generales
+      }),
       incidencia_motivo: inc?.motivo_incidencia || null,
       incidencia_obs: inc?.obs_incidencia || null,
       incidencia_estado: inc?.estado_registro || null
@@ -1315,9 +1333,7 @@ async function onGuardarOrden() {
     if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
     const isExt = $("o_externo")?.checked ?? false;
     const obsBase = ($("o_obs")?.value || "").trim();
-    const obs = isExt
-      ? (hasExternalFlow(obsBase) ? obsBase : `${EXTERNAL_TAG}${obsBase ? ` ${obsBase}` : ""}`.trim())
-      : (obsBase || null);
+    const obs = buildExternalObservaciones({ isExternal: isExt, observaciones: obsBase });
     const orden = {
       cliente_id: Number($("o_cliente").value),
       descripcion_trabajo: $("o_desc").value.trim(),
@@ -1325,6 +1341,7 @@ async function onGuardarOrden() {
       prioridad: $("o_prio")?.value || "NORMAL",
       estado: toDbEstado(isExt ? "DISENO" : ($("o_estado")?.value || "DISENO")),
       responsable_diseno: currentAdminResponsable || "Administrador",
+      es_externo: isExt,
       observaciones_generales: obs,
       tiene_oc: $("o_tiene_oc")?.checked ?? false,
       oc_numero: $("o_tiene_oc")?.checked ? ($("o_oc_numero")?.value?.trim() || null) : null,

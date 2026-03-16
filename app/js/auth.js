@@ -1,30 +1,26 @@
 import { supabase } from "./supabaseClient.js";
+import {
+  getCurrentProfile,
+  getRoleHome,
+  normalizeRole,
+  requireRole as requireRoleGuard
+} from "./security/roles.js";
+
+export { ROLE_HOME, ROLE_CAPABILITIES, can, requireRole } from "./security/roles.js";
 
 export function getProfileDisplayName(prof){
   return String(prof?.nombre_completo || prof?.username || "").trim();
 }
 
 export async function getMyProfile(){
-  const { data: { user } } = await supabase.auth.getUser();
-  if(!user) return null;
+  return getCurrentProfile();
+}
 
-  let { data, error } = await supabase
-    .from("profiles")
-    .select("rol, username, nombre_completo")
-    .eq("id", user.id)
-    .single();
-
-  // Backward-compat: some DB snapshots may not have nombre_completo yet.
-  if(error){
-    const fb = await supabase
-      .from("profiles")
-      .select("rol, username")
-      .eq("id", user.id)
-      .single();
-    if(fb.error) throw fb.error;
-    data = { ...fb.data, nombre_completo: null };
-  }
-  return data;
+function buildRolePendingLocation(role){
+  const params = new URLSearchParams();
+  params.set("reason", "role-not-enabled");
+  if(role) params.set("role", normalizeRole(role));
+  return `./login.html?${params.toString()}`;
 }
 
 export async function goByRole(){
@@ -37,45 +33,21 @@ export async function goByRole(){
   }
   if(!prof) return;
 
-  if(prof.rol === "ADMIN") window.location.href = "./admin.html";
-  else window.location.href = "./operador.html";
+  const home = getRoleHome(prof.rol);
+  window.location.href = home || buildRolePendingLocation(prof.rol);
 }
 
 export async function logout(){
   await supabase.auth.signOut();
 }
 
-// Solo para páginas protegidas (admin/operador)
+// Solo para paginas protegidas (admin/operador por ahora).
 export async function requireAdmin(){
-  const { data: { user } } = await supabase.auth.getUser();
-  if(!user){ window.location.href="./login.html"; return null; }
-
-  let prof = null;
-  try{
-    prof = await getMyProfile();
-  }catch{
-    window.location.href="./login.html";
-    return null;
-  }
-  if(!prof){ window.location.href="./login.html"; return null; }
-
-  if(prof.rol !== "ADMIN"){ window.location.href="./operador.html"; return null; }
-  return prof;
+  const session = await requireRoleGuard("ADMIN");
+  if(!session) return null;
+  return session.prof;
 }
 
 export async function requireOperador(){
-  const { data: { user } } = await supabase.auth.getUser();
-  if(!user){ window.location.href="./login.html"; return null; }
-
-  let prof = null;
-  try{
-    prof = await getMyProfile();
-  }catch{
-    window.location.href="./login.html";
-    return null;
-  }
-  if(!prof){ window.location.href="./login.html"; return null; }
-
-  if(prof.rol === "ADMIN"){ window.location.href="./admin.html"; return null; }
-  return { user, prof };
+  return requireRoleGuard("OPERADOR");
 }

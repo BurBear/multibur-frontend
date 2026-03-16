@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { byId, setDisplayById } from "./utils/dom.js";
+import { byId } from "./utils/dom.js";
 import { getMyProfile, goByRole, logout } from "./auth.js";
 
 const $ = byId;
@@ -62,18 +62,33 @@ function persistRememberedEmail() {
   }
 }
 
+function getRolePendingNotice() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("reason") !== "role-not-enabled") return "";
+  const role = String(params.get("role") || "").trim().toUpperCase();
+  if (!role) return "Tu rol aun no tiene un modulo habilitado en esta fase.";
+  return `Tu rol ${role} aun no tiene un modulo habilitado en esta fase.`;
+}
+
 async function refreshUI() {
   const { data: { user } } = await supabase.auth.getUser();
+  const rolePendingNotice = getRolePendingNotice();
   if (!user) {
     $("btnLogout").style.display = "none";
     $("btnGo").style.display = "none";
     setLoginFieldsDisabled(false);
+    if (rolePendingNotice) msg(rolePendingNotice);
     return;
   }
 
   $("btnLogout").style.display = "block";
-  $("btnGo").style.display = "block";
+  $("btnGo").style.display = rolePendingNotice ? "none" : "block";
   setLoginFieldsDisabled(true);
+
+  if (rolePendingNotice) {
+    msg(`${rolePendingNotice}\nPulsa "Cerrar sesion" para cambiar de usuario.`);
+    return;
+  }
 
   try {
     await getMyProfile();

@@ -7,6 +7,16 @@ function isMissingRpc(err) {
   return code === "42883" || code === "PGRST202" || (msg.includes("function") && msg.includes("not found"));
 }
 
+function isRpcCompatFallbackError(err) {
+  const code = String(err?.code || "");
+  const msg = String(err?.message || "").toLowerCase();
+  return code === "42804"
+    || code === "22P02"
+    || code === "42703"
+    || (msg.includes("is of type") && msg.includes("expression is of type"))
+    || msg.includes("invalid input value for enum");
+}
+
 function parseMissingColumn(err) {
   const msg = String(err?.message || "");
   let m = msg.match(/Could not find the '([^']+)' column of '([^']+)'/i);
@@ -47,7 +57,7 @@ export async function fetchTrabajosPendientes({ estado = "" } = {}) {
 }
 
 export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
-  const runQuery = async (withObsTecnica, withJuegosPlaca) => {
+  const runQuery = async (withObsTecnica, withJuegosPlaca, withExternalFlag) => {
     let q = supabase
       .from("ordenes")
       .select(`
@@ -57,6 +67,7 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
         fecha_entrega,
         prioridad,
         estado,
+        ${withExternalFlag ? "es_externo," : ""}
         cliente:clientes(nombre,tipo_cliente),
         detalles_orden(
           orden_id,
@@ -92,18 +103,28 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
 
   let data = null;
   let error = null;
-  ({ data, error } = await runQuery(true, true));
-  if (error) {
+  let withObsTecnica = true;
+  let withJuegosPlaca = true;
+  let withExternalFlag = true;
+
+  for (let i = 0; i < 6; i += 1) {
+    ({ data, error } = await runQuery(withObsTecnica, withJuegosPlaca, withExternalFlag));
+    if (!error) break;
     const miss = parseMissingColumn(error);
-    if (miss && miss.table === "detalles_orden" && ["observacion_tecnica", "requiere_juegos_placa", "juegos_placa_total"].includes(miss.column)) {
-      ({ data, error } = await runQuery(miss.column !== "observacion_tecnica", false));
+    if (!miss) break;
+    if (miss.table === "ordenes" && miss.column === "es_externo" && withExternalFlag) {
+      withExternalFlag = false;
+      continue;
     }
-    if (error) {
-      const miss2 = parseMissingColumn(error);
-      if (miss2 && miss2.table === "detalles_orden" && miss2.column === "observacion_tecnica") {
-        ({ data, error } = await runQuery(false, false));
-      }
+    if (miss.table === "detalles_orden" && miss.column === "observacion_tecnica" && withObsTecnica) {
+      withObsTecnica = false;
+      continue;
     }
+    if (miss.table === "detalles_orden" && ["requiere_juegos_placa", "juegos_placa_total", "juegos_placa_detalle"].includes(miss.column) && withJuegosPlaca) {
+      withJuegosPlaca = false;
+      continue;
+    }
+    break;
   }
   if (error) throw error;
 
@@ -118,6 +139,7 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
       fecha_entrega: o.fecha_entrega || null,
       prioridad: o.prioridad || "NORMAL",
       estado: o.estado || "-",
+      es_externo: !!o.es_externo,
       papel_material: det.papel_material || "",
       gramaje: det.gramaje ?? null,
       medida_ancho: det.medida_ancho ?? null,
@@ -318,7 +340,7 @@ export async function fetchClienteTiposByOrdenIds(orderIds = []) {
 }
 
 export async function fetchOrdenById(ordenId) {
-  const runQuery = async (withJuegosPlaca) => supabase
+  const runQuery = async (withJuegosPlaca, withExternalFlag) => supabase
     .from("ordenes")
     .select(`
       id,
@@ -328,6 +350,7 @@ export async function fetchOrdenById(ordenId) {
       responsable_diseno,
       descripcion_trabajo,
       observaciones_generales,
+      ${withExternalFlag ? "es_externo," : ""}
       fecha_entrega,
       tiene_oc,
       oc_numero,
@@ -367,12 +390,22 @@ export async function fetchOrdenById(ordenId) {
 
   let data = null;
   let error = null;
-  ({ data, error } = await runQuery(true));
-  if (error) {
+  let withJuegosPlaca = true;
+  let withExternalFlag = true;
+  for (let i = 0; i < 5; i += 1) {
+    ({ data, error } = await runQuery(withJuegosPlaca, withExternalFlag));
+    if (!error) break;
     const miss = parseMissingColumn(error);
-    if (miss && miss.table === "detalles_orden" && ["requiere_juegos_placa", "juegos_placa_total", "juegos_placa_detalle"].includes(miss.column)) {
-      ({ data, error } = await runQuery(false));
+    if (!miss) break;
+    if (miss.table === "ordenes" && miss.column === "es_externo" && withExternalFlag) {
+      withExternalFlag = false;
+      continue;
     }
+    if (miss.table === "detalles_orden" && ["requiere_juegos_placa", "juegos_placa_total", "juegos_placa_detalle"].includes(miss.column) && withJuegosPlaca) {
+      withJuegosPlaca = false;
+      continue;
+    }
+    break;
   }
 
   if (error) throw error;
@@ -381,10 +414,19 @@ export async function fetchOrdenById(ordenId) {
 
 export async function fetchOrdenesMetaByIds(orderIds = []) {
   if (!orderIds.length) return [];
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("ordenes")
-    .select("id, observaciones_generales")
+    .select("id, observaciones_generales, es_externo")
     .in("id", orderIds);
+  if (error) {
+    const miss = parseMissingColumn(error);
+    if (miss && miss.table === "ordenes" && miss.column === "es_externo") {
+      ({ data, error } = await supabase
+        .from("ordenes")
+        .select("id, observaciones_generales")
+        .in("id", orderIds));
+    }
+  }
   if (error) throw error;
   return data || [];
 }
@@ -520,17 +562,14 @@ export async function rpcFinalizarEntregaOrden({
 }
 
 export async function createOrdenConDetalles({ orden, detalles }) {
-  const forceFallback = Object.prototype.hasOwnProperty.call(detalles || {}, "observacion_tecnica");
-  if (!forceFallback) {
-    const { data: rpcData, error: rpcError } = await supabase.rpc("create_orden_con_detalles", {
-      p_orden: orden,
-      p_detalles: detalles
-    });
-    if (!rpcError && rpcData && (!Array.isArray(rpcData) || rpcData.length > 0)) {
-      return Array.isArray(rpcData) ? rpcData[0] : rpcData;
-    }
-    if (rpcError && !isMissingRpc(rpcError)) throw rpcError;
+  const { data: rpcData, error: rpcError } = await supabase.rpc("create_orden_con_detalles_v2", {
+    p_orden: orden,
+    p_detalles: detalles
+  });
+  if (!rpcError && rpcData && (!Array.isArray(rpcData) || rpcData.length > 0)) {
+    return Array.isArray(rpcData) ? rpcData[0] : rpcData;
   }
+  if (rpcError && !isMissingRpc(rpcError) && !isRpcCompatFallbackError(rpcError)) throw rpcError;
 
   let ordenPayload = { ...orden };
   let o = null;
