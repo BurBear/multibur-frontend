@@ -22,6 +22,13 @@ as $$
     join pg_enum e on e.enumtypid = t.oid
     where t.oid = p_target_type
   ),
+  exact_match as (
+    select l.enumlabel
+    from desired d
+    join labels l
+      on upper(trim(l.enumlabel)) = upper(trim(d.source_value))
+    limit 1
+  ),
   matched as (
     select l.enumlabel
     from desired d
@@ -39,6 +46,7 @@ as $$
     limit 1
   )
   select coalesce(
+    (select enumlabel from exact_match),
     (select enumlabel from matched),
     (select source_value from desired)
   );
