@@ -133,6 +133,18 @@ function normalizeJuegoEstado(v) {
   return String(v || "").trim().toUpperCase();
 }
 
+function isTipoImpresionTR(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  return raw === "T+R" || raw === "TIRA+RETIRA";
+}
+
+function isVisibleForOperador(row) {
+  const estado = String(row?.estado || "").trim().toUpperCase();
+  if (estado === "PLACAS") return true;
+  if (estado !== "IMPRESION") return false;
+  return !!row?.requiere_juegos_placa && isTipoImpresionTR(row?.tipo_impresion);
+}
+
 async function syncJuegoCaraUI({ ordenId, requiereJuegos }) {
   const wrap = el("juegoCaraWrap");
   const sel = el("juegoCara");
@@ -403,7 +415,7 @@ async function loadTrabajos() {
   const q = getValue("q");
   const allRows = await fetchTrabajosAdminBoard({});
   const rows = filterTrabajosByQuery(
-    (allRows || []).filter((r) => ["PLACAS", "IMPRESION"].includes(String(r.estado || "").toUpperCase())),
+    (allRows || []).filter((r) => isVisibleForOperador(r)),
     q
   );
 
