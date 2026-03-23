@@ -7,6 +7,10 @@ export function bindAdminEvents(deps) {
     closeEntregaModal, confirmEntregaDesdeModal, syncEntregaGuiaFields,
     syncRegsPresetChips
   } = deps;
+  const closeOrdenModal = () => {
+    setOrdenModalMode("create");
+    $("modalOrdenWrap")?.classList.add("hide");
+  };
 
   $("btnLogout")?.addEventListener("click", async () => { await logout(); window.location.href = "./login.html"; });
   $("btnReloadJobs")?.addEventListener("click", loadJobs);
@@ -28,15 +32,11 @@ export function bindAdminEvents(deps) {
     $("modalOrdenWrap")?.classList.remove("hide");
     refreshFormState();
   });
-  $("btnCloseOrden")?.addEventListener("click", () => {
-    setOrdenModalMode("create");
-    $("modalOrdenWrap")?.classList.add("hide");
-  });
-  $("modalOrdenWrap")?.addEventListener("click", (ev) => {
-    if (ev.target && ev.target.id === "modalOrdenWrap") {
-      setOrdenModalMode("create");
-      $("modalOrdenWrap")?.classList.add("hide");
-    }
+  $("btnCloseOrden")?.addEventListener("click", closeOrdenModal);
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    if ($("modalOrdenWrap")?.classList.contains("hide")) return;
+    closeOrdenModal();
   });
   $("btnGuardarOrden")?.addEventListener("click", onGuardarOrden);
 
