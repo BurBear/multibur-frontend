@@ -1,3 +1,8 @@
+// Bloquear scroll inmediatamente si el loader existe
+if (document.getElementById("loader")) {
+  document.body.style.overflow = 'hidden';
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   // Ajustar la longitud de la clase .write para las letras SVG
   document.querySelectorAll(".write").forEach(p => {
@@ -12,6 +17,7 @@ window.addEventListener("load", () => {
     const loader = document.getElementById("loader");
     if (loader) {
       loader.classList.add("hide-loader");
+      document.body.style.overflow = ''; // Restaurar scroll
       
       // Opcional: remover el nodo del DOM tras la animación (0.5s definidos en CSS)
       setTimeout(() => {

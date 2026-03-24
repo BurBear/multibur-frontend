@@ -1,8 +1,8 @@
 :root {
-  /* Estas variables pueden sobreescribirse si ya existen en global.css, pero las mantenemos para el loader */
-  --bg: #f4f7f6;
-  --ring: #0062A7;
-  --mb: #004B80;
+  --bg: #0b1220; /* from login's --bg-dark */
+  --ring: #16a34a; /* primary-hover green */
+  --mb: #22c55e; /* primary green */
+  --text: #e8eefc; /* text-main */
   --cycle: 2.4s;
   --ease: cubic-bezier(0.65, 0, 0.35, 1);
 }
@@ -16,7 +16,7 @@
   align-items: center;
   gap: 20px;
   background: var(--bg);
-  z-index: 9999;
+  z-index: 99999;
   transition: opacity 0.5s ease;
 }
 
@@ -25,13 +25,13 @@
   width: 150px;
   height: auto;
   display: block;
-  filter: drop-shadow(0px 10px 10px rgba(0, 75, 128, 0.15));
+  filter: drop-shadow(0px 10px 10px rgba(34, 197, 94, 0.18));
   overflow: visible;
 }
 
 /* --- TEXTO DE CARGA --- */
 .loading-text {
-  color: var(--mb);
+  color: var(--text);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 2px;
