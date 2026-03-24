@@ -165,11 +165,12 @@
                   <th>Total + Dem</th>
                   <th>Buena</th>
                   <th>Mala</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="tbRegs">
                 <tr>
-                  <td colspan="11" class="preview-empty">Ajusta los filtros para consultar registros.</td>
+                  <td colspan="12" class="preview-empty">Ajusta los filtros para consultar registros.</td>
                 </tr>
               </tbody>
             </table>
@@ -179,6 +180,18 @@
       </section>
     </div>
   </main>
+
+  <div id="reportOrdenDetailWrap" class="modal-wrap hide" aria-hidden="true">
+    <div class="modal inl-8" role="dialog" aria-modal="true" aria-labelledby="reportOrdenDetailTitle">
+      <div class="modal-head">
+        <strong id="reportOrdenDetailTitle">Detalle de orden</strong>
+        <button id="btnCloseReportOrden" class="btn btn-ghost" type="button">Cerrar</button>
+      </div>
+      <div class="modal-body">
+        <div id="reportOrdenDetailBody"></div>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="../js/admin_reportes.js"></script>
 </body>

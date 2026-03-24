@@ -1,14 +1,16 @@
 import { requireAdmin, logout, getProfileDisplayName } from "./auth.js";
-import { fetchClientes, fetchReporteEntregados, fetchRegistros, fetchProfilesByIds, fetchMaquinasByIds, fetchOrdenesProduccionByIds, fetchOrdenJuegosByIds } from "./api.js";
+import { fetchClientes, fetchReporteEntregados, fetchRegistros, fetchProfilesByIds, fetchMaquinasByIds, fetchOrdenesProduccionByIds, fetchOrdenJuegosByIds, fetchOrdenById } from "./api.js";
 import { $, setText, debounce } from "./ui.js";
 import { escapeHtml } from "./utils/helpers.js";
 import { fmtEntrega, fmtDateTimePE } from "./utils/formatters.js";
 import { fmtTipoImpresion } from "./admin/admin-orders.js";
+import { renderPrioridadBadge } from "./admin/admin-render.js";
 
 const msg = (t) => setText("msgReport", t || "");
 let clientesCache = [];
 let previewReqId = 0;
 let activeTab = "entregados";
+let reportOrdenLookup = new Map();
 
 const esc = escapeHtml;
 const fmtDTPE = fmtDateTimePE;
@@ -46,6 +48,249 @@ function setActiveTab(tab) {
   $("tabBtnProduccion")?.setAttribute("aria-selected", !isEnt ? "true" : "false");
   $("tabEntregados")?.classList.toggle("is-active", isEnt);
   $("tabProduccion")?.classList.toggle("is-active", !isEnt);
+}
+
+function closeReportOrdenDetail() {
+  $("reportOrdenDetailWrap")?.classList.add("hide");
+}
+
+function splitEntregaParts(value) {
+  const raw = fmtEntrega(value);
+  if (!raw || raw === "-") return { fecha: "-", hora: "" };
+  const parts = String(raw).split(",");
+  return {
+    fecha: parts[0]?.trim() || raw,
+    hora: parts.slice(1).join(",").trim()
+  };
+}
+
+function getReportAcabadosItems(det = {}) {
+  const items = [];
+  if (det?.corte) items.push("Corte");
+  if (det?.empaquetado) items.push("Empaquetado");
+  if (det?.doblez) items.push("Doblez");
+  if (det?.compaginado) items.push("Compaginado");
+  if (det?.troquelado) items.push("Troquelado");
+  if (det?.sectorizado) items.push("Sectorizado");
+  if (det?.barniz) items.push("Barniz");
+  const plastificado = String(det?.plastificado || "").trim();
+  if (plastificado && plastificado.toUpperCase() !== "NINGUNO") {
+    items.push(`Plastificado ${plastificado}`);
+  }
+  return items;
+}
+
+function renderReportEstadoBadge(estado) {
+  const label = String(estado || "-").trim().toUpperCase() || "-";
+  let cls = "";
+  if (label.includes("IMPRES")) cls = " is-print";
+  else if (label.includes("ACAB")) cls = " is-finish";
+  else if (label.includes("PLAC")) cls = " is-plates";
+  else if (label.includes("DIS")) cls = " is-design";
+  else if (label.includes("ENTREG")) cls = " is-done";
+  return `<span class="report-status${cls}">${esc(label)}</span>`;
+}
+
+function renderReportFlag(active, onLabel, offLabel) {
+  return `<span class="report-flag ${active ? "is-on" : "is-off"}">${esc(active ? onLabel : offLabel)}</span>`;
+}
+
+function renderReportOrdenDetail(extra, fallback = null) {
+  const det = Array.isArray(extra?.detalles_orden) ? extra.detalles_orden[0] : (extra?.detalles_orden || {});
+  const maquinaRaw = Array.isArray(det?.maquina) ? det.maquina[0] : det?.maquina;
+  const ordenLabel = fallback?.numero_orden_fisica || `#${fallback?.orden_id || extra?.id || "-"}`;
+  const clienteNombre = extra?.cliente?.nombre || fallback?.cliente_nombre || "-";
+  const clienteTipo = normalizeTipoCliente(extra?.cliente?.tipo_cliente || fallback?.cliente_tipo || "");
+  const showCommercial = clienteTipo !== "SERVICIO";
+  const entrega = splitEntregaParts(extra?.fecha_entrega);
+  const formato = (det?.medida_ancho && det?.medida_alto)
+    ? `${det.medida_ancho} x ${det.medida_alto}`
+    : "-";
+  const material = det?.papel_material
+    ? `${det.papel_material}${det?.gramaje ? ` (${det.gramaje}g)` : ""}`
+    : "-";
+  const tipoImpresion = fmtTipoImpresion(det?.tipo_impresion || "-");
+  const maquina = maquinaRaw?.nombre || "-";
+  const color = det?.color_text || det?.color_mode || "-";
+  const clienteDoc = [extra?.cliente?.doc_fiscal_tipo, extra?.cliente?.doc_fiscal_numero]
+    .map((x) => String(x || "").trim())
+    .filter(Boolean)
+    .join(" ") || "-";
+  const acabados = getReportAcabadosItems(det);
+  const totalPlan = det?.cantidad_solicitada != null
+    ? `${det.cantidad_solicitada}${det?.demasia != null ? ` + ${det.demasia} demasia` : ""}`
+    : "-";
+  const obsTecnica = String(det?.observacion_tecnica || "").trim() || "Sin observacion tecnica registrada.";
+  const obsGeneral = String(extra?.observaciones_generales || "").trim() || "Sin observaciones generales registradas.";
+  const obsOc = String(extra?.oc_observacion || "").trim() || "Sin observacion de OC.";
+  const obsGuia = String(extra?.guia_observacion || "").trim() || "Sin observacion de guia.";
+  return `
+    <div class="report-order-shell">
+      <section class="report-order-hero">
+        <div class="report-order-hero-main">
+          <div class="report-order-kicker">Orden de produccion</div>
+          <div class="report-order-code">${esc(ordenLabel)}</div>
+          <div class="report-order-work">${esc(extra?.descripcion_trabajo || fallback?.descripcion_trabajo || "-")}</div>
+        </div>
+        <div class="report-order-hero-side">
+          ${renderReportEstadoBadge(extra?.estado)}
+          ${renderPrioridadBadge(extra?.prioridad)}
+          <span class="report-soft-chip">Maquina: ${esc(maquina)}</span>
+        </div>
+      </section>
+
+      <section class="report-quick-grid">
+        <article class="report-quick-card">
+          <span class="report-quick-k">Cliente</span>
+          <strong class="report-quick-v">${esc(clienteNombre)}</strong>
+          <span class="report-quick-sub">${esc(extra?.cliente?.tipo_cliente || "-")} | ${esc(clienteDoc)}</span>
+        </article>
+        <article class="report-quick-card">
+          <span class="report-quick-k">Entrega</span>
+          <strong class="report-quick-v">${esc(entrega.fecha)}</strong>
+          <span class="report-quick-sub">${esc(entrega.hora || "Sin hora registrada")}</span>
+        </article>
+        <article class="report-quick-card">
+          <span class="report-quick-k">Produccion</span>
+          <strong class="report-quick-v">${esc(tipoImpresion)}</strong>
+          <span class="report-quick-sub">${esc(color)} | ${esc(maquina)}</span>
+        </article>
+        <article class="report-quick-card">
+          <span class="report-quick-k">Plan total</span>
+          <strong class="report-quick-v">${esc(totalPlan)}</strong>
+          <span class="report-quick-sub">Cantidad ${esc(det?.cantidad_solicitada ?? "-")} | Demasia ${esc(det?.demasia ?? "-")}</span>
+        </article>
+      </section>
+
+      <section class="report-acabados-spotlight">
+        <div class="report-acabados-head">
+          <div>
+            <div class="report-panel-title">Acabados</div>
+            <div class="report-panel-sub">Procesos y notas clave de esta orden</div>
+          </div>
+          <div class="report-acabados-count">${acabados.length ? `${acabados.length} proceso(s)` : "Sin procesos marcados"}</div>
+        </div>
+        <div class="report-acabados-layout">
+          <div class="report-acabados-main">
+            <div class="report-acabados-label">Procesos</div>
+            <div class="report-acabados-grid">
+              ${acabados.length
+                ? acabados.map((item, idx) => `
+                  <article class="report-acabado-card">
+                    <span class="report-acabado-index">${String(idx + 1).padStart(2, "0")}</span>
+                    <div class="report-acabado-copy">
+                      <div class="report-acabado-title">${esc(item)}</div>
+                      <div class="report-acabado-sub">Activo</div>
+                    </div>
+                  </article>
+                `).join("")
+                : `<div class="report-acabados-empty">No hay acabados especificos registrados para esta orden.</div>`}
+            </div>
+          </div>
+          <div class="report-acabados-side">
+            <article class="report-acabados-summary-card">
+              <span class="report-note-k">Resumen</span>
+              <div class="report-acabados-summary-value">${acabados.length}</div>
+              <div class="report-acabados-summary-copy">
+                ${acabados.length ? "Proceso(s) activos en acabados." : "Sin procesos de acabados."}
+              </div>
+            </article>
+            <article class="report-note-card is-tech">
+            <span class="report-note-k">Observacion tecnica</span>
+            <div class="report-note-v">${esc(obsTecnica)}</div>
+          </article>
+          <article class="report-note-card is-general">
+            <span class="report-note-k">Observaciones generales</span>
+            <div class="report-note-v">${esc(obsGeneral)}</div>
+          </article>
+          </div>
+        </div>
+      </section>
+
+      <div class="report-detail-layout${showCommercial ? "" : " is-single-panel"}">
+        <section class="report-panel">
+          <div class="report-panel-head">
+            <div>
+              <div class="report-panel-title">Ficha del trabajo</div>
+              <div class="report-panel-sub">Datos principales para revisar la orden rapido</div>
+            </div>
+          </div>
+          <div class="report-info-grid">
+            <div class="report-info-item">
+              <span class="report-info-k">Formato</span>
+              <span class="report-info-v">${esc(formato)}</span>
+            </div>
+            <div class="report-info-item">
+              <span class="report-info-k">Material</span>
+              <span class="report-info-v">${esc(material)}</span>
+            </div>
+            <div class="report-info-item">
+              <span class="report-info-k">Tipo impresion</span>
+              <span class="report-info-v">${esc(tipoImpresion)}</span>
+            </div>
+            <div class="report-info-item">
+              <span class="report-info-k">Color</span>
+              <span class="report-info-v">${esc(color)}</span>
+            </div>
+            <div class="report-info-item">
+              <span class="report-info-k">Cantidad</span>
+              <span class="report-info-v">${esc(det?.cantidad_solicitada ?? "-")}</span>
+            </div>
+            <div class="report-info-item">
+              <span class="report-info-k">Demasia</span>
+              <span class="report-info-v">${esc(det?.demasia ?? "-")}</span>
+            </div>
+          </div>
+        </section>
+
+        ${showCommercial ? `
+        <section class="report-panel">
+          <div class="report-panel-head">
+            <div>
+              <div class="report-panel-title">Comercial y despacho</div>
+              <div class="report-panel-sub">Validaciones utiles antes de cierre y entrega</div>
+            </div>
+          </div>
+          <div class="report-info-grid">
+            <div class="report-info-item">
+              <span class="report-info-k">Orden de compra</span>
+              <span class="report-info-v">${renderReportFlag(!!extra?.tiene_oc, extra?.oc_numero || "Registrada", "No requerida")}</span>
+            </div>
+            <div class="report-info-item">
+              <span class="report-info-k">Guia</span>
+              <span class="report-info-v">${renderReportFlag(!!extra?.tiene_guia, extra?.guia_numero || "Registrada", "Sin guia")}</span>
+            </div>
+            <div class="report-info-item report-info-item-wide">
+              <span class="report-info-k">Observacion OC</span>
+              <span class="report-info-v">${esc(obsOc)}</span>
+            </div>
+            <div class="report-info-item report-info-item-wide">
+              <span class="report-info-k">Observacion guia</span>
+              <span class="report-info-v">${esc(obsGuia)}</span>
+            </div>
+          </div>
+        </section>` : ""}
+      </div>
+    </div>`;
+}
+
+async function openReportOrdenDetail(ordenId) {
+  const fallback = reportOrdenLookup.get(Number(ordenId)) || { orden_id: ordenId, numero_orden_fisica: `#${ordenId}` };
+  setText("reportOrdenDetailTitle", `Detalle de orden ${fallback?.numero_orden_fisica || `#${ordenId}`}`);
+  if ($("reportOrdenDetailBody")) {
+    $("reportOrdenDetailBody").innerHTML = `<div class="preview-empty">Cargando orden...</div>`;
+  }
+  $("reportOrdenDetailWrap")?.classList.remove("hide");
+  try {
+    const extra = await fetchOrdenById(ordenId);
+    if ($("reportOrdenDetailBody")) {
+      $("reportOrdenDetailBody").innerHTML = renderReportOrdenDetail(extra, fallback);
+    }
+  } catch (e) {
+    if ($("reportOrdenDetailBody")) {
+      $("reportOrdenDetailBody").innerHTML = `<div class="preview-empty">No se pudo cargar la orden: ${esc(e?.message || e)}</div>`;
+    }
+  }
 }
 
 function loadClientesFilter() {
@@ -297,6 +542,7 @@ async function loadRegistros() {
   const userMap = new Map((users || []).map((u) => [u.id, getProfileDisplayName(u) || u.username || u.id]));
   const maqMap = new Map((maqs || []).map((m) => [m.id, m.nombre]));
   const juegoMap = new Map((juegos || []).map((j) => [Number(j.id), j]));
+  reportOrdenLookup = new Map((ordenes || []).map((o) => [Number(o.orden_id), o]));
 
   if (ordenSearch) {
     const q = ordenSearch.toLowerCase();
@@ -333,8 +579,9 @@ async function loadRegistros() {
           <td>${esc(totalDemMap.get(r.orden_id) || "-")}</td>
           <td>${esc(r.cantidad_buena ?? "-")}</td>
           <td>${esc(r.cantidad_mala ?? 0)}</td>
+          <td><button class="btn btn-ghost" type="button" data-action="view-order" data-oid="${r.orden_id}">Ver orden</button></td>
         </tr>`).join("")
-      : `<tr><td colspan="11" class="preview-empty">No hay registros para los filtros seleccionados.</td></tr>`;
+      : `<tr><td colspan="12" class="preview-empty">No hay registros para los filtros seleccionados.</td></tr>`;
   }
   setText("msgRegs", `Registros cargados: ${(regs || []).length}`);
 }
@@ -362,6 +609,29 @@ async function loadRegistros() {
   $("btnReporteEntregados")?.addEventListener("click", exportReporteEntregados);
   $("tabBtnEntregados")?.addEventListener("click", () => setActiveTab("entregados"));
   $("tabBtnProduccion")?.addEventListener("click", () => setActiveTab("produccion"));
+  $("btnCloseReportOrden")?.addEventListener("click", closeReportOrdenDetail);
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    if ($("reportOrdenDetailWrap")?.classList.contains("hide")) return;
+    closeReportOrdenDetail();
+  });
+  $("tbRegs")?.addEventListener("click", async (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const btn = target.closest('button[data-action="view-order"]');
+    if (!(btn instanceof HTMLButtonElement)) return;
+    const ordenId = Number(btn.getAttribute("data-oid"));
+    if (!ordenId) return;
+    const old = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Abriendo...";
+    try {
+      await openReportOrdenDetail(ordenId);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  });
   $("btnReloadRegs")?.addEventListener("click", loadRegistros);
   $("btnApplyRegs")?.addEventListener("click", loadRegistros);
   const onPreviewChange = debounce(refreshPreviewReporte, 220);
