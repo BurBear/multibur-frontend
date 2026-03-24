@@ -31,7 +31,7 @@
 
 /* --- TEXTO DE CARGA --- */
 .loading-text {
-  color: var(--text);
+  color: var(--mb);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 2px;
