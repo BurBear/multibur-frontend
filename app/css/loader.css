@@ -1,0 +1,127 @@
+:root {
+  /* Estas variables pueden sobreescribirse si ya existen en global.css, pero las mantenemos para el loader */
+  --bg: #f4f7f6;
+  --ring: #0062A7;
+  --mb: #004B80;
+  --cycle: 2.4s;
+  --ease: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+#loader {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  background: var(--bg);
+  z-index: 9999;
+  transition: opacity 0.5s ease;
+}
+
+/* --- LOGO --- */
+.logo-loader {
+  width: 150px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0px 10px 10px rgba(0, 75, 128, 0.15));
+  overflow: visible;
+}
+
+/* --- TEXTO DE CARGA --- */
+.loading-text {
+  color: var(--mb);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.9;
+  animation: fadeInText 1s ease-out forwards;
+}
+
+/* Animación de los puntos (...) */
+.dots::after {
+  content: '';
+  display: inline-block;
+  width: 1em; /* Reserva espacio para evitar saltos */
+  text-align: left;
+  animation: dotsSteps 1.5s steps(4, end) infinite;
+}
+
+@keyframes dotsSteps {
+  0%, 20% { content: ''; }
+  40% { content: '.'; }
+  60% { content: '..'; }
+  80%, 100% { content: '...'; }
+}
+
+@keyframes fadeInText {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --- ARO (SPINNER) --- */
+#spinnerRing {
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 5;
+  stroke-linecap: round;
+  transform-origin: center;
+  transform: rotate(-90deg);
+  animation: 
+    spinnerRotate var(--cycle) linear infinite,
+    spinnerDash var(--cycle) var(--ease) infinite;
+}
+
+/* --- RELLENO MB --- */
+#mbFill {
+  fill: var(--mb);
+  animation: floatLogo var(--cycle) var(--ease) infinite;
+}
+
+/* --- MÁSCARA --- */
+.write {
+  stroke: #fff;
+  stroke-width: 35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  stroke-dasharray: var(--dash, 1000);
+  stroke-dashoffset: var(--dash, 1000);
+}
+
+.write.m { animation: writeStroke var(--cycle) var(--ease) infinite; }
+.write.b { animation: writeStroke var(--cycle) var(--ease) infinite; animation-delay: 0.15s; }
+
+/* --- KEYFRAMES --- */
+@keyframes spinnerRotate {
+  0%   { transform: rotate(-90deg); }
+  100% { transform: rotate(270deg); }
+}
+
+@keyframes spinnerDash {
+  0% { stroke-dasharray: 0, 300; stroke-dashoffset: 0; opacity: 0; }
+  10% { opacity: 1; }
+  50% { stroke-dasharray: 200, 300; stroke-dashoffset: -20; }
+  100% { stroke-dasharray: 0, 300; stroke-dashoffset: -280; opacity: 0; }
+}
+
+@keyframes writeStroke {
+  0%  { stroke-dashoffset: var(--dash); opacity: 0; }
+  15% { opacity: 1; }
+  45% { stroke-dashoffset: 0; }
+  80% { stroke-dashoffset: 0; opacity: 1; }
+  100%{ stroke-dashoffset: 0; opacity: 0; }
+}
+
+@keyframes floatLogo {
+  0%   { transform: scale(0.95); opacity: 0.5; }
+  50%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.98); opacity: 0; }
+}
+
+.hide-loader { 
+  opacity: 0; 
+  pointer-events: none; 
+}
