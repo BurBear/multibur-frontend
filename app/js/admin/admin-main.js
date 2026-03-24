@@ -981,6 +981,8 @@ function printOrden(r, extra = null) {
   const material = `${r.papel_material || "-"}${r.gramaje ? ` (${r.gramaje}g)` : ""}`;
   const cantidad = r.cantidad_solicitada ?? "-";
   const demasia = r.demasia ?? "-";
+  const responsable = extra?.responsable_diseno || r.responsable_diseno || "-";
+  const cantidadConDemasia = demasia === "-" ? String(cantidad) : `${cantidad} + ${demasia}`;
   const obsAcabados = extra?.observaciones_generales || "-";
   const obsTecnica = r.observacion_tecnica || "-";
   const procesosAcabados = getProcesosAcabadosText(r);
@@ -1036,6 +1038,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 <div><span class="k">Documento fiscal</span><span class="v">${esc(`${cliDocTipo} ${cliDocNum}`)}</span></div>
 <div><span class="k">Estado</span><span class="v">${esc(r.estado || "-")}</span></div>
 <div><span class="k">Prioridad</span><span class="v">${esc(r.prioridad || "NORMAL")}</span></div>
+<div><span class="k">Responsable</span><span class="v">${esc(responsable)}</span></div>
 ${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}</span></div>` : ""}
 <div class="wide"><span class="k">Trabajo</span><span class="v">${esc(r.descripcion_trabajo || "-")}</span></div>
 </div></section>
@@ -1046,8 +1049,7 @@ ${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}
   <div><span class="k">Impresion / Color</span><span class="v">${esc(fmtTipoImpresion(r.tipo_impresion))} / ${esc(r.color_text || "-")}</span></div>
   ${showTrFields ? `<div><span class="k">Juegos de placa</span><span class="v">${esc(juegosLabel || "-")}</span></div>` : ""}
   ${showTrFields ? `<div class="wide"><span class="k">Nombres de juegos</span><span class="v">${esc(juegosNombres || "-")}</span></div>` : ""}
-  <div><span class="k">Cantidad</span><span class="v">${esc(cantidad)}</span></div>
-  <div><span class="k">Demasia</span><span class="v">${esc(demasia)}</span></div>
+  <div class="wide"><span class="k">Cantidad + demasia</span><span class="v">${esc(cantidadConDemasia)}</span></div>
   <div class="wide"><span class="k">Procesos acabados</span><span class="v">${esc(procesosAcabados)}</span></div>
   <div class="wide"><span class="k">Observacion tecnica (impresor)</span><span class="v">${esc(obsTecnica)}</span></div>
   <div class="wide"><span class="k">Observacion acabados</span><span class="v">${esc(obsAcabados)}</span></div>
