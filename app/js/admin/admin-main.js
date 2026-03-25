@@ -19,6 +19,7 @@ import {
   fetchMaquinas,
   fetchTrabajosAdminBoard,
   fetchUltimasIncidenciasByOrdenIds,
+  fetchUltimosEstadosProduccionByOrdenIds,
   fetchRegistros,
   fetchProfilesByIds,
   fetchMaquinasByIds,
@@ -851,6 +852,7 @@ async function confirmEntregaDesdeModal() {
 
 function renderAccion(r) {
   const e = estadoKey(r.estado);
+  const prodEstado = String(r.produccion_estado || "").trim().toUpperCase();
   if (e === "DISENO") {
     if (r.is_external) {
       return `<button class="btn btn-warn" type="button" data-action="set" data-oid="${r.orden_id}" data-to="ACABADOS" style="padding:8px 10px">Enviar a ACABADOS</button>`;
@@ -861,6 +863,9 @@ function renderAccion(r) {
     return `<span class="state-pill is-ready">Listo para operador</span>`;
   }
   if (e === "IMPRESION") {
+    if (prodEstado === "PAUSADO") {
+      return `<span class="state-pill is-paused">Pausado</span>`;
+    }
     return `<span class="state-pill is-printing">Imprimiendo</span>`;
   }
   if (e === "ACABADOS") {
@@ -1080,6 +1085,8 @@ async function loadJobs() {
   const metaMap = new Map((metas || []).map((m) => [Number(m.id), m]));
   const incidencias = await fetchUltimasIncidenciasByOrdenIds(orderIds).catch(() => []);
   const incidenciaMap = new Map((incidencias || []).map((i) => [Number(i.orden_id), i]));
+  const produccionEstados = await fetchUltimosEstadosProduccionByOrdenIds(orderIds).catch(() => []);
+  const produccionEstadoMap = new Map((produccionEstados || []).map((s) => [Number(s.orden_id), s]));
   const clienteTipos = await fetchClienteTiposByOrdenIds(orderIds).catch(() => []);
   const tipoClienteMap = new Map(
     (clienteTipos || []).map((o) => [Number(o.id), normalizeTipoCliente(o?.cliente?.tipo_cliente)])
@@ -1087,6 +1094,7 @@ async function loadJobs() {
   rows = (rows || []).map((r) => {
     const inc = incidenciaMap.get(Number(r.orden_id)) || null;
     const meta = metaMap.get(Number(r.orden_id)) || null;
+    const prod = produccionEstadoMap.get(Number(r.orden_id)) || null;
     const tipoCliente = normalizeTipoCliente(r?.cliente_tipo || tipoClienteMap.get(Number(r.orden_id)) || "");
     return {
       ...r,
@@ -1097,7 +1105,8 @@ async function loadJobs() {
       }),
       incidencia_motivo: inc?.motivo_incidencia || null,
       incidencia_obs: inc?.obs_incidencia || null,
-      incidencia_estado: inc?.estado_registro || null
+      incidencia_estado: inc?.estado_registro || null,
+      produccion_estado: prod?.estado_registro || null
     };
   });
   if (!estado) rows = rows.filter((r) => estadoKey(r.estado) !== estadoKey(ESTADO_ENTREGADO));

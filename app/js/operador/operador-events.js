@@ -8,14 +8,18 @@ export function bindOperadorEvents(deps) {
     setPendientesState,
     renderPendientesPage,
     startRegistro,
+    openPauseModal,
     openIncidentModal,
+    saveIncident,
     pauseRegistro,
-    resumeRegistro,
     stopRegistro,
     returnTrabajoAPlacas,
+    syncActionState,
+    onJuegoCaraChange,
     setTab,
     loadHoy,
     closeModal,
+    closePauseModal,
     closeIncidentModal,
     logout
   } = deps;
@@ -55,11 +59,15 @@ export function bindOperadorEvents(deps) {
   });
 
   el("btnStart")?.addEventListener("click", startRegistro);
+  el("btnPause")?.addEventListener("click", openPauseModal);
+  el("btnSavePause")?.addEventListener("click", pauseRegistro);
   el("btnOpenIncident")?.addEventListener("click", openIncidentModal);
-  el("btnPause")?.addEventListener("click", pauseRegistro);
-  el("btnResume")?.addEventListener("click", resumeRegistro);
+  el("btnSaveIncident")?.addEventListener("click", saveIncident);
   el("btnStop")?.addEventListener("click", stopRegistro);
   el("btnReturnPlacas")?.addEventListener("click", returnTrabajoAPlacas);
+  el("juegoCara")?.addEventListener("change", onJuegoCaraChange);
+  el("good")?.addEventListener("input", syncActionState);
+  el("bad")?.addEventListener("input", syncActionState);
 
   el("tabPend")?.addEventListener("click", () => setTab("pend"));
   el("tabHoy")?.addEventListener("click", async () => {
@@ -69,9 +77,13 @@ export function bindOperadorEvents(deps) {
   el("btnReloadHoy")?.addEventListener("click", loadHoy);
 
   el("btnModalClose")?.addEventListener("click", closeModal);
+  el("btnPauseClose")?.addEventListener("click", closePauseModal);
   el("btnIncidentClose")?.addEventListener("click", closeIncidentModal);
   el("modalWrap")?.addEventListener("click", (ev) => {
     if (ev.target && ev.target.id === "modalWrap") closeModal();
+  });
+  el("pauseWrap")?.addEventListener("click", (ev) => {
+    if (ev.target && ev.target.id === "pauseWrap") closePauseModal();
   });
   el("incidentWrap")?.addEventListener("click", (ev) => {
     if (ev.target && ev.target.id === "incidentWrap") closeIncidentModal();

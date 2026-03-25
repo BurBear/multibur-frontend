@@ -4,11 +4,12 @@ import { byId, setDisabledById, getValueById, setTextById } from "../utils/dom.j
 
 let audioUnlocked = false;
 const { showToast } = createToastController();
-const { msgL, msgR, msgHoy, msgInc } = createMessageSetters({
+const { msgL, msgR, msgHoy, msgInc, msgPause } = createMessageSetters({
   msgL: "msgLeft",
   msgR: "msgRight",
   msgHoy: "msgHoy",
-  msgInc: "incidentMsg"
+  msgInc: "incidentMsg",
+  msgPause: "pauseMsg"
 });
 
 export const el = byId;
@@ -49,4 +50,4 @@ export function playAlertBeep() {
   osc.onended = () => ctx.close().catch(() => {});
 }
 
-export { showToast, msgL, msgR, msgHoy, msgInc };
+export { showToast, msgL, msgR, msgHoy, msgInc, msgPause };

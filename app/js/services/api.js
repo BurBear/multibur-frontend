@@ -250,6 +250,25 @@ export async function fetchUltimasIncidenciasByOrdenIds(orderIds = []) {
   return Array.from(latest.values());
 }
 
+export async function fetchUltimosEstadosProduccionByOrdenIds(orderIds = []) {
+  if (!orderIds.length) return [];
+  const { data, error } = await supabase
+    .from("registro_produccion")
+    .select("id, orden_id, estado_registro, hora_inicio, hora_fin, pausado_en")
+    .in("orden_id", orderIds)
+    .in("estado_registro", ["ACTIVO", "PAUSADO", "DEVUELTO"])
+    .order("hora_fin", { ascending: false, nullsFirst: true })
+    .order("pausado_en", { ascending: false, nullsFirst: false })
+    .order("hora_inicio", { ascending: false });
+  if (error) throw error;
+
+  const latest = new Map();
+  for (const row of data || []) {
+    if (!latest.has(row.orden_id)) latest.set(row.orden_id, row);
+  }
+  return Array.from(latest.values());
+}
+
 export async function fetchProfilesByIds(ids = []) {
   if (!ids.length) return [];
   const { data, error } = await supabase.from("profiles").select("id,username,nombre_completo").in("id", ids);
@@ -443,8 +462,9 @@ export async function rpcIniciarTrabajo({ ordenId, maquinaId }) {
 export async function fetchMiRegistroActivo(userId) {
   const { data, error } = await supabase
     .from("registro_produccion")
-    .select("id, orden_id, maquina_id, hora_inicio, hora_fin, estado_registro, hora_pausa, motivo_incidencia, obs_incidencia, orden_juego_id, juego_num, cara_impresion, buena_reportada, mala_reportada")
+    .select("id, orden_id, maquina_id, hora_inicio, hora_fin, estado_registro, hora_pausa, pausado_en, motivo_incidencia, obs_incidencia, motivo_pausa, obs_pausa, orden_juego_id, juego_num, cara_impresion, buena_reportada, mala_reportada")
     .eq("user_id", userId)
+    .eq("estado_registro", "ACTIVO")
     .is("hora_fin", null)
     .order("hora_inicio", { ascending: false })
     .limit(1)
@@ -481,10 +501,43 @@ export async function fetchOrdenJuegosActivos(ordenId) {
     .from("registro_produccion")
     .select("juego_num,cara_impresion")
     .eq("orden_id", ordenId)
+    .eq("estado_registro", "ACTIVO")
     .is("hora_fin", null)
     .not("juego_num", "is", null);
   if (error) throw error;
   return data || [];
+}
+
+export async function fetchRegistrosPausadosDisponibles() {
+  const { data: pausados, error } = await supabase
+    .from("registro_produccion")
+    .select("id,orden_id,user_id,maquina_id,orden_juego_id,juego_num,cara_impresion,flujo_trabajo_id,motivo_pausa,obs_pausa,hora_inicio,pausado_en,hora_fin,estado_registro")
+    .eq("estado_registro", "PAUSADO")
+    .not("hora_fin", "is", null)
+    .order("pausado_en", { ascending: false, nullsLast: true })
+    .order("id", { ascending: false });
+
+  if (error) throw error;
+  const rows = pausados || [];
+  if (!rows.length) return [];
+
+  const pausedIds = rows.map((r) => Number(r.id)).filter(Boolean);
+  if (!pausedIds.length) return rows;
+
+  const { data: retomados, error: retError } = await supabase
+    .from("registro_produccion")
+    .select("retoma_de_registro_id")
+    .in("retoma_de_registro_id", pausedIds);
+
+  if (retError) throw retError;
+
+  const retomadosSet = new Set(
+    (retomados || [])
+      .map((r) => Number(r?.retoma_de_registro_id || 0))
+      .filter((n) => n > 0)
+  );
+
+  return rows.filter((r) => !retomadosSet.has(Number(r.id)));
 }
 
 export async function rpcIniciarTrabajoJuego({ ordenId, juegoNum, cara, maquinaId }) {
@@ -532,6 +585,25 @@ export async function rpcDevolverTrabajoAPlacas({ registroId, motivoIncidencia, 
 export async function rpcReanudarTrabajo({ registroId }) {
   const { data, error } = await supabase.rpc("reanudar_trabajo", {
     p_registro_id: registroId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcRetomarTrabajo({ registroId, maquinaId = null }) {
+  const { data, error } = await supabase.rpc("retomar_trabajo", {
+    p_registro_id: registroId,
+    p_maquina_id: maquinaId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcRegistrarIncidenciaProduccion({ registroId, motivo, observacion = null }) {
+  const { data, error } = await supabase.rpc("registrar_incidencia_produccion", {
+    p_registro_id: registroId,
+    p_motivo: motivo,
+    p_observacion: observacion
   });
   if (error) throw error;
   return Array.isArray(data) ? (data[0] || null) : (data || null);

@@ -13,13 +13,14 @@ import {
   msgR,
   msgHoy,
   msgInc,
+  msgPause,
   unlockAudio,
   showToast,
   playAlertBeep
 } from "./operador-ui.js";
 import { bindOperadorRealtime } from "./operador-realtime.js";
 import { bindOperadorEvents } from "./operador-events.js";
-import { isPausedRegistro, getIncidenciaPayload, clearIncidenciaFields } from "./operador-actions.js";
+import { isPausedRegistro, getIncidenciaPayload, getPausaPayload, clearIncidenciaFields, clearPauseFields } from "./operador-actions.js";
 import { syncStatusBanner } from "./operador-render.js";
 import { filterTrabajosByQuery } from "./operador-trabajos.js";
 import { buildKpiSnapshot } from "./operador-registros.js";
@@ -27,10 +28,12 @@ import {
   fetchMaquinas,
   fetchTrabajosAdminBoard,
   fetchMiRegistroActivo,
+  fetchRegistrosPausadosDisponibles,
   rpcIniciarTrabajo,
   rpcIniciarTrabajoJuego,
   rpcPausarTrabajo,
-  rpcReanudarTrabajo,
+  rpcRetomarTrabajo,
+  rpcRegistrarIncidenciaProduccion,
   rpcDevolverTrabajoAPlacas,
   rpcFinalizarTrabajo,
   rpcFinalizarTrabajoJuego,
@@ -62,6 +65,12 @@ let maquinasMap = new Map();
 let lastAlertedOrderIds = new Set();
 let selectedOrderRequiresJuegos = false;
 let selectedOrderJuegos = [];
+let pausedRegistrosDisponibles = [];
+let pausedRegistrosByOrden = new Map();
+let selectedOrderPausedRegistros = [];
+let startActionBusy = false;
+let stopActionBusy = false;
+let finalizeValidationRequested = false;
 
 /* =========================
    MODAL
@@ -77,9 +86,32 @@ function closeModal() {
   if (!w) return;
   w.classList.add("hide");
   w.setAttribute("aria-hidden", "true");
+  closePauseModal();
   closeIncidentModal();
 }
+function openPauseModal() {
+  if (!activeRegistro) {
+    msgR("Solo puedes pausar cuando tienes un trabajo activo.");
+    return;
+  }
+  const w = el("pauseWrap");
+  if (!w) return;
+  clearPauseFields(el);
+  w.classList.remove("hide");
+  w.setAttribute("aria-hidden", "false");
+  msgPause("");
+}
+function closePauseModal() {
+  const w = el("pauseWrap");
+  if (!w) return;
+  w.classList.add("hide");
+  w.setAttribute("aria-hidden", "true");
+}
 function openIncidentModal() {
+  if (!activeRegistro) {
+    msgR("Solo puedes registrar incidencia cuando tienes un trabajo activo.");
+    return;
+  }
   const w = el("incidentWrap");
   if (!w) return;
   w.classList.remove("hide");
@@ -114,6 +146,12 @@ function buildJuegoCaraLabel(item) {
   return nombreBase;
 }
 
+function buildJuegoCaraKey(juegoNum, cara) {
+  const juego = Number(juegoNum || 0);
+  const caraNorm = String(cara || "").trim().toUpperCase();
+  return `${juego}|${caraNorm}`;
+}
+
 function parseJuegoCaraValue(v) {
   const raw = String(v || "");
   const [juegoPart, caraPart] = raw.split("|");
@@ -139,21 +177,136 @@ function isTipoImpresionTR(value) {
 }
 
 function isVisibleForOperador(row) {
+  if (Array.isArray(row?.paused_registros) && row.paused_registros.length > 0) return true;
   const estado = String(row?.estado || "").trim().toUpperCase();
   if (estado === "PLACAS") return true;
   if (estado !== "IMPRESION") return false;
   return !!row?.requiere_juegos_placa && isTipoImpresionTR(row?.tipo_impresion);
 }
 
-async function syncJuegoCaraUI({ ordenId, requiereJuegos }) {
+function enrichTrabajosWithPausados(rows, pausedRows) {
+  pausedRegistrosDisponibles = pausedRows || [];
+  pausedRegistrosByOrden = new Map();
+
+  for (const paused of pausedRegistrosDisponibles) {
+    const ordenId = Number(paused?.orden_id || 0);
+    if (!ordenId) continue;
+    if (!pausedRegistrosByOrden.has(ordenId)) pausedRegistrosByOrden.set(ordenId, []);
+    pausedRegistrosByOrden.get(ordenId).push(paused);
+  }
+
+  return (rows || []).map((row) => {
+    const pausedForOrder = pausedRegistrosByOrden.get(Number(row?.orden_id || 0)) || [];
+    return {
+      ...row,
+      paused_registros: pausedForOrder,
+      tiene_pausado_retomable: pausedForOrder.length > 0
+    };
+  });
+}
+
+function getSelectedPausedRegistro() {
+  if (activeRegistro || !selectedOrderPausedRegistros.length) return null;
+  if (!selectedOrderRequiresJuegos) return selectedOrderPausedRegistros[0] || null;
+
+  const juegoCara = parseJuegoCaraValue(getValue("juegoCara"));
+  if (!juegoCara) return null;
+  return selectedOrderPausedRegistros.find((registro) =>
+    buildJuegoCaraKey(registro?.juego_num, registro?.cara_impresion) === buildJuegoCaraKey(juegoCara.juegoNum, juegoCara.cara)
+  ) || null;
+}
+
+function hasFinalizeQuantitiesReady() {
+  if (!activeRegistro) return false;
+  const buenaRaw = String(getValue("good") || "").trim();
+  const malaRaw = String(getValue("bad") || "").trim();
+  if (buenaRaw === "" || malaRaw === "") return false;
+  const buena = Number(buenaRaw);
+  const mala = Number(malaRaw);
+  return !Number.isNaN(buena) && buena >= 0 && !Number.isNaN(mala) && mala >= 0;
+}
+
+function syncFinalizeValidationUI() {
+  const goodEl = el("good");
+  const badEl = el("bad");
+  const msgEl = el("qtyValidationMsg");
+  const hasActive = !!activeRegistro;
+
+  const buenaRaw = String(getValue("good") || "").trim();
+  const malaRaw = String(getValue("bad") || "").trim();
+  const buena = buenaRaw === "" ? null : Number(buenaRaw);
+  const mala = malaRaw === "" ? null : Number(malaRaw);
+
+  const goodInvalid = hasActive && finalizeValidationRequested && (buenaRaw === "" || Number.isNaN(buena) || buena < 0);
+  const badInvalid = hasActive && finalizeValidationRequested && (malaRaw === "" || Number.isNaN(mala) || mala < 0);
+
+  if (goodEl) goodEl.classList.toggle("field-invalid", goodInvalid);
+  if (badEl) badEl.classList.toggle("field-invalid", badInvalid);
+
+  if (!msgEl) return;
+  if (hasActive && finalizeValidationRequested && (goodInvalid || badInvalid)) {
+    msgEl.textContent = "Necesitas llenar Cantidad buena y Cantidad mala para poder finalizar.";
+    msgEl.classList.remove("hide");
+  } else {
+    msgEl.textContent = "";
+    msgEl.classList.add("hide");
+  }
+}
+
+function syncActionState() {
+  const hasActive = !!activeRegistro;
+  const pausedSelected = getSelectedPausedRegistro();
+  const hasSelection = !!selectedOrderId;
+  const hasJuegoSelection = !selectedOrderRequiresJuegos || !!parseJuegoCaraValue(getValue("juegoCara"));
+  const btnStart = el("btnStart");
+  const btnStop = el("btnStop");
+  const showResumeOnly = !hasActive && !!pausedSelected;
+
+  if (btnStart) btnStart.textContent = startActionBusy ? "PROCESANDO..." : (pausedSelected ? "RETOMAR" : "INICIAR");
+  if (btnStop) btnStop.textContent = stopActionBusy ? "FINALIZANDO..." : "FINALIZAR";
+  if (btnStart) btnStart.classList.toggle("hide", hasActive);
+  if (btnStart) btnStart.classList.toggle("btn-row-fill", showResumeOnly);
+  if (btnStop) btnStop.classList.toggle("hide", showResumeOnly);
+  if (btnStop) btnStop.classList.toggle("btn-row-fill", hasActive);
+
+  setDisabled("btnStart", startActionBusy || hasActive || !hasSelection || !hasJuegoSelection);
+  setDisabled("btnOpenIncident", !hasActive);
+  setDisabled("btnSaveIncident", !hasActive);
+  setDisabled("btnPause", !hasActive);
+  setDisabled("btnStop", !hasActive || stopActionBusy);
+  setDisabled("btnReturnPlacas", !hasActive);
+
+  setDisabled("juegoCara", !!activeRegistro);
+  setDisabled("good", !hasActive);
+  setDisabled("bad", !hasActive);
+  setDisabled("obs", !hasActive);
+  setDisabled("pauseMotivo", !hasActive);
+  setDisabled("pauseObs", !hasActive);
+  setDisabled("btnSavePause", !hasActive);
+  setDisabled("incMotivo", !hasActive);
+  setDisabled("incObs", !hasActive);
+
+  syncStatusBanner({
+    el,
+    activeRegistro,
+    isPausedRegistro,
+    esc,
+    selectedPausedRegistro: pausedSelected
+  });
+  syncFinalizeValidationUI();
+}
+
+async function syncJuegoCaraUI({ ordenId, requiereJuegos, pausedRegistros = [] }) {
   const wrap = el("juegoCaraWrap");
   const sel = el("juegoCara");
   selectedOrderRequiresJuegos = !!requiereJuegos;
   selectedOrderJuegos = [];
+  selectedOrderPausedRegistros = pausedRegistros || [];
 
   if (!wrap || !sel || !ordenId || !selectedOrderRequiresJuegos) {
     if (wrap) wrap.classList.add("hide");
     if (sel) sel.innerHTML = "";
+    syncActionState();
     return;
   }
 
@@ -165,6 +318,11 @@ async function syncJuegoCaraUI({ ordenId, requiereJuegos }) {
     (juegosActivos || [])
       .map((x) => Number(x?.juego_num || 0))
       .filter((n) => n > 0)
+  );
+  const pausedByKey = new Map(
+    (selectedOrderPausedRegistros || [])
+      .filter((registro) => Number(registro?.juego_num || 0) > 0 && String(registro?.cara_impresion || "").trim())
+      .map((registro) => [buildJuegoCaraKey(registro?.juego_num, registro?.cara_impresion), registro])
   );
   const juegosOrdenados = (juegos || []).slice().sort((a, b) => {
     const jDiff = Number(a?.juego_num || 0) - Number(b?.juego_num || 0);
@@ -187,18 +345,28 @@ async function syncJuegoCaraUI({ ordenId, requiereJuegos }) {
     const value = `${j.juego_num}|${j.cara}`;
     const estado = normalizeJuegoEstado(j?.estado);
     const juegoNum = Number(j?.juego_num || 0);
+    const paused = pausedByKey.get(buildJuegoCaraKey(j?.juego_num, j?.cara));
     const bloqueado = estado === "EN_PROCESO"
       || juegosBloqueadosPorRegActivos.has(juegoNum)
       || juegosBloqueadosPorEstado.has(juegoNum);
     const baseLabel = buildJuegoCaraLabel(j);
-    const label = bloqueado ? `${baseLabel} [BLOQUEADO]` : baseLabel;
+    const label = bloqueado
+      ? `${baseLabel} [BLOQUEADO]`
+      : (paused ? `${baseLabel} [PAUSADO]` : baseLabel);
     return `<option value="${esc(value)}" ${bloqueado ? "disabled" : ""}>${esc(label)}</option>`;
   }).join("");
 
   sel.innerHTML = opciones || `<option value="">Sin juegos disponibles</option>`;
-  const primeraDisponible = selectedOrderJuegos.find((j) => normalizeJuegoEstado(j?.estado) !== "EN_PROCESO");
+  const primeraDisponible = selectedOrderJuegos.find((j) => {
+    const estado = normalizeJuegoEstado(j?.estado);
+    const juegoNum = Number(j?.juego_num || 0);
+    return estado !== "EN_PROCESO"
+      && !juegosBloqueadosPorRegActivos.has(juegoNum)
+      && !juegosBloqueadosPorEstado.has(juegoNum);
+  });
   sel.value = primeraDisponible ? `${primeraDisponible.juego_num}|${primeraDisponible.cara}` : "";
   wrap.classList.remove("hide");
+  syncActionState();
 }
 
 function setModalDetails(row) {
@@ -241,9 +409,10 @@ function setModalDetails(row) {
 }
 
 async function loadModalDetails(row) {
+  selectedOrderPausedRegistros = row?.paused_registros || [];
   if (!row?.orden_id) {
     setModalDetails(row);
-    await syncJuegoCaraUI({ ordenId: null, requiereJuegos: false });
+    await syncJuegoCaraUI({ ordenId: null, requiereJuegos: false, pausedRegistros: [] });
     return;
   }
 
@@ -272,11 +441,12 @@ async function loadModalDetails(row) {
     });
     await syncJuegoCaraUI({
       ordenId: Number((row?.orden_id ?? ord?.id) || 0),
-      requiereJuegos: !!det?.requiere_juegos_placa
+      requiereJuegos: !!det?.requiere_juegos_placa,
+      pausedRegistros: selectedOrderPausedRegistros
     });
   } catch {
     setModalDetails(row);
-    await syncJuegoCaraUI({ ordenId: null, requiereJuegos: false });
+    await syncJuegoCaraUI({ ordenId: null, requiereJuegos: false, pausedRegistros: [] });
   }
 }
 
@@ -291,21 +461,7 @@ function setKPIs() {
   setVal("kMaq", kpi.maquina);
   setVal("kIni", kpi.inicio);
 
-  setDisabled("btnStart", !!activeRegistro);
-  setDisabled("btnPause", !activeRegistro || isPausedRegistro(activeRegistro));
-  setDisabled("btnResume", !activeRegistro || !isPausedRegistro(activeRegistro));
-  setDisabled("btnStop", !activeRegistro || isPausedRegistro(activeRegistro));
-  setDisabled("btnReturnPlacas", !activeRegistro);
-
-  // Si hay un trabajo activo, no se permite cambiar juego/cara hasta finalizar/devolver.
-  setDisabled("juegoCara", !!activeRegistro);
-
-  setDisabled("good", !activeRegistro);
-  setDisabled("bad", !activeRegistro);
-  setDisabled("obs", !activeRegistro);
-  setDisabled("incMotivo", !activeRegistro);
-  setDisabled("incObs", !activeRegistro);
-  syncStatusBanner({ el, activeRegistro, isPausedRegistro, esc });
+  syncActionState();
 }
 
 /* =========================
@@ -329,6 +485,9 @@ function renderPendientes(rows) {
   tb.innerHTML = (rows || []).map(r => {
     const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
     const entrega = r.fecha_entrega ? fmtDatePE(r.fecha_entrega) : "-";
+    const pausedBadge = r.tiene_pausado_retomable
+      ? `<span class="badge" style="margin-left:6px; border-color: rgba(251,191,36,.45); color:#fde68a;">PAUSADO</span>`
+      : "";
 
     const title = `title="Ver detalle y acciones"`;
 
@@ -339,6 +498,7 @@ function renderPendientes(rows) {
           <div class="muted">
             ${esc(r.estado)} - 
             <span class="${r.prioridad === 'URGENTE' ? 'badge is-urgente' : ''}" style="${r.prioridad === 'URGENTE' ? 'color: #ef4444; font-weight: bold;' : ''}">${esc(r.prioridad)}</span>
+            ${pausedBadge}
           </div>
         </td>
         <td>${entrega}</td>
@@ -367,6 +527,9 @@ function renderPendientes(rows) {
 
       await loadModalDetails(selectedRow);
       openModal();
+      syncActionState();
+      setVal("selEstado", getSelectedPausedRegistro() ? "PAUSADO" : (selectedOrderEstado || "-"));
+      if (selectedOrderRequiresJuegos) onJuegoCaraChange();
 
       if (activeRegistro) {
         msgR(`AVISO: Ya tienes un registro activo (Orden ${activeRegistro.orden_id}). Finalizalo primero.`);
@@ -374,17 +537,31 @@ function renderPendientes(rows) {
       }
 
       const est = String(selectedOrderEstado || "").toUpperCase();
+      const pausedAvailable = (selectedRow?.paused_registros || []).length > 0;
       const canStart = selectedOrderRequiresJuegos
-        ? (est === "PLACAS" || est === "IMPRESION")
-        : est === "PLACAS";
+        ? (est === "PLACAS" || est === "IMPRESION" || pausedAvailable)
+        : (est === "PLACAS" || pausedAvailable);
       if (!canStart) {
         msgR(selectedOrderRequiresJuegos
           ? "AVISO: Trabajo seleccionado, pero no puedes iniciar todavia.\nPara T+R solo se permite iniciar en PLACAS o IMPRESION."
           : "AVISO: Trabajo seleccionado, pero no puedes iniciar todavia.\nSolo se puede INICIAR cuando el estado es PLACAS.");
       } else {
-        msgR(selectedOrderRequiresJuegos
-          ? "OK Trabajo seleccionado.\nElige maquina, Juego/Cara y luego INICIAR."
-          : "OK Trabajo seleccionado (PLACAS). Elige maquina y presiona INICIAR.");
+        const pausedSelected = getSelectedPausedRegistro();
+        if (pausedSelected) {
+            msgR(
+              "OK Trabajo pausado.\n" +
+              "Selecciona maquina y presiona RETOMAR."
+            );
+        } else if (selectedOrderRequiresJuegos && pausedAvailable) {
+          msgR(
+            "OK Trabajo seleccionado.\n" +
+            "Hay juegos/caras pausados y otros disponibles. Elige Juego/Cara y luego INICIAR o RETOMAR."
+          );
+        } else {
+          msgR(selectedOrderRequiresJuegos
+            ? "OK Trabajo seleccionado.\nElige maquina, Juego/Cara y luego INICIAR."
+            : "OK Trabajo seleccionado (PLACAS). Elige maquina y presiona INICIAR.");
+        }
       }
     });
   });
@@ -413,7 +590,11 @@ async function loadTrabajos() {
   msgL("");
 
   const q = getValue("q");
-  const allRows = await fetchTrabajosAdminBoard({});
+  const [boardRows, pausedRows] = await Promise.all([
+    fetchTrabajosAdminBoard({}),
+    fetchRegistrosPausadosDisponibles().catch(() => [])
+  ]);
+  const allRows = enrichTrabajosWithPausados(boardRows || [], pausedRows || []);
   const rows = filterTrabajosByQuery(
     (allRows || []).filter((r) => isVisibleForOperador(r)),
     q
@@ -435,15 +616,7 @@ async function loadActiveRegistro() {
     setVal("selEstado", activeRegistro.estado_registro || "ACTIVO");
 
     openModal();
-    if (isPausedRegistro(activeRegistro)) {
-      msgR(
-        "INFO: Tienes un trabajo pausado.\n" +
-        `Motivo: ${activeRegistro.motivo_incidencia || "-"}\n` +
-        "Puedes finalizarlo si ya resolviste el problema o devolverlo a PLACAS."
-      );
-    } else {
-      msgR("INFO: Tienes un trabajo activo. Registra cantidades, pausa si hay incidencia o presiona FINALIZAR.");
-    }
+    msgR("INFO: Tienes un trabajo activo. Registra cantidades, pausalo si quieres cambiar de trabajo o finalizalo cuando termines.");
   }
 }
 
@@ -499,23 +672,11 @@ async function resumeIfActive() {
     sel.value = String(activeRegistro.maquina_id);
   }
 
-  if (isPausedRegistro(activeRegistro)) {
-    const inc = el("incMotivo");
-    const obs = el("incObs");
-    if (inc) inc.value = activeRegistro.motivo_incidencia || "";
-    if (obs) obs.value = activeRegistro.obs_incidencia || "";
-    msgR(
-      "INFO: Se detecto un trabajo pausado.\n" +
-      `Orden: ${activeRegistro.orden_id}\n` +
-      "Puedes registrar la resolucion y finalizar, o devolverlo a PLACAS."
-    );
-  } else {
-    msgR(
-      "INFO: Se detecto un trabajo activo.\n" +
-      `Orden: ${activeRegistro.orden_id}\n` +
-      "Puedes continuar la impresion, pausar por incidencia o finalizar."
-    );
-  }
+  msgR(
+    "INFO: Se detecto un trabajo activo.\n" +
+    `Orden: ${activeRegistro.orden_id}\n` +
+    "Puedes continuar la impresion, pausar para dejarlo retomable o finalizar."
+  );
 
   setKPIs();
 }
@@ -525,6 +686,8 @@ async function resumeIfActive() {
 ========================= */
 async function startRegistro() {
   msgR("");
+
+  if (startActionBusy) return;
 
   await loadActiveRegistro();
   if (activeRegistro) {
@@ -537,11 +700,12 @@ async function startRegistro() {
     msgR("Selecciona un trabajo primero (boton 'Elegir').");
     return;
   }
+  const pausedSelected = getSelectedPausedRegistro();
   const estado = String(selectedOrderEstado || "").toUpperCase();
   const canStart = selectedOrderRequiresJuegos
-    ? (estado === "PLACAS" || estado === "IMPRESION")
-    : estado === "PLACAS";
-  if (!canStart) {
+    ? (estado === "PLACAS" || estado === "IMPRESION" || !!pausedSelected)
+    : (estado === "PLACAS" || !!pausedSelected);
+  if (!canStart && !pausedSelected) {
     msgR(selectedOrderRequiresJuegos
       ? "No se puede iniciar.\nPara T+R este trabajo debe estar en PLACAS o IMPRESION."
       : "No se puede iniciar.\nEste trabajo no esta en PLACAS.");
@@ -550,24 +714,32 @@ async function startRegistro() {
 
   const maquinaId = Number(getValue("maquina"));
   const juegoCaraSelected = parseJuegoCaraValue(getValue("juegoCara"));
-  if (selectedOrderRequiresJuegos && !juegoCaraSelected) {
-    msgR("Selecciona Juego y Cara antes de iniciar.");
-    return;
-  }
+    if (selectedOrderRequiresJuegos && !juegoCaraSelected) {
+      msgR("Selecciona Juego y Cara antes de iniciar.");
+      return;
+    }
 
-  try {
-    const res = selectedOrderRequiresJuegos
-      ? await rpcIniciarTrabajoJuego({
-        ordenId: selectedOrderId,
-        juegoNum: juegoCaraSelected?.juegoNum,
-        cara: juegoCaraSelected?.cara,
+    startActionBusy = true;
+    syncActionState();
+
+    try {
+      const res = pausedSelected
+        ? await rpcRetomarTrabajo({
+        registroId: pausedSelected.id,
         maquinaId
       })
-      : await rpcIniciarTrabajo({ ordenId: selectedOrderId, maquinaId });
+      : (selectedOrderRequiresJuegos
+        ? await rpcIniciarTrabajoJuego({
+          ordenId: selectedOrderId,
+          juegoNum: juegoCaraSelected?.juegoNum,
+          cara: juegoCaraSelected?.cara,
+          maquinaId
+        })
+        : await rpcIniciarTrabajo({ ordenId: selectedOrderId, maquinaId }));
 
-    activeRegistro = {
-      id: res?.registro_id || res?.id,
-      orden_id: selectedOrderId,
+      activeRegistro = {
+        id: res?.registro_id || res?.id,
+        orden_id: selectedOrderId,
       maquina_id: maquinaId,
       hora_inicio: new Date().toISOString(),
       hora_fin: null,
@@ -575,14 +747,15 @@ async function startRegistro() {
       orden_juego_id: res?.orden_juego_id || null,
       juego_num: juegoCaraSelected?.juegoNum || null,
       cara_impresion: juegoCaraSelected?.cara || null,
-      motivo_incidencia: null,
-      obs_incidencia: null
-    };
-    setKPIs();
-    clearIncidenciaFields(el);
+        motivo_incidencia: null,
+        obs_incidencia: null
+      };
+      finalizeValidationRequested = false;
+      setKPIs();
+      clearIncidenciaFields(el);
 
     msgR(
-      "OK Registro iniciado.\n" +
+      `${pausedSelected ? "OK Trabajo retomado.\n" : "OK Registro iniciado.\n"}` +
       `Registro ID: ${res?.registro_id ?? res?.id ?? "-"}\n` +
       `${activeRegistro?.juego_num && activeRegistro?.cara_impresion ? `Juego: ${activeRegistro.juego_num} ${activeRegistro.cara_impresion}\n` : ""}` +
       `Nuevo estado: ${res?.nuevo_estado ?? "IMPRESION"}`
@@ -594,90 +767,130 @@ async function startRegistro() {
     if (!activeRegistro?.id) {
       throw new Error("No se pudo confirmar el registro activo. Recarga e intenta nuevamente.");
     }
-    setKPIs();
-  } catch (e) {
-    msgR("Error al iniciar: " + (e?.message || e));
+      setKPIs();
+    } catch (e) {
+      msgR("Error al iniciar: " + (e?.message || e));
+    } finally {
+      startActionBusy = false;
+      syncActionState();
+    }
+
   }
 
-}
-
 async function pauseRegistro() {
+  msgR("");
+  msgPause("");
+
+  await loadActiveRegistro();
+  if (!activeRegistro) {
+    const text = "No tienes un registro activo para pausar.";
+    msgR(text);
+    msgPause(text);
+    return;
+  }
+  if (isPausedRegistro(activeRegistro)) {
+    const text = "Este trabajo ya esta pausado.";
+    msgR(text);
+    msgPause(text);
+    return;
+  }
+
+  const { motivo, observacion } = getPausaPayload(getValue);
+
+    try {
+      await rpcPausarTrabajo({
+        registroId: activeRegistro.id,
+        motivoIncidencia: motivo,
+        obsIncidencia: observacion
+      });
+
+      const pauseMessage = "Trabajo pausado. Quedo disponible para retomar.";
+      const g = el("good"); if (g) g.value = "";
+      const b = el("bad"); if (b) b.value = "";
+      const o = el("obs"); if (o) o.value = "";
+      activeRegistro = null;
+      finalizeValidationRequested = false;
+      selectedOrderId = null;
+      selectedOrderEstado = null;
+      selectedRow = null;
+      setVal("selJob", "Ninguno");
+      setVal("selEstado", "-");
+      msgR(
+        "OK Trabajo pausado.\n" +
+        `${motivo ? `Motivo de pausa: ${motivo}\n` : ""}` +
+        "Tu sesion fue cerrada y el trabajo quedo disponible para retomar."
+      );
+      msgPause("Trabajo pausado correctamente.");
+      msgL(pauseMessage);
+      clearPauseFields(el);
+      setKPIs();
+      await loadTrabajos();
+      await loadHoy();
+      closeModal();
+    } catch (e) {
+      const text = "Error al pausar: " + (e?.message || e);
+      msgR(text);
+      msgPause(text);
+    }
+  }
+
+async function saveIncident() {
   msgR("");
 
   await loadActiveRegistro();
   if (!activeRegistro) {
-    msgR("No tienes un registro activo para pausar.");
-    return;
-  }
-  if (isPausedRegistro(activeRegistro)) {
-    msgR("Este trabajo ya esta pausado.");
+    msgR("No tienes un registro activo para registrar incidencia.");
     return;
   }
 
   const { motivo, observacion } = getIncidenciaPayload(getValue);
   if (!motivo) {
-    msgR("Selecciona un motivo de incidencia antes de pausar.");
+    msgR("Selecciona un motivo antes de registrar la incidencia.");
     return;
   }
 
   try {
-    await rpcPausarTrabajo({
+    await rpcRegistrarIncidenciaProduccion({
       registroId: activeRegistro.id,
-      motivoIncidencia: motivo,
-      obsIncidencia: observacion
+      motivo,
+      observacion
     });
-
-    await loadActiveRegistro();
-    const obs = el("incObs");
-    if (obs) obs.value = activeRegistro?.obs_incidencia || observacion || "";
-    setVal("selEstado", activeRegistro?.estado_registro || "PAUSADO");
     msgR(
-      "OK Trabajo pausado.\n" +
+      "OK Incidencia registrada.\n" +
       `Motivo: ${motivo}\n` +
-      "Resuelve la incidencia y presiona REANUDAR para continuar, o devuelve a PLACAS."
+      "El trabajo sigue activo. Si necesitas dejarlo para despues, usa PAUSAR."
     );
-    msgInc("Trabajo pausado correctamente.");
-    closeIncidentModal();
+    msgInc("Incidencia registrada correctamente.");
+    clearIncidenciaFields(el);
   } catch (e) {
-    const text = "Error al pausar: " + (e?.message || e);
+    const text = "Error al registrar incidencia: " + (e?.message || e);
     msgR(text);
     msgInc(text);
   }
 }
 
-async function resumeRegistro() {
-  msgR("");
+function onJuegoCaraChange() {
+  syncActionState();
+  if (activeRegistro) return;
 
-  await loadActiveRegistro();
-  if (!activeRegistro) {
-    msgR("No tienes un registro pausado para reanudar.");
+  const juegoCara = parseJuegoCaraValue(getValue("juegoCara"));
+  setVal("selJob", formatSelJob(selectedOrderId, juegoCara?.juegoNum, juegoCara?.cara));
+  const pausedSelected = getSelectedPausedRegistro();
+  setVal("selEstado", pausedSelected ? "PAUSADO" : (selectedOrderEstado || "-"));
+  if (pausedSelected) {
+    msgR("Juego/Cara pausado. Selecciona maquina y presiona RETOMAR.");
     return;
   }
-  if (!isPausedRegistro(activeRegistro)) {
-    msgR("El trabajo actual no esta pausado.");
-    return;
-  }
 
-  try {
-    await rpcReanudarTrabajo({ registroId: activeRegistro.id });
-    await loadActiveRegistro();
-    setVal("selEstado", activeRegistro?.estado_registro || "ACTIVO");
-    msgR(
-      "OK Trabajo reanudado.\n" +
-      `Orden: ${activeRegistro?.orden_id ?? "-"}\n` +
-      "Puedes continuar la impresion y luego finalizar."
-    );
-    msgInc("Trabajo reanudado correctamente.");
-    closeIncidentModal();
-  } catch (e) {
-    const text = "Error al reanudar: " + (e?.message || e);
-    msgR(text);
-    msgInc(text);
+  if (selectedOrderRequiresJuegos) {
+    msgR("Juego/Cara listo. Selecciona maquina y presiona INICIAR.");
   }
 }
 
 async function stopRegistro() {
   msgR("");
+
+  if (stopActionBusy) return;
 
   await loadActiveRegistro();
   if (!activeRegistro) {
@@ -689,18 +902,33 @@ async function stopRegistro() {
     return;
   }
 
+  if (String(getValue("good") || "").trim() === "" || String(getValue("bad") || "").trim() === "") {
+    finalizeValidationRequested = true;
+    syncActionState();
+    msgR("Registra cantidad buena y cantidad mala antes de finalizar.");
+    return;
+  }
+
   const buena = getValue("good") === "" ? null : Number(getValue("good"));
   const mala = getValue("bad") === "" ? 0 : Number(getValue("bad"));
   const obs = (getValue("obs") || "").trim() || null;
 
   if (buena !== null && (Number.isNaN(buena) || buena < 0)) {
+    finalizeValidationRequested = true;
+    syncActionState();
     msgR("Cantidad buena invalida.");
     return;
   }
   if (Number.isNaN(mala) || mala < 0) {
+    finalizeValidationRequested = true;
+    syncActionState();
     msgR("Cantidad mala invalida.");
     return;
   }
+
+  finalizeValidationRequested = false;
+  stopActionBusy = true;
+  syncActionState();
 
   try {
     const finishedOrderId = Number(activeRegistro?.orden_id || selectedOrderId || 0);
@@ -728,10 +956,11 @@ async function stopRegistro() {
     const g = el("good"); if (g) g.value = "";
     const b = el("bad"); if (b) b.value = "";
     const o = el("obs"); if (o) o.value = "";
-    clearIncidenciaFields(el);
+      clearIncidenciaFields(el);
 
-    activeRegistro = null;
-    setKPIs();
+      activeRegistro = null;
+      finalizeValidationRequested = false;
+      setKPIs();
 
     await loadTrabajos();
     await loadHoy();
@@ -760,11 +989,14 @@ async function stopRegistro() {
       msgL("Orden finalizada: no hay juegos/caras disponibles.");
       return;
     }
-    openModal();
-  } catch (e) {
-    msgR("Error al finalizar: " + (e?.message || e));
+      openModal();
+    } catch (e) {
+      msgR("Error al finalizar: " + (e?.message || e));
+    } finally {
+      stopActionBusy = false;
+      syncActionState();
+    }
   }
-}
 
 async function returnTrabajoAPlacas() {
   msgR("");
@@ -791,10 +1023,11 @@ async function returnTrabajoAPlacas() {
     const g = el("good"); if (g) g.value = "";
     const b = el("bad"); if (b) b.value = "";
     const o = el("obs"); if (o) o.value = "";
-    clearIncidenciaFields(el);
+      clearIncidenciaFields(el);
 
-    activeRegistro = null;
-    selectedOrderId = null;
+      activeRegistro = null;
+      finalizeValidationRequested = false;
+      selectedOrderId = null;
     selectedOrderEstado = null;
     selectedRow = null;
     setVal("selJob", "Ninguno");
@@ -867,19 +1100,23 @@ function setTab(which) {
       pendientesPage = state.pendientesPage;
       pendientesPageSize = state.pendientesPageSize;
     },
-    renderPendientesPage,
-    startRegistro,
-    openIncidentModal,
-    pauseRegistro,
-    resumeRegistro,
-    stopRegistro,
-    returnTrabajoAPlacas,
-    setTab,
-    loadHoy,
-    closeModal,
-    closeIncidentModal,
-    logout
-  });
+      renderPendientesPage,
+      startRegistro,
+      openPauseModal,
+      openIncidentModal,
+      saveIncident,
+      pauseRegistro,
+      stopRegistro,
+      returnTrabajoAPlacas,
+      syncActionState,
+      onJuegoCaraChange,
+      setTab,
+      loadHoy,
+      closeModal,
+      closePauseModal,
+      closeIncidentModal,
+      logout
+    });
 
   await loadMaquinas();
   bindRealtime();
