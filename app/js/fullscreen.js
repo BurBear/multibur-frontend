@@ -19,6 +19,31 @@ function getFullscreenElement() {
   );
 }
 
+function ensureFullscreenShell() {
+  let shell = document.getElementById("appFullscreenShell");
+  if (shell) return shell;
+
+  const body = document.body;
+  if (!body) return document.documentElement;
+
+  shell = document.createElement("div");
+  shell.id = "appFullscreenShell";
+  shell.className = "fullscreen-shell";
+
+  const children = Array.from(body.children);
+  for (const child of children) {
+    if (child.id === "loader") continue;
+    if (child.tagName === "SCRIPT") continue;
+    shell.appendChild(child);
+  }
+
+  const firstScript = Array.from(body.children).find((node) => node.tagName === "SCRIPT") || null;
+  if (firstScript) body.insertBefore(shell, firstScript);
+  else body.appendChild(shell);
+
+  return shell;
+}
+
 function canUseFullscreen(target) {
   if (!target) return false;
 
@@ -85,14 +110,25 @@ async function exitFullscreen() {
   throw new Error("No se pudo salir de pantalla completa.");
 }
 
+export async function exitFullscreenIfActive() {
+  if (!getFullscreenElement()) return;
+  try {
+    await exitFullscreen();
+  } catch (error) {
+    console.error("FULLSCREEN_EXIT_ERROR", error);
+  }
+}
+
 export function initFullscreenToggle({
   containerSelector = ".top-right",
-  target = document.documentElement,
+  target = null,
   insertBeforeSelector = "#btnLogout",
   buttonId = "btnFullscreenToggle"
 } = {}) {
   const container = document.querySelector(containerSelector);
   if (!container) return null;
+
+  const fullscreenTarget = target || ensureFullscreenShell();
 
   const existing = document.getElementById(buttonId);
   if (existing) return existing;
@@ -113,8 +149,8 @@ export function initFullscreenToggle({
   else container.appendChild(btn);
 
   const updateUi = () => {
-    const supported = canUseFullscreen(target);
-    const active = !!getFullscreenElement();
+    const supported = canUseFullscreen(fullscreenTarget);
+    const active = getFullscreenElement() === fullscreenTarget;
 
     btn.disabled = !supported;
     btn.classList.toggle("is-active", active);
@@ -135,12 +171,12 @@ export function initFullscreenToggle({
   };
 
   btn.addEventListener("click", async () => {
-    if (!canUseFullscreen(target)) return;
+    if (!canUseFullscreen(fullscreenTarget)) return;
 
     btn.disabled = true;
     try {
-      if (getFullscreenElement()) await exitFullscreen();
-      else await requestFullscreen(target);
+      if (getFullscreenElement() === fullscreenTarget) await exitFullscreen();
+      else await requestFullscreen(fullscreenTarget);
     } catch (error) {
       console.error("FULLSCREEN_TOGGLE_ERROR", error);
     } finally {

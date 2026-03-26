@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { exitFullscreenIfActive } from "./fullscreen.js";
 import {
   getCurrentProfile,
   getRoleHome,
@@ -38,6 +39,7 @@ export async function goByRole(){
 }
 
 export async function logout(){
+  await exitFullscreenIfActive();
   await supabase.auth.signOut();
 }
 
