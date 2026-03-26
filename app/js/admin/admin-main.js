@@ -1,5 +1,6 @@
 import { requireAdmin, logout, getProfileDisplayName } from "../auth.js";
 import { $, setText, debounce } from "../ui.js";
+import { initFullscreenToggle } from "../fullscreen.js";
 import { normalizeText, escapeHtml, formatDbError, toNumOrNull, getClientColor, getClientBgColor } from "../utils/helpers.js";
 import { fmtDateTimePE } from "../utils/formatters.js";
 import { msgJobs, msgRegs, msgCreate, showToast } from "./admin-ui.js";
@@ -1587,6 +1588,7 @@ async function exportReporteEntregadosCsv() {
   const displayName = rawName && !rawName.includes("@")
     ? rawName
     : (prof?.rol === "ADMIN" ? "Administrador" : "Usuario");
+  initFullscreenToggle();
   currentAdminResponsable = displayName || "Administrador";
   setText("userPill", `${displayName} | ${prof.rol}`);
   syncResponsableDisenoField();

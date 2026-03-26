@@ -1,6 +1,7 @@
 // app/js/operador.js
 import { requireOperador, logout, getProfileDisplayName } from "../auth.js";
 import { debounce } from "../ui.js";
+import { initFullscreenToggle } from "../fullscreen.js";
 import { supabase } from "../supabaseClient.js";
 import { escapeHtml, getClientColor, getClientBgColor } from "../utils/helpers.js";
 import { fmtDateTimePE, fmtTimePE } from "../utils/formatters.js";
@@ -1087,6 +1088,7 @@ function setTab(which) {
   const displayName = rawName && !rawName.includes("@")
     ? rawName
     : (session.prof?.rol === "ADMIN" ? "Administrador" : "Operador");
+  initFullscreenToggle();
   setVal("userPill", `${displayName} | ${session.prof.rol}`);
 
   bindOperadorEvents({

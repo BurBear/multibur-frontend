@@ -1,5 +1,6 @@
 import { requireAdmin, logout, getProfileDisplayName } from "./auth.js";
 import { fetchClientes, fetchReporteEntregados, fetchRegistros, fetchProfilesByIds, fetchMaquinasByIds, fetchOrdenesProduccionByIds, fetchOrdenJuegosByIds, fetchOrdenById } from "./api.js";
+import { initFullscreenToggle } from "./fullscreen.js";
 import { $, setText, debounce } from "./ui.js";
 import { escapeHtml } from "./utils/helpers.js";
 import { fmtEntrega, fmtDateTimePE } from "./utils/formatters.js";
@@ -593,6 +594,7 @@ async function loadRegistros() {
   const displayName = rawName && !rawName.includes("@")
     ? rawName
     : (prof?.rol === "ADMIN" ? "Administrador" : "Usuario");
+  initFullscreenToggle();
   setText("userPill", `${displayName} | ${prof.rol}`);
 
   $("btnLogout")?.addEventListener("click", async () => {
