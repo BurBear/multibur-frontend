@@ -54,16 +54,4 @@ export function bindOperadorEvents(deps) {
   el("btnModalClose")?.addEventListener("click", closeModal);
   el("btnPauseClose")?.addEventListener("click", closePauseModal);
   el("btnIncidentClose")?.addEventListener("click", closeIncidentModal);
-  el("modalWrap")?.addEventListener("click", (ev) => {
-    if (ev.target && ev.target.id === "modalWrap") closeModal();
-  });
-  el("pauseWrap")?.addEventListener("click", (ev) => {
-    if (ev.target && ev.target.id === "pauseWrap") closePauseModal();
-  });
-  el("incidentWrap")?.addEventListener("click", (ev) => {
-    if (ev.target && ev.target.id === "incidentWrap") closeIncidentModal();
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeModal();
-  });
 }
