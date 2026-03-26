@@ -60,8 +60,6 @@ let activeRegistro = null; // {id, orden_id, maquina_id, hora_inicio} o null
 
 let allPendientes = [];
 let filteredPendientes = [];
-let pendientesPage = 1;
-let pendientesPageSize = 20;
 let maquinasMap = new Map();
 let lastAlertedOrderIds = new Set();
 let selectedOrderRequiresJuegos = false;
@@ -570,23 +568,6 @@ function renderPendientes(rows) {
   msgL(`Cargados: ${(rows || []).length} trabajo(s).`);
 }
 
-function renderPendientesPage() {
-  const total = filteredPendientes.length;
-  const totalPages = Math.max(1, Math.ceil(total / pendientesPageSize));
-  pendientesPage = Math.min(pendientesPage, totalPages);
-  const start = (pendientesPage - 1) * pendientesPageSize;
-  const end = start + pendientesPageSize;
-  const pageRows = filteredPendientes.slice(start, end);
-  renderPendientes(pageRows);
-
-  const from = total ? start + 1 : 0;
-  const to = Math.min(end, total);
-  setVal("pendStats", `Mostrando ${from}-${to} de ${total}`);
-  setVal("pendPageInfo", `${pendientesPage} / ${totalPages}`);
-  setDisabled("btnPendPrev", pendientesPage <= 1);
-  setDisabled("btnPendNext", pendientesPage >= totalPages);
-}
-
 async function loadTrabajos() {
   msgL("");
 
@@ -603,8 +584,7 @@ async function loadTrabajos() {
 
   allPendientes = rows || [];
   filteredPendientes = allPendientes.slice();
-  pendientesPage = 1;
-  renderPendientesPage();
+  renderPendientes(filteredPendientes);
 }
 
 async function loadActiveRegistro() {
@@ -1096,29 +1076,22 @@ function setTab(which) {
     debounce,
     unlockAudio,
     loadTrabajos,
-    getPendientesState: () => ({ filteredPendientes, pendientesPage, pendientesPageSize }),
-    setPendientesState: (state) => {
-      filteredPendientes = state.filteredPendientes;
-      pendientesPage = state.pendientesPage;
-      pendientesPageSize = state.pendientesPageSize;
-    },
-      renderPendientesPage,
-      startRegistro,
-      openPauseModal,
-      openIncidentModal,
-      saveIncident,
-      pauseRegistro,
-      stopRegistro,
-      returnTrabajoAPlacas,
-      syncActionState,
-      onJuegoCaraChange,
-      setTab,
-      loadHoy,
-      closeModal,
-      closePauseModal,
-      closeIncidentModal,
-      logout
-    });
+    startRegistro,
+    openPauseModal,
+    openIncidentModal,
+    saveIncident,
+    pauseRegistro,
+    stopRegistro,
+    returnTrabajoAPlacas,
+    syncActionState,
+    onJuegoCaraChange,
+    setTab,
+    loadHoy,
+    closeModal,
+    closePauseModal,
+    closeIncidentModal,
+    logout
+  });
 
   await loadMaquinas();
   bindRealtime();

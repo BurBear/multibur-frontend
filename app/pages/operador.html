@@ -52,40 +52,16 @@
         <div class="card-head">
           <div>
             <div class="card-title">Panel del Operador</div>
-            <div class="card-subtitle">Solo se muestran trabajos listos para imprimir. La accion principal es iniciar
-              segun su estado operativo.</div>
           </div>
           <button id="btnReload" class="btn btn-ghost hide" type="button">Recargar</button>
         </div>
         <div class="card-body">
-          <div class="tabs">
-            <button id="tabPend" class="tab active" type="button">Trabajos por hacer</button>
-            <button id="tabHoy" class="tab" type="button">Lo que hice hoy</button>
-          </div>
-
           <!-- Pendientes -->
           <section id="secPend">
             <div class="section-label">Cola de impresion</div>
             <div class="quick-tools">
               <div class="search">
                 <input id="q" placeholder="Buscar: cliente, trabajo, nro orden..." />
-              </div>
-            </div>
-
-            <div class="pager">
-              <div class="pager-left">
-                <div id="pendStats" class="meta">Mostrando 0-0 de 0</div>
-              </div>
-              <div class="pager-right">
-                <label class="small" for="pendLimit">Mostrar</label>
-                <select id="pendLimit" class="inl-1">
-                  <option value="10">10</option>
-                  <option value="20" selected>20</option>
-                  <option value="50">50</option>
-                </select>
-                <button id="btnPendPrev" class="btn btn-ghost" type="button">Anterior</button>
-                <div id="pendPageInfo" class="meta">1 / 1</div>
-                <button id="btnPendNext" class="btn btn-ghost" type="button">Siguiente</button>
               </div>
             </div>
 
@@ -110,34 +86,6 @@
             </div>
 
             <div id="msgLeft" class="msg"></div>
-          </section>
-
-          <!-- Hoy -->
-          <section id="secHoy" class="hide">
-            <div class="section-label">Mi produccion de hoy</div>
-            <div class="row inl-2">
-              <button id="btnReloadHoy" class="btn btn-ghost hide" type="button">Actualizar hoy</button>
-            </div>
-
-            <div class="tableWrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Registro</th>
-                    <th>Orden</th>
-                    <th>Juego/Cara</th>
-                    <th>Maquina</th>
-                    <th>Inicio</th>
-                    <th>Fin</th>
-                    <th>Buena</th>
-                    <th>Mala</th>
-                  </tr>
-                </thead>
-                <tbody id="tbHoy"></tbody>
-              </table>
-            </div>
-
-            <div id="msgHoy" class="msg"></div>
           </section>
         </div>
       </div>

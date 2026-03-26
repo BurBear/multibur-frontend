@@ -4,9 +4,6 @@ export function bindOperadorEvents(deps) {
     debounce,
     unlockAudio,
     loadTrabajos,
-    getPendientesState,
-    setPendientesState,
-    renderPendientesPage,
     startRegistro,
     openPauseModal,
     openIncidentModal,
@@ -35,28 +32,6 @@ export function bindOperadorEvents(deps) {
 
   el("btnReload")?.addEventListener("click", loadTrabajos);
   el("q")?.addEventListener("input", debounce(loadTrabajos, 250));
-  el("pendLimit")?.addEventListener("change", () => {
-    const state = getPendientesState();
-    state.pendientesPageSize = Number(el("pendLimit")?.value || 20);
-    state.pendientesPage = 1;
-    setPendientesState(state);
-    renderPendientesPage();
-  });
-  el("btnPendPrev")?.addEventListener("click", () => {
-    const state = getPendientesState();
-    if (state.pendientesPage <= 1) return;
-    state.pendientesPage -= 1;
-    setPendientesState(state);
-    renderPendientesPage();
-  });
-  el("btnPendNext")?.addEventListener("click", () => {
-    const state = getPendientesState();
-    const totalPages = Math.max(1, Math.ceil(state.filteredPendientes.length / state.pendientesPageSize));
-    if (state.pendientesPage >= totalPages) return;
-    state.pendientesPage += 1;
-    setPendientesState(state);
-    renderPendientesPage();
-  });
 
   el("btnStart")?.addEventListener("click", startRegistro);
   el("btnPause")?.addEventListener("click", openPauseModal);
