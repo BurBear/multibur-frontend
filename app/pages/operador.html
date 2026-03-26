@@ -48,7 +48,6 @@
 
   <div class="wrap">
     <div class="grid">
-      <!-- IZQ -->
       <div class="card">
         <div class="card-head">
           <div>
@@ -59,14 +58,6 @@
           <button id="btnReload" class="btn btn-ghost hide" type="button">Recargar</button>
         </div>
         <div class="card-body">
-          <div class="hint-strip">
-            <div>
-              <div class="hint-label">Flujo permitido</div>
-              <div class="hint-strong">Normal: inicia en PLACAS. T+R: inicia en PLACAS o IMPRESION</div>
-            </div>
-            <span class="pill">PLACAS + IMPRESION (T+R)</span>
-          </div>
-
           <div class="tabs">
             <button id="tabPend" class="tab active" type="button">Trabajos por hacer</button>
             <button id="tabHoy" class="tab" type="button">Lo que hice hoy</button>
@@ -150,60 +141,14 @@
           </section>
         </div>
       </div>
-
-      <!-- DER: solo KPIs (el formulario va en modal) -->
-      <div class="card">
-        <div class="card-head">
-          <div>
-            <div class="card-title">Mi registro</div>
-            <div class="card-subtitle">Estado actual del operador y guia rapida de trabajo.</div>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="panel-stack">
-            <div class="kpi">
-              <div class="k">
-                <div class="t">Registro activo</div>
-                <div id="kAct" class="v">-</div>
-              </div>
-              <div class="k">
-                <div class="t">Orden</div>
-                <div id="kOrd" class="v">-</div>
-              </div>
-              <div class="k">
-                <div class="t">Maquina</div>
-                <div id="kMaq" class="v">-</div>
-              </div>
-              <div class="k">
-                <div class="t">Inicio</div>
-                <div id="kIni" class="v">-</div>
-              </div>
-            </div>
-
-            <div class="status-list">
-              <div class="status-card">
-                <div class="title">Paso 1</div>
-                <div class="value">Elegir trabajo</div>
-                <div class="desc">Selecciona una orden de la cola. El modal mostrara detalle completo antes de iniciar.
-                </div>
-              </div>
-              <div class="status-card">
-                <div class="title">Paso 2</div>
-                <div class="value">Iniciar o retomar</div>
-                <div class="desc">Puedes iniciar trabajo nuevo en PLACAS. Si una orden quedo pausada, vuelve a tomarla con RETOMAR.
-                </div>
-              </div>
-              <div class="status-card">
-                <div class="title">Paso 3</div>
-                <div class="value">Pausar, registrar o finalizar</div>
-                <div class="desc">Pausa si vas a cambiar de trabajo, registra incidencia si hubo problema real y finaliza con cantidades al terminar.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
+  </div>
+
+  <div class="operator-kpi-hidden" aria-hidden="true">
+    <span id="kAct">-</span>
+    <span id="kOrd">-</span>
+    <span id="kMaq">-</span>
+    <span id="kIni">-</span>
   </div>
 
   <!-- MODAL (Detalle + Acciones) -->
