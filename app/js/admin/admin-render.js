@@ -17,7 +17,8 @@ export function renderOverdueBadge(overdue) {
 
 export function renderIncidenciaBadge(incidencia) {
   if (!incidencia || !incidencia.estado_registro) return "";
-  if (incidencia.estado_registro === "PAUSADO" || incidencia.estado_registro === "DEVUELTO") {
+  const hasLegacyIncidencia = String(incidencia.motivo_incidencia || "").trim() || String(incidencia.obs_incidencia || "").trim();
+  if ((incidencia.estado_registro === "PAUSADO" || incidencia.estado_registro === "DEVUELTO") && hasLegacyIncidencia) {
     const title = `Motivo: ${incidencia.motivo_incidencia || "-"}\nObs: ${incidencia.obs_incidencia || "-"}`;
     return `<span class="prio-badge is-urgent" title="${escapeHtml(title)}" style="cursor:help">INCIDENCIA</span>`;
   }
