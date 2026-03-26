@@ -1,6 +1,11 @@
 /* Global shared styles */
 *{box-sizing:border-box;}
 
+.fullscreen-shell{
+  width:100%;
+  min-height:100vh;
+}
+
 .btn-fullscreen{
   display:inline-flex;
   align-items:center;
