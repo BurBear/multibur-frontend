@@ -1,2 +1,46 @@
 /* Global shared styles */
 *{box-sizing:border-box;}
+
+.btn-fullscreen{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:42px;
+  min-width:42px;
+  height:42px;
+  padding:0;
+}
+
+.fullscreen-icon{
+  display:inline-flex;
+  width:16px;
+  height:16px;
+  flex:0 0 16px;
+}
+
+.fullscreen-icon svg{
+  width:16px;
+  height:16px;
+  display:block;
+}
+
+.btn-fullscreen.is-active{
+  border-color:rgba(96,165,250,.7);
+  background:rgba(37,99,235,.16);
+}
+
+.btn-fullscreen.is-unsupported{
+  opacity:.6;
+}
+
+.is-fullscreen-mode .top{
+  position:sticky;
+  top:0;
+  z-index:40;
+}
+
+.is-fullscreen-mode .main,
+.is-fullscreen-mode .wrap{
+  max-width:none;
+  width:100%;
+}

@@ -1,5 +1,6 @@
 ﻿import { requireAdmin, logout, getProfileDisplayName } from "./auth.js";
 import { supabase } from "./supabaseClient.js";
+import { initFullscreenToggle } from "./fullscreen.js";
 import { $, setText } from "./ui.js";
 import { escapeHtml, normalizeText } from "./utils/helpers.js";
 
@@ -625,6 +626,7 @@ function applyTabView() {
   const displayName = rawName && !rawName.includes("@")
     ? rawName
     : (prof?.rol === "ADMIN" ? "Administrador" : "Usuario");
+  initFullscreenToggle();
   setText("userPill", `${displayName} | ${prof.rol}`);
   applyTabView();
 
