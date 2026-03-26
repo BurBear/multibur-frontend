@@ -545,22 +545,7 @@ function renderPendientes(rows) {
           ? "AVISO: Trabajo seleccionado, pero no puedes iniciar todavia.\nPara T+R solo se permite iniciar en PLACAS o IMPRESION."
           : "AVISO: Trabajo seleccionado, pero no puedes iniciar todavia.\nSolo se puede INICIAR cuando el estado es PLACAS.");
       } else {
-        const pausedSelected = getSelectedPausedRegistro();
-        if (pausedSelected) {
-            msgR(
-              "OK Trabajo pausado.\n" +
-              "Selecciona maquina y presiona RETOMAR."
-            );
-        } else if (selectedOrderRequiresJuegos && pausedAvailable) {
-          msgR(
-            "OK Trabajo seleccionado.\n" +
-            "Hay juegos/caras pausados y otros disponibles. Elige Juego/Cara y luego INICIAR o RETOMAR."
-          );
-        } else {
-          msgR(selectedOrderRequiresJuegos
-            ? "OK Trabajo seleccionado.\nElige maquina, Juego/Cara y luego INICIAR."
-            : "OK Trabajo seleccionado (PLACAS). Elige maquina y presiona INICIAR.");
-        }
+        msgR("");
       }
     });
   });
@@ -597,7 +582,7 @@ async function loadActiveRegistro() {
     setVal("selEstado", activeRegistro.estado_registro || "ACTIVO");
 
     openModal();
-    msgR("INFO: Tienes un trabajo activo. Registra cantidades, pausalo si quieres cambiar de trabajo o finalizalo cuando termines.");
+    msgR("");
   }
 }
 
@@ -653,11 +638,7 @@ async function resumeIfActive() {
     sel.value = String(activeRegistro.maquina_id);
   }
 
-  msgR(
-    "INFO: Se detecto un trabajo activo.\n" +
-    `Orden: ${activeRegistro.orden_id}\n` +
-    "Puedes continuar la impresion, pausar para dejarlo retomable o finalizar."
-  );
+  msgR("");
 
   setKPIs();
 }
@@ -735,12 +716,7 @@ async function startRegistro() {
       setKPIs();
       clearIncidenciaFields(el);
 
-    msgR(
-      `${pausedSelected ? "OK Trabajo retomado.\n" : "OK Registro iniciado.\n"}` +
-      `Registro ID: ${res?.registro_id ?? res?.id ?? "-"}\n` +
-      `${activeRegistro?.juego_num && activeRegistro?.cara_impresion ? `Juego: ${activeRegistro.juego_num} ${activeRegistro.cara_impresion}\n` : ""}` +
-      `Nuevo estado: ${res?.nuevo_estado ?? "IMPRESION"}`
-    );
+    msgR("");
 
     await loadTrabajos();
     await loadHoy();
@@ -858,14 +834,7 @@ function onJuegoCaraChange() {
   setVal("selJob", formatSelJob(selectedOrderId, juegoCara?.juegoNum, juegoCara?.cara));
   const pausedSelected = getSelectedPausedRegistro();
   setVal("selEstado", pausedSelected ? "PAUSADO" : (selectedOrderEstado || "-"));
-  if (pausedSelected) {
-    msgR("Juego/Cara pausado. Selecciona maquina y presiona RETOMAR.");
-    return;
-  }
-
-  if (selectedOrderRequiresJuegos) {
-    msgR("Juego/Cara listo. Selecciona maquina y presiona INICIAR.");
-  }
+  msgR("");
 }
 
 async function stopRegistro() {

@@ -164,14 +164,8 @@
               </div>
             </div>
 
-            <div id="statusBanner" class="status-banner">
-              <strong>Trabajo listo para iniciar</strong>
-              Completa la maquina y luego inicia. Si surge una incidencia, registrala antes de pausar o devolver.
-            </div>
-
-            <div class="small muted inl-7">
-              <div><b>Seleccionada:</b> <span id="selJob" class="badge">Ninguno</span></div>
-              <div class="inl-3"><b>Estado:</b> <span id="selEstado">-</span></div>
+            <div id="statusBanner" class="status-banner status-banner-compact">
+              <strong>TRABAJO LISTO</strong>
             </div>
 
             <div class="inl-4">
@@ -203,6 +197,8 @@
               <div id="qtyValidationMsg" class="field-msg field-msg-danger hide"></div>
 
             <div class="operator-hidden-field" aria-hidden="true">
+              <span id="selJob">Ninguno</span>
+              <span id="selEstado">-</span>
               <textarea id="obs"></textarea>
             </div>
 

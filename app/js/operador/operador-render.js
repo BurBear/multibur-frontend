@@ -3,12 +3,21 @@ export function syncStatusBanner({ el, activeRegistro, isPausedRegistro, esc, se
   const incBanner = el("incidentBanner");
   if (!banner) return;
 
+  const jobLabel = String(el("selJob")?.textContent || "").trim();
+  const estadoLabel = String(el("selEstado")?.textContent || "").trim();
+  const hasSelection = !!jobLabel && jobLabel !== "Ninguno";
+  const chips = [];
+  if (hasSelection) chips.push(`<span class="status-pill">${esc(jobLabel)}</span>`);
+  if (estadoLabel && estadoLabel !== "-") chips.push(`<span class="status-pill">${esc(estadoLabel)}</span>`);
+  const chipsHtml = chips.length ? `<div class="status-summary">${chips.join("")}</div>` : "";
+
+  banner.classList.add("status-banner-compact");
+  banner.classList.remove("is-ready", "is-live", "is-idle");
   banner.classList.toggle("is-paused", !!activeRegistro && isPausedRegistro(activeRegistro));
   if (incBanner) incBanner.classList.toggle("is-paused", !!activeRegistro && isPausedRegistro(activeRegistro));
 
   if (!activeRegistro && selectedPausedRegistro) {
-    const motivo = selectedPausedRegistro?.motivo_pausa || "-";
-    banner.innerHTML = `<strong>Trabajo pausado disponible</strong>Este trabajo ya fue pausado y puede retomarse. Motivo de pausa: ${esc(motivo)}. Selecciona maquina y usa <b>RETOMAR</b>.`;
+    banner.innerHTML = `<strong>TRABAJO PAUSADO</strong>${chipsHtml}`;
     if (incBanner) {
       incBanner.innerHTML = "<strong>Pausa operativa e incidencia</strong>Si solo cambiaras de trabajo, puedes pausar sin llenar campos. Si hubo un problema real, registralo por separado antes o durante la pausa.";
     }
@@ -16,18 +25,21 @@ export function syncStatusBanner({ el, activeRegistro, isPausedRegistro, esc, se
   }
 
   if (!activeRegistro) {
-    banner.innerHTML = "<strong>Trabajo listo para iniciar</strong>Completa la maquina y luego inicia. Si surge una incidencia real, registrala por separado antes de pausar o devolver.";
+    banner.classList.toggle("is-ready", hasSelection);
+    banner.classList.toggle("is-idle", !hasSelection);
+    banner.innerHTML = `<strong>${hasSelection ? "TRABAJO LISTO" : "SIN TRABAJO"}</strong>${chipsHtml}`;
     if (incBanner) incBanner.innerHTML = "<strong>Pausa operativa e incidencia</strong>Usa PAUSAR para dejar el trabajo retomable. Usa REGISTRAR INCIDENCIA solo si hubo un problema real del proceso.";
     return;
   }
 
   if (isPausedRegistro(activeRegistro)) {
     const motivo = activeRegistro.motivo_pausa || activeRegistro.motivo_incidencia || "-";
-    banner.innerHTML = `<strong>Trabajo pausado</strong>Motivo: ${esc(motivo)}. Resuelve la incidencia y presiona REANUDAR para continuar. Si no se puede seguir, devuelve a PLACAS.`;
+    banner.innerHTML = `<strong>TRABAJO PAUSADO</strong>${chipsHtml}`;
     if (incBanner) incBanner.innerHTML = `<strong>Trabajo pausado</strong>Motivo: ${esc(motivo)}. Reanuda si ya resolviste el problema o devuelve a PLACAS si no se puede continuar.`;
     return;
   }
 
-  banner.innerHTML = "<strong>Trabajo en curso</strong>La impresion esta activa. Si necesitas cambiar de trabajo, usa PAUSAR. Si surge un problema real, registra la incidencia por separado. Cuando termine, finaliza con cantidades.";
+  banner.classList.add("is-live");
+  banner.innerHTML = `<strong>TRABAJO INICIADO</strong>${chipsHtml}`;
   if (incBanner) incBanner.innerHTML = "<strong>Trabajo en curso</strong>Si aparece una incidencia, registrala. Si solo necesitas dejar el trabajo retomable, usa PAUSAR.";
 }

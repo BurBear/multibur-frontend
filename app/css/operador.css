@@ -399,6 +399,62 @@
       border-color:rgba(248,113,113,.45);
       background:linear-gradient(180deg, rgba(127,29,29,.2), rgba(11,22,46,.95));
     }
+    .status-banner-compact{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      min-height:48px;
+      padding:9px 12px;
+      background:linear-gradient(180deg, rgba(20,32,58,.88), rgba(11,22,46,.96));
+    }
+    .status-banner-compact strong{
+      margin:0;
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+    .status-banner-compact.is-ready{
+      border-color:rgba(59,130,246,.35);
+      background:linear-gradient(180deg, rgba(37,99,235,.16), rgba(11,22,46,.96));
+    }
+    .status-banner-compact.is-live{
+      border-color:rgba(34,197,94,.38);
+      background:linear-gradient(180deg, rgba(22,163,74,.2), rgba(11,22,46,.96));
+    }
+    .status-banner-compact.is-paused{
+      border-color:rgba(251,191,36,.4);
+      background:linear-gradient(180deg, rgba(180,83,9,.2), rgba(11,22,46,.96));
+    }
+    .status-banner-compact.is-idle{
+      border-color:rgba(71,85,105,.45);
+      background:linear-gradient(180deg, rgba(15,23,42,.88), rgba(11,22,46,.96));
+    }
+    .status-summary{
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:8px;
+      flex-wrap:wrap;
+      min-width:0;
+    }
+    .status-pill{
+      display:inline-flex;
+      align-items:center;
+      max-width:100%;
+      padding:5px 10px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.22);
+      background:rgba(15,23,42,.55);
+      color:#dbeafe;
+      font-size:11px;
+      font-weight:700;
+      line-height:1;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
 
     .incidentModal{
         width:min(560px, 100%);
@@ -411,6 +467,9 @@
       display:none;
     }
     .operator-hidden-field{
+      display:none;
+    }
+    .msg:empty{
       display:none;
     }
     @media (max-width: 720px){
@@ -445,6 +504,13 @@
       .action-top{flex-direction:column; align-items:stretch}
       .action-shortcuts{width:100%}
       .focus-grid{grid-template-columns:1fr}
+      .status-banner-compact{
+        flex-direction:column;
+        align-items:flex-start;
+      }
+      .status-summary{
+        justify-content:flex-start;
+      }
     }
 
 /* --- operador.html : converted inline style attrs --- */
