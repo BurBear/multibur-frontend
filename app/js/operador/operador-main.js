@@ -369,6 +369,7 @@ async function syncJuegoCaraUI({ ordenId, requiereJuegos, pausedRegistros = [] }
 }
 
 function setModalDetails(row) {
+  const juegosWrap = el("mJuegosWrap");
   if (!row) {
     setVal("mCantidad", "-");
     setVal("mDemasia", "-");
@@ -382,6 +383,8 @@ function setModalDetails(row) {
     setVal("mColor", "-");
     setVal("mEntrega", "-");
     setVal("mMaqSug", "-");
+    setVal("mJuegos", "-");
+    if (juegosWrap) juegosWrap.classList.add("hide");
     setVal("mObs", "-");
     return;
   }
@@ -404,7 +407,21 @@ function setModalDetails(row) {
   setVal("mColor", row.color_text || "-");
   setVal("mEntrega", entrega);
   setVal("mMaqSug", row.maquina_sugerida_nombre || "-");
-  setVal("mObs", row.observaciones_generales || row.observaciones || "-");
+  const juegosLabel = buildJuegosPlacaLabel(row);
+  setVal("mJuegos", juegosLabel || "-");
+  if (juegosWrap) juegosWrap.classList.toggle("hide", !juegosLabel);
+  setVal("mObs", buildOperadorObservaciones(row));
+}
+
+function buildOperadorObservaciones(row) {
+  const tecnica = String(row?.observacion_tecnica || "").trim();
+  return tecnica || "-";
+}
+
+function buildJuegosPlacaLabel(row) {
+  const total = Number(row?.juegos_placa_total || 0);
+  if (!row?.requiere_juegos_placa || !isTipoImpresionTR(row?.tipo_impresion) || total <= 0) return "";
+  return `Juegos: ${total}`;
 }
 
 async function loadModalDetails(row) {
@@ -434,6 +451,9 @@ async function loadModalDetails(row) {
       medida_alto: row?.medida_alto ?? det?.medida_alto,
       tipo_impresion: row?.tipo_impresion ?? det?.tipo_impresion,
       color_text: row?.color_text ?? det?.color_text,
+      observacion_tecnica: row?.observacion_tecnica ?? det?.observacion_tecnica,
+      requiere_juegos_placa: row?.requiere_juegos_placa ?? det?.requiere_juegos_placa,
+      juegos_placa_total: row?.juegos_placa_total ?? det?.juegos_placa_total,
       maquina_sugerida_nombre: row?.maquina_sugerida_nombre ?? det?.maquina?.nombre,
       cantidad_solicitada: det?.cantidad_solicitada ?? row.cantidad_solicitada,
       demasia: det?.demasia ?? row.demasia
@@ -484,6 +504,7 @@ function renderPendientes(rows) {
   tb.innerHTML = (rows || []).map(r => {
     const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
     const entrega = r.fecha_entrega ? fmtDatePE(r.fecha_entrega) : "-";
+    const juegosLabel = buildJuegosPlacaLabel(r);
     const pausedBadge = r.tiene_pausado_retomable
       ? `<span class="badge" style="margin-left:6px; border-color: rgba(251,191,36,.45); color:#fde68a;">PAUSADO</span>`
       : "";
@@ -505,7 +526,10 @@ function renderPendientes(rows) {
         <td>${esc(r.descripcion_trabajo || "-")}</td>
         <td><b>${esc(r.cantidad_solicitada || "-")}</b>${r.demasia ? `<div class="muted">+${esc(r.demasia)} demasía</div>` : ''}</td>
         <td><b>${esc(formato)}</b><div class="muted">${esc(r.papel_material || "")} ${esc(r.gramaje ? (r.gramaje + "g") : "")}</div></td>
-        <td>${esc(r.tipo_impresion || "-")}</td>
+        <td>
+          ${esc(r.tipo_impresion || "-")}
+          ${juegosLabel ? `<div class="small muted">${esc(juegosLabel)}</div>` : ""}
+        </td>
         <td>${esc(r.color_text || "-")}</td>
         <td>${esc(r.maquina_sugerida_nombre || "-")}</td>
         <td>
