@@ -5,10 +5,13 @@ export function bindAdminEvents(deps) {
     syncExternalFlowUI, setOrdenModalMode, clearOrdenForm, onGuardarOrden,
     closeDetalleOrden, getDetailRowCtx, getDetailExtraCtx, printOrden,
     closeEntregaModal, confirmEntregaDesdeModal, syncEntregaGuiaFields,
+    syncRouteDraftFromForm, openRouteModal, closeRouteModal, moveRouteItem, buildDefaultRouteDraft,
+    toggleRouteProcess, setRouteProcessVariant,
     syncRegsPresetChips
   } = deps;
   const closeOrdenModal = () => {
     setOrdenModalMode("create");
+    closeRouteModal?.();
     $("modalOrdenWrap")?.classList.add("hide");
   };
 
@@ -25,6 +28,29 @@ export function bindAdminEvents(deps) {
   $("o_oc_numero")?.addEventListener("input", refreshFormState);
   $("d_material")?.addEventListener("change", syncMaterialSelectedText);
   $("o_externo")?.addEventListener("change", syncExternalFlowUI);
+  $("routePickerTrigger")?.addEventListener("click", openRouteModal);
+  $("btnCloseRoute")?.addEventListener("click", closeRouteModal);
+  $("btnRouteSave")?.addEventListener("click", closeRouteModal);
+  $("btnRouteReset")?.addEventListener("click", buildDefaultRouteDraft);
+  $("routeWrap")?.addEventListener("click", (ev) => {
+    if (ev.target && ev.target.id === "routeWrap") closeRouteModal?.();
+  });
+  $("routeList")?.addEventListener("click", (ev) => {
+    const btn = ev.target?.closest?.("[data-route-move]");
+    if (!btn) return;
+    moveRouteItem?.(btn.getAttribute("data-route-index"), btn.getAttribute("data-route-move"));
+  });
+  $("routeProcessPicker")?.addEventListener("change", (ev) => {
+    const pick = ev.target?.closest?.("[data-route-pick]");
+    if (pick) {
+      toggleRouteProcess?.(pick.getAttribute("data-route-pick"));
+      return;
+    }
+    const variantSelect = ev.target?.closest?.("[data-route-variant]");
+    if (variantSelect) {
+      setRouteProcessVariant?.(variantSelect.getAttribute("data-route-variant"), variantSelect.value || "");
+    }
+  });
 
   $("btnOpenOrden")?.addEventListener("click", () => {
     setOrdenModalMode("create");
@@ -35,6 +61,10 @@ export function bindAdminEvents(deps) {
   $("btnCloseOrden")?.addEventListener("click", closeOrdenModal);
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
+    if (!$("routeWrap")?.classList.contains("hide")) {
+      closeRouteModal?.();
+      return;
+    }
     if ($("modalOrdenWrap")?.classList.contains("hide")) return;
     closeOrdenModal();
   });
@@ -84,7 +114,6 @@ export function bindAdminEvents(deps) {
     $(id)?.addEventListener("input", refreshFormState);
     $(id)?.addEventListener("change", refreshFormState);
   });
-
   $("btnClearRepFilters")?.addEventListener("click", () => {
     if ($("repCliente")) $("repCliente").value = "";
     if ($("repDesde")) $("repDesde").value = "";

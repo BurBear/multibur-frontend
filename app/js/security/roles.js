@@ -3,8 +3,8 @@ import { supabase } from "../supabaseClient.js";
 export const ROLE_HOME = Object.freeze({
   ADMIN: "./admin.html",
   OPERADOR: "./operador.html",
-  ACABADOS: null,
-  CORTADOR: null
+  ACABADOS: "./acabados.html",
+  CORTADOR: "./cortador.html"
 });
 
 export const ROLE_CAPABILITIES = Object.freeze({

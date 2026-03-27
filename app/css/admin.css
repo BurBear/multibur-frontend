@@ -785,6 +785,262 @@ tr:hover td {
   font-size: 13px
 }
 
+.route-launcher {
+  margin-top: 12px;
+}
+
+.route-launcher input[readonly] {
+  cursor: pointer;
+}
+
+.route-summary {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #c6d6f3;
+}
+
+.route-summary.is-empty {
+  color: #9fb2d8;
+  opacity: .85;
+}
+
+.route-summary-meta {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  opacity: .74;
+}
+
+.route-summary-path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 6px;
+  width: 100%;
+}
+
+.route-summary-fragment {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.route-summary-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.route-summary-label {
+  color: #e8eefc;
+}
+
+.route-summary-sep {
+  font-size: 12px;
+  opacity: .72;
+}
+
+.route-modal {
+  max-width: 980px;
+}
+
+.route-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, .9fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.route-section {
+  border: 1px solid #243250;
+  border-radius: 12px;
+  background: #0f1a34;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+.route-section-process {
+  margin-top: 0;
+}
+
+.route-side-panel {
+  border: 1px solid #243250;
+  border-radius: 12px;
+  background: #0f1a34;
+  padding: 8px;
+}
+
+.route-side-panel.is-blocked {
+  opacity: .7;
+}
+
+.route-side-head {
+  display: grid;
+  gap: 2px;
+}
+
+.route-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-section-label {
+  margin-bottom: 0;
+}
+
+.route-selection-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid #2a3b61;
+  background: #0b162e;
+  font-size: 10px;
+  font-weight: 800;
+  color: #c6d6f3;
+}
+
+.route-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.route-pick-card {
+  border: 1px solid #2a3b61;
+  border-radius: 12px;
+  background: #0e1627;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.route-pick-card.is-selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, .18) inset;
+  background: #111c34;
+}
+
+.route-pick-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.route-pick-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.route-pick-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.route-pick-title {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.route-mode-row {
+  display: grid;
+  gap: 6px;
+}
+
+.route-mode-row select {
+  width: 100%;
+}
+
+.route-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.route-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #2a3b61;
+  border-radius: 12px;
+  background: #0f1a34;
+  padding: 10px;
+}
+
+.route-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.route-item-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-weight: 800;
+}
+
+.route-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.route-arrow-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid #2a3b61;
+  background: #0b162e;
+  color: #e8eefc;
+  font-size: 15px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.route-arrow-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.route-empty {
+  border: 1px dashed #2a3b61;
+  border-radius: 12px;
+  background: #0e1627;
+  padding: 14px;
+  font-size: 12px;
+  color: #9fb2d8;
+}
+
 .flow-box {
   width: 100%;
   border: 1px solid #2a3b61;
@@ -856,6 +1112,31 @@ tr:hover td {
 
 @media (max-width:900px) {
   .placas-list {
+    grid-template-columns: 1fr;
+  }
+
+  .route-item {
+    grid-template-columns: 1fr;
+  }
+
+  .route-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .route-side-panel {
+    order: 2;
+  }
+
+  .route-section-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .route-actions {
+    justify-content: flex-start;
+  }
+
+  .route-picker-grid {
     grid-template-columns: 1fr;
   }
 }
