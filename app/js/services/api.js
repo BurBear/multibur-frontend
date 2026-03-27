@@ -57,13 +57,21 @@ export async function fetchTrabajosPendientes({ estado = "" } = {}) {
 }
 
 export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
-  const runQuery = async (withObsTecnica, withJuegosPlaca, withExternalFlag) => {
+  const runQuery = async (
+    withObsTecnica,
+    withJuegosPlaca,
+    withExternalFlag,
+    withExtendedAcabados,
+    withRouteConfig,
+    withRouteOwner
+  ) => {
     let q = supabase
       .from("ordenes")
       .select(`
         id,
         numero_orden_fisica,
         descripcion_trabajo,
+        observaciones_generales,
         fecha_entrega,
         prioridad,
         estado,
@@ -88,6 +96,9 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
           sectorizado,
           barniz,
           plastificado,
+          ${withExtendedAcabados ? "encolado,marcado,anillado,perforado,perforado_tipo,pegado_solapa,semi_corte,enumerado," : ""}
+          ${withRouteConfig ? "ruta_procesos," : ""}
+          ${withRouteOwner ? "modulo_ruta_actual," : ""}
           ${withObsTecnica ? "observacion_tecnica," : ""}
           maquina_sugerida_id,
           maquina:maquinas(nombre)
@@ -106,9 +117,19 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
   let withObsTecnica = true;
   let withJuegosPlaca = true;
   let withExternalFlag = true;
+  let withExtendedAcabados = true;
+  let withRouteConfig = true;
+  let withRouteOwner = true;
 
-  for (let i = 0; i < 6; i += 1) {
-    ({ data, error } = await runQuery(withObsTecnica, withJuegosPlaca, withExternalFlag));
+  for (let i = 0; i < 10; i += 1) {
+    ({ data, error } = await runQuery(
+      withObsTecnica,
+      withJuegosPlaca,
+      withExternalFlag,
+      withExtendedAcabados,
+      withRouteConfig,
+      withRouteOwner
+    ));
     if (!error) break;
     const miss = parseMissingColumn(error);
     if (!miss) break;
@@ -124,6 +145,27 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
       withJuegosPlaca = false;
       continue;
     }
+    if (miss.table === "detalles_orden" && [
+      "encolado",
+      "marcado",
+      "anillado",
+      "perforado",
+      "perforado_tipo",
+      "pegado_solapa",
+      "semi_corte",
+      "enumerado"
+    ].includes(miss.column) && withExtendedAcabados) {
+      withExtendedAcabados = false;
+      continue;
+    }
+    if (miss.table === "detalles_orden" && miss.column === "ruta_procesos" && withRouteConfig) {
+      withRouteConfig = false;
+      continue;
+    }
+    if (miss.table === "detalles_orden" && miss.column === "modulo_ruta_actual" && withRouteOwner) {
+      withRouteOwner = false;
+      continue;
+    }
     break;
   }
   if (error) throw error;
@@ -136,6 +178,7 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
       numero_orden_fisica: o.numero_orden_fisica || `#${o.id}`,
       cliente_nombre: o.cliente?.nombre || "-",
       descripcion_trabajo: o.descripcion_trabajo || "-",
+      observacion_orden: o.observaciones_generales || null,
       fecha_entrega: o.fecha_entrega || null,
       prioridad: o.prioridad || "NORMAL",
       estado: o.estado || "-",
@@ -158,10 +201,220 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
       sectorizado: !!det.sectorizado,
       barniz: !!det.barniz,
       plastificado: det.plastificado || null,
+      ruta_procesos: parseRouteProcesos(det.ruta_procesos),
+      modulo_ruta_actual: det.modulo_ruta_actual || null,
+      encolado: !!det.encolado,
+      marcado: !!det.marcado,
+      anillado: !!det.anillado,
+      perforado: !!det.perforado,
+      perforado_tipo: det.perforado_tipo || null,
+      pegado_solapa: !!det.pegado_solapa,
+      semi_corte: !!det.semi_corte,
+      enumerado: !!det.enumerado,
       observacion_tecnica: det.observacion_tecnica || null,
       maquina_sugerida_nombre: det.maquina?.nombre || "-"
     };
   });
+}
+
+function processCodeToRouteKey(code) {
+  switch (String(code || "").trim().toUpperCase()) {
+    case "CORTE": return "corte";
+    case "EMPAQUETADO": return "empaquetado";
+    case "DOBLEZ": return "doblez";
+    case "COMPAGINADO": return "compaginado";
+    case "TROQUELADO": return "troquelado";
+    case "SECTORIZADO": return "sectorizado";
+    case "BARNIZ": return "barniz";
+    case "PLASTIFICADO": return "plastificado";
+    case "ENCOLADO": return "encolado";
+    case "MARCADO": return "marcado";
+    case "ANILLADO": return "anillado";
+    case "PERFORADO": return "perforado";
+    case "PEGADO_SOLAPA": return "pegado_solapa";
+    case "SEMI_CORTE": return "semi_corte";
+    case "ENUMERADO": return "enumerado";
+    default: return "";
+  }
+}
+
+function parseRouteProcesos(raw) {
+  let data = raw;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      data = null;
+    }
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+function getEffectiveSequence(order, process) {
+  const routeItems = parseRouteProcesos(order?.ruta_procesos);
+  const routeKey = processCodeToRouteKey(process?.proceso_codigo);
+  const routeMatch = routeItems.find((item) => String(item?.key || "").trim() === routeKey);
+  if (routeMatch) {
+    const seq = Number(routeMatch?.order || 0);
+    if (Number.isFinite(seq) && seq > 0) return seq;
+  }
+  const fallback = Number(process?.secuencia || 0);
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : 1;
+}
+
+function isClosedProcessState(status) {
+  return ["FINALIZADO", "CANCELADO"].includes(String(status || "").trim().toUpperCase());
+}
+
+function getNextOpenRouteProcess(order, allProcesses = []) {
+  const abiertos = (allProcesses || [])
+    .filter((candidate) => !isClosedProcessState(candidate?.estado))
+    .map((candidate) => ({
+      ...candidate,
+      __seq: getEffectiveSequence(order, candidate),
+      __rank: (() => {
+        const status = String(candidate?.estado || "").trim().toUpperCase();
+        if (status === "EN_PROCESO") return 0;
+        if (status === "PAUSADO") return 1;
+        return 2;
+      })()
+    }))
+    .sort((a, b) => (a.__seq - b.__seq) || (a.__rank - b.__rank) || (Number(a.id) - Number(b.id)));
+  return abiertos[0] || null;
+}
+
+function getCurrentRouteModule(order, allProcesses = []) {
+  const explicit = String(order?.modulo_ruta_actual || "").trim().toUpperCase();
+  if (["ACABADOS", "CORTADOR"].includes(explicit)) return explicit;
+
+  const nextOpen = getNextOpenRouteProcess(order, allProcesses);
+  const nextModule = String(nextOpen?.modulo_responsable || "").trim().toUpperCase();
+  if (["ACABADOS", "CORTADOR"].includes(nextModule)) return nextModule;
+
+  const routeItems = parseRouteProcesos(order?.ruta_procesos);
+  const firstRouteModule = String(routeItems?.[0]?.module || "").trim().toUpperCase();
+  if (["ACABADOS", "CORTADOR"].includes(firstRouteModule)) return firstRouteModule;
+
+  return "";
+}
+
+function isReadyProcessBySequence(order, process, allProcesses = []) {
+  const status = String(process?.estado || "").trim().toUpperCase();
+  if (["EN_PROCESO", "PAUSADO"].includes(status)) return true;
+  if (status !== "PENDIENTE") return false;
+  const currentSeq = getEffectiveSequence(order, process);
+  return !(allProcesses || []).some((candidate) => {
+    if (Number(candidate?.id) === Number(process?.id)) return false;
+    if (isClosedProcessState(candidate?.estado)) return false;
+    return getEffectiveSequence(order, candidate) < currentSeq;
+  });
+}
+
+function isVisibleProcessForModule(order, process, allProcesses = [], moduleName, currentModule, nextOpenProcess) {
+  const targetModule = String(moduleName || "").trim().toUpperCase();
+  const processModule = String(process?.modulo_responsable || "").trim().toUpperCase();
+  const current = String(currentModule || "").trim().toUpperCase();
+  const status = String(process?.estado || "").trim().toUpperCase();
+
+  if (processModule !== targetModule) return false;
+  if (current !== targetModule) return false;
+
+  if (["EN_PROCESO", "PAUSADO"].includes(status)) return true;
+  if (status !== "PENDIENTE") return false;
+
+  if (!isReadyProcessBySequence(order, process, allProcesses)) return false;
+
+  const nextSeq = nextOpenProcess ? getEffectiveSequence(order, nextOpenProcess) : null;
+  const currentSeq = getEffectiveSequence(order, process);
+  if (nextSeq == null) return true;
+  return currentSeq === nextSeq;
+}
+
+export async function fetchOrdenProcesosAcabadosByOrdenIds(orderIds = []) {
+  if (!orderIds.length) return [];
+  const { data, error } = await supabase
+    .from("orden_procesos")
+    .select("id,orden_id,proceso_codigo,modulo_responsable,estado,secuencia,configuracion,observaciones,assigned_user_id,started_at,finished_at,created_at,updated_at")
+    .in("orden_id", orderIds)
+    .order("orden_id", { ascending: true })
+    .order("secuencia", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+async function fetchRouteBoardSnapshot(moduleName, { userId = null } = {}) {
+  const targetModule = String(moduleName || "").trim().toUpperCase();
+  const orders = await fetchTrabajosAdminBoard({ estado: "ACABADOS" });
+  if (!orders.length) return [];
+
+  const orderIds = [...new Set(orders.map((o) => Number(o.orden_id)).filter(Boolean))];
+  const procesos = await fetchOrdenProcesosAcabadosByOrdenIds(orderIds);
+  const assignedIds = [...new Set((procesos || []).map((p) => p.assigned_user_id).filter(Boolean))];
+  const profiles = await fetchProfilesByIds(assignedIds);
+  const profileMap = new Map(
+    (profiles || []).map((p) => [
+      p.id,
+      String(p.nombre_completo || p.username || "").trim() || "-"
+    ])
+  );
+
+  const procesosByOrden = new Map();
+  for (const proceso of procesos || []) {
+    const oid = Number(proceso.orden_id);
+    const bucket = procesosByOrden.get(oid) || [];
+    bucket.push({
+      ...proceso,
+      assigned_user_nombre: proceso.assigned_user_id
+        ? (profileMap.get(proceso.assigned_user_id) || "-")
+        : "-"
+    });
+    procesosByOrden.set(oid, bucket);
+  }
+
+  return orders.map((order) => {
+    const allProcesos = procesosByOrden.get(Number(order.orden_id)) || [];
+    const currentRouteModule = getCurrentRouteModule(order, allProcesos);
+    const nextOpenProcess = getNextOpenRouteProcess(order, allProcesos);
+    const moduleProcesos = allProcesos.filter((p) => String(p.modulo_responsable || "").toUpperCase() === targetModule);
+    const visibleProcesos = moduleProcesos.filter((process) =>
+      isVisibleProcessForModule(order, process, allProcesos, targetModule, currentRouteModule, nextOpenProcess)
+    );
+    const handoffTargetModule = nextOpenProcess
+      ? String(nextOpenProcess.modulo_responsable || "").trim().toUpperCase()
+      : "";
+    const requiresHandoff = currentRouteModule === targetModule
+      && !!nextOpenProcess
+      && handoffTargetModule
+      && handoffTargetModule !== targetModule;
+
+    return {
+      ...order,
+      modulo_ruta_actual: currentRouteModule || order.modulo_ruta_actual || null,
+      procesos: visibleProcesos,
+      procesos_todos: moduleProcesos,
+      procesos_ruta: allProcesos,
+      next_process_id: nextOpenProcess?.id ?? null,
+      next_process_codigo: nextOpenProcess?.proceso_codigo ?? null,
+      next_process_modulo: handoffTargetModule || null,
+      requires_handoff: !!requiresHandoff,
+      handoff_target_module: requiresHandoff ? handoffTargetModule : null,
+      handoff_target_label: requiresHandoff
+        ? (handoffTargetModule === "CORTADOR" ? "Mandar a corte" : "Mandar a acabados")
+        : null,
+      is_my_order: !!userId && visibleProcesos.some(
+        (p) => p.assigned_user_id && p.assigned_user_id === userId
+      )
+    };
+  });
+}
+
+export async function fetchAcabadosBoardSnapshot({ userId = null } = {}) {
+  return fetchRouteBoardSnapshot("ACABADOS", { userId });
+}
+
+export async function fetchCortadorBoardSnapshot({ userId = null } = {}) {
+  return fetchRouteBoardSnapshot("CORTADOR", { userId });
 }
 
 function peruDayWindowUtc(daysFromToday = 0) {
@@ -359,7 +612,13 @@ export async function fetchClienteTiposByOrdenIds(orderIds = []) {
 }
 
 export async function fetchOrdenById(ordenId) {
-  const runQuery = async (withJuegosPlaca, withExternalFlag) => supabase
+  const runQuery = async (
+    withJuegosPlaca,
+    withExternalFlag,
+    withExtendedAcabados,
+    withRouteConfig,
+    withRouteOwner
+  ) => supabase
     .from("ordenes")
     .select(`
       id,
@@ -397,6 +656,9 @@ export async function fetchOrdenById(ordenId) {
         sectorizado,
         barniz,
         plastificado,
+        ${withExtendedAcabados ? "encolado,marcado,anillado,perforado,perforado_tipo,pegado_solapa,semi_corte,enumerado," : ""}
+        ${withRouteConfig ? "ruta_procesos," : ""}
+        ${withRouteOwner ? "modulo_ruta_actual," : ""}
         observacion_tecnica,
         ${withJuegosPlaca ? "requiere_juegos_placa,juegos_placa_total,juegos_placa_detalle," : ""}
         maquina_sugerida_id,
@@ -411,8 +673,17 @@ export async function fetchOrdenById(ordenId) {
   let error = null;
   let withJuegosPlaca = true;
   let withExternalFlag = true;
-  for (let i = 0; i < 5; i += 1) {
-    ({ data, error } = await runQuery(withJuegosPlaca, withExternalFlag));
+  let withExtendedAcabados = true;
+  let withRouteConfig = true;
+  let withRouteOwner = true;
+  for (let i = 0; i < 10; i += 1) {
+    ({ data, error } = await runQuery(
+      withJuegosPlaca,
+      withExternalFlag,
+      withExtendedAcabados,
+      withRouteConfig,
+      withRouteOwner
+    ));
     if (!error) break;
     const miss = parseMissingColumn(error);
     if (!miss) break;
@@ -422,6 +693,27 @@ export async function fetchOrdenById(ordenId) {
     }
     if (miss.table === "detalles_orden" && ["requiere_juegos_placa", "juegos_placa_total", "juegos_placa_detalle"].includes(miss.column) && withJuegosPlaca) {
       withJuegosPlaca = false;
+      continue;
+    }
+    if (miss.table === "detalles_orden" && [
+      "encolado",
+      "marcado",
+      "anillado",
+      "perforado",
+      "perforado_tipo",
+      "pegado_solapa",
+      "semi_corte",
+      "enumerado"
+    ].includes(miss.column) && withExtendedAcabados) {
+      withExtendedAcabados = false;
+      continue;
+    }
+    if (miss.table === "detalles_orden" && miss.column === "ruta_procesos" && withRouteConfig) {
+      withRouteConfig = false;
+      continue;
+    }
+    if (miss.table === "detalles_orden" && miss.column === "modulo_ruta_actual" && withRouteOwner) {
+      withRouteOwner = false;
       continue;
     }
     break;
@@ -604,6 +896,99 @@ export async function rpcRegistrarIncidenciaProduccion({ registroId, motivo, obs
     p_registro_id: registroId,
     p_motivo: motivo,
     p_observacion: observacion
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcEnsureOrdenProcesosAcabados({ ordenId }) {
+  const { data, error } = await supabase.rpc("ensure_orden_procesos_acabados", {
+    p_orden_id: ordenId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcRecalcularEstadoOrdenAcabados({ ordenId }) {
+  const { data, error } = await supabase.rpc("recalcular_estado_orden_acabados", {
+    p_orden_id: ordenId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcIniciarProcesoAcabado({ procesoId }) {
+  const { data, error } = await supabase.rpc("iniciar_proceso_acabado", {
+    p_proceso_id: procesoId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcPausarProcesoAcabado({ procesoId, observaciones = null }) {
+  const { data, error } = await supabase.rpc("pausar_proceso_acabado", {
+    p_proceso_id: procesoId,
+    p_observaciones: observaciones
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcRetomarProcesoAcabado({ procesoId }) {
+  const { data, error } = await supabase.rpc("retomar_proceso_acabado", {
+    p_proceso_id: procesoId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcFinalizarProcesoAcabado({ procesoId, observaciones = null }) {
+  const { data, error } = await supabase.rpc("finalizar_proceso_acabado", {
+    p_proceso_id: procesoId,
+    p_observaciones: observaciones
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcTransferirOrdenRuta({ ordenId, moduloDestino }) {
+  const { data, error } = await supabase.rpc("transferir_orden_ruta", {
+    p_orden_id: ordenId,
+    p_modulo_destino: moduloDestino
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcIniciarProcesoCortador({ procesoId }) {
+  const { data, error } = await supabase.rpc("iniciar_proceso_cortador", {
+    p_proceso_id: procesoId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcPausarProcesoCortador({ procesoId, observaciones = null }) {
+  const { data, error } = await supabase.rpc("pausar_proceso_cortador", {
+    p_proceso_id: procesoId,
+    p_observaciones: observaciones
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcRetomarProcesoCortador({ procesoId }) {
+  const { data, error } = await supabase.rpc("retomar_proceso_cortador", {
+    p_proceso_id: procesoId
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+export async function rpcFinalizarProcesoCortador({ procesoId, observaciones = null }) {
+  const { data, error } = await supabase.rpc("finalizar_proceso_cortador", {
+    p_proceso_id: procesoId,
+    p_observaciones: observaciones
   });
   if (error) throw error;
   return Array.isArray(data) ? (data[0] || null) : (data || null);

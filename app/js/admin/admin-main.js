@@ -49,6 +49,54 @@ const { formatDurationMinutes, refreshLiveDurationLabels, ensureLiveDurationTick
 let currentAdminResponsable = "Administrador";
 let ordenModalMode = "create";
 let ordenEditId = null;
+let routeProcessDraft = [];
+const PROCESS_ROUTE_META = Object.freeze({
+  corte: { key: "corte", inputId: "p_corte", label: "Corte", module: "CORTADOR" },
+  empaquetado: { key: "empaquetado", inputId: "p_empaq", label: "Empaquetado", module: "ACABADOS" },
+  doblez: { key: "doblez", inputId: "p_doblez", label: "Doblez", module: "ACABADOS" },
+  compaginado: { key: "compaginado", inputId: "p_compa", label: "Compaginado", module: "ACABADOS" },
+  troquelado: { key: "troquelado", inputId: "p_troq", label: "Troquelado", module: "ACABADOS" },
+  sectorizado: { key: "sectorizado", inputId: "p_sect", label: "Sectorizado", module: "ACABADOS" },
+  barniz: { key: "barniz", inputId: "p_barniz", label: "Barniz", module: "ACABADOS" },
+  plastificado: { key: "plastificado", inputId: null, label: "Plastificado", module: "ACABADOS" },
+  encolado: { key: "encolado", inputId: "p_encolado", label: "Encolado", module: "ACABADOS" },
+  marcado: { key: "marcado", inputId: "p_marcado", label: "Marcado", module: "ACABADOS" },
+  anillado: { key: "anillado", inputId: "p_anillado", label: "Anillado", module: "ACABADOS" },
+  perforado: { key: "perforado", inputId: "p_perforado", label: "Perforado", module: "ACABADOS" },
+  pegado_solapa: { key: "pegado_solapa", inputId: "p_pegado_solapa", label: "Pegado solapa", module: "ACABADOS" },
+  semi_corte: { key: "semi_corte", inputId: "p_semi_corte", label: "Semi corte", module: "ACABADOS" },
+  enumerado: { key: "enumerado", inputId: "p_enumerado", label: "Enumerado", module: "ACABADOS" }
+});
+const PROCESS_VARIANT_META = Object.freeze({
+  plastificado: {
+    key: "plastificado",
+    controlId: "p_plast",
+    routeControlId: "routePlastMode",
+    label: "Modo de plastificado",
+    defaultValue: "BRILLO",
+    options: [
+      { value: "BRILLO", label: "BRILLO" },
+      { value: "MATE", label: "MATE" }
+    ],
+    renderDisplay: (value) => `Plastificado (${value || "BRILLO"})`
+  },
+  perforado: {
+    key: "perforado",
+    controlId: "p_perforado_tipo",
+    routeControlId: "routePerforadoTipo",
+    label: "Tipo de perforado",
+    defaultValue: "PERFORADO",
+    options: [
+      { value: "PERFORADO", label: "Perforado" },
+      { value: "PICADO_PERFORADO", label: "Picado/Perforado" }
+    ],
+    renderDisplay: (value) => (
+      value === "PICADO_PERFORADO"
+        ? "Perforado (Picado/Perforado)"
+        : "Perforado"
+    )
+  }
+});
 
 const norm = normalizeText;
 const esc = escapeHtml;
@@ -264,6 +312,391 @@ function collectJuegosPlacaDetalle() {
   });
 }
 
+function isRouteModuleCutting(item) {
+  return String(item?.module || "").toUpperCase() === "CORTADOR";
+}
+
+function getProcessVariantMeta(key) {
+  return PROCESS_VARIANT_META[String(key || "").trim()] || null;
+}
+
+function normalizeProcessVariant(key, value) {
+  const meta = getProcessVariantMeta(key);
+  if (!meta) return null;
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return null;
+  const allowed = meta.options.map((opt) => String(opt?.value || "").trim().toUpperCase()).filter(Boolean);
+  return allowed.includes(raw) ? raw : null;
+}
+
+function getProcessVariantValue(key, { fallbackDefault = true } = {}) {
+  const meta = getProcessVariantMeta(key);
+  if (!meta) return null;
+  const normalized = normalizeProcessVariant(key, $(meta.controlId)?.value);
+  if (normalized) return normalized;
+  return fallbackDefault ? meta.defaultValue : null;
+}
+
+function getProcessDisplayLabel(meta, variant = null) {
+  const variantMeta = getProcessVariantMeta(meta?.key);
+  if (!variantMeta) return meta?.label || "-";
+  const safeVariant = normalizeProcessVariant(meta.key, variant) || variantMeta.defaultValue;
+  return variantMeta.renderDisplay(safeVariant);
+}
+
+function parseStoredRoute(raw) {
+  let data = raw;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      data = null;
+    }
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+function buildRoutePayload() {
+  return routeProcessDraft.map((item, index) => ({
+    key: item.key,
+    order: index + 1,
+    variant: item.variant || null,
+    module: item.module || null
+  }));
+}
+
+function buildRouteDraftItem(meta, extra = {}) {
+  const variantMeta = getProcessVariantMeta(meta.key);
+  const variant = variantMeta
+    ? (normalizeProcessVariant(meta.key, extra.variant) || variantMeta.defaultValue)
+    : null;
+  return {
+    ...meta,
+    key: meta.key,
+    inputId: meta.inputId,
+    module: meta.module,
+    variant,
+    displayLabel: getProcessDisplayLabel(meta, variant),
+    order: Number(extra.order || 0) || null
+  };
+}
+
+function getSelectedProcessItemsFromForm() {
+  const rows = [];
+  Object.values(PROCESS_ROUTE_META).forEach((meta) => {
+    const variantMeta = getProcessVariantMeta(meta.key);
+    if (variantMeta) {
+      const variant = getProcessVariantValue(meta.key, { fallbackDefault: true });
+      const selected = meta.inputId
+        ? !!$(meta.inputId)?.checked
+        : !!normalizeProcessVariant(meta.key, $(variantMeta.controlId)?.value);
+      if (!selected) return;
+      rows.push(buildRouteDraftItem(meta, { variant }));
+      return;
+    }
+    if ($(meta.inputId)?.checked) {
+      rows.push(buildRouteDraftItem(meta));
+    }
+  });
+  return rows;
+}
+
+function normalizeRouteDraft(current = routeProcessDraft, selected = getSelectedProcessItemsFromForm()) {
+  const currentMap = new Map((current || []).map((item) => [item.key, item]));
+  return selected.map((item) => {
+    const prev = currentMap.get(item.key);
+    return {
+      ...item,
+      variant: item.variant || null,
+      displayLabel: item.displayLabel,
+      module: item.module,
+      key: item.key,
+      inputId: item.inputId,
+      order: prev?.order || null
+    };
+  }).sort((a, b) => {
+    const aOrder = Number(a.order || 0);
+    const bOrder = Number(b.order || 0);
+    if (aOrder && bOrder) return aOrder - bOrder;
+    if (aOrder) return -1;
+    if (bOrder) return 1;
+    return 0;
+  }).map((item, index) => ({ ...item, order: index + 1 }));
+}
+
+function syncRouteDraftFromForm() {
+  routeProcessDraft = normalizeRouteDraft(routeProcessDraft, getSelectedProcessItemsFromForm());
+  applyRouteDraftToFormControls();
+  renderRouteSummary();
+  renderRouteProcessPicker();
+  renderRouteModalList();
+}
+
+function buildDefaultRouteDraft() {
+  routeProcessDraft = normalizeRouteDraft([], getSelectedProcessItemsFromForm());
+  applyRouteDraftToFormControls();
+  renderRouteSummary();
+  renderRouteProcessPicker();
+  renderRouteModalList();
+}
+
+function buildRouteDraftFromStoredRoute(rawRoute) {
+  const selected = getSelectedProcessItemsFromForm();
+  const selectedMap = new Map(selected.map((item) => [item.key, item]));
+  const ordered = [];
+
+  parseStoredRoute(rawRoute)
+    .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+    .forEach((entry) => {
+      const key = String(entry?.key || "").trim();
+      const meta = PROCESS_ROUTE_META[key];
+      const base = selectedMap.get(key);
+      if (!meta || !base) return;
+      ordered.push(
+        buildRouteDraftItem(meta, {
+          variant: entry?.variant || base.variant || null,
+          order: entry?.order
+        })
+      );
+      selectedMap.delete(key);
+    });
+
+  for (const item of selected) {
+    if (!selectedMap.has(item.key)) continue;
+    ordered.push(item);
+  }
+
+  routeProcessDraft = normalizeRouteDraft(ordered, selected);
+  applyRouteDraftToFormControls();
+  renderRouteSummary();
+  renderRouteProcessPicker();
+  renderRouteModalList();
+}
+
+function applyRouteDraftToFormControls() {
+  const selectedMap = new Map(routeProcessDraft.map((item) => [item.key, item]));
+  Object.values(PROCESS_ROUTE_META).forEach((meta) => {
+    const selectedItem = selectedMap.get(meta.key) || null;
+    if (meta.inputId && $(meta.inputId)) $(meta.inputId).checked = !!selectedItem;
+    const variantMeta = getProcessVariantMeta(meta.key);
+    if (variantMeta && $(variantMeta.controlId)) {
+      $(variantMeta.controlId).value = selectedItem
+        ? (selectedItem.variant || variantMeta.defaultValue)
+        : "";
+    }
+  });
+}
+
+function renderRouteProcessPicker() {
+  const wrap = $("routeProcessPicker");
+  const count = $("routeSelectionCount");
+  if (!wrap) return;
+  if (count) {
+    const total = routeProcessDraft.length;
+    count.textContent = `${total} proceso${total === 1 ? "" : "s"}`;
+  }
+
+  const selected = new Map(routeProcessDraft.map((item) => [item.key, item]));
+  wrap.innerHTML = Object.values(PROCESS_ROUTE_META).map((meta) => {
+    const current = selected.get(meta.key) || null;
+    const checked = !!current;
+    const variantMeta = getProcessVariantMeta(meta.key);
+    const variant = variantMeta
+      ? (current?.variant || getProcessVariantValue(meta.key, { fallbackDefault: true }) || variantMeta.defaultValue)
+      : null;
+    return `
+      <article class="route-pick-card ${checked ? "is-selected" : ""}">
+        <div class="route-pick-head">
+          <label class="route-pick-check">
+            <input
+              type="checkbox"
+              data-route-pick="${esc(meta.key)}"
+              ${checked ? "checked" : ""}
+            />
+            <span class="route-pick-title">${esc(meta.label)}</span>
+          </label>
+        </div>
+        ${
+          variantMeta && checked
+            ? `
+              <div class="route-mode-row">
+                <label class="field-lb" for="${esc(variantMeta.routeControlId)}">${esc(variantMeta.label)}</label>
+                <select
+                  id="${esc(variantMeta.routeControlId)}"
+                  data-route-variant="${esc(meta.key)}"
+                >
+                  ${variantMeta.options.map((opt) => `
+                    <option value="${esc(opt.value)}" ${variant === opt.value ? "selected" : ""}>${esc(opt.label)}</option>
+                  `).join("")}
+                </select>
+              </div>
+            `
+            : ""
+        }
+      </article>
+    `;
+  }).join("");
+}
+
+function renderRouteSummary() {
+  const wrap = $("procesoRutaSummary");
+  const trigger = $("routePickerTrigger");
+  if (!wrap) return;
+
+  if (!routeProcessDraft.length) {
+    wrap.className = "route-summary is-empty";
+    wrap.textContent = "Haz click en el cuadro para definir procesos y secuencia.";
+    if (trigger) trigger.value = "";
+    return;
+  }
+
+  if (trigger) {
+    trigger.value = `${routeProcessDraft.length} proceso${routeProcessDraft.length === 1 ? "" : "s"} configurado${routeProcessDraft.length === 1 ? "" : "s"}`;
+  }
+  wrap.className = "route-summary";
+  wrap.innerHTML = `
+    <div class="route-summary-meta">Secuencia definida</div>
+    <div class="route-summary-path">
+      ${routeProcessDraft.map((item, index) => `
+        <span class="route-summary-fragment">
+          <span class="route-summary-order">${index + 1}</span>
+          <span class="route-summary-label">${esc(item.displayLabel)}</span>
+          ${index < routeProcessDraft.length - 1 ? '<span class="route-summary-sep">&rarr;</span>' : ""}
+        </span>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderRouteModalList() {
+  const list = $("routeList");
+  const hint = $("routeHint");
+  const sidePanel = $("routeSidePanel");
+  if (!list) return;
+
+  if (!routeProcessDraft.length) {
+    if (sidePanel) sidePanel.classList.add("is-blocked");
+    list.innerHTML = '<div class="route-empty">Selecciona 2 o mas procesos para habilitar la secuencia.</div>';
+    if (hint) hint.textContent = "La secuencia se activa cuando eliges mas de un proceso.";
+    return;
+  }
+
+  if (routeProcessDraft.length === 1) {
+    if (sidePanel) sidePanel.classList.add("is-blocked");
+    list.innerHTML = `
+      <div class="route-empty">
+        Con un solo proceso no hace falta ordenar la secuencia.
+      </div>
+    `;
+    if (hint) hint.textContent = "La secuencia se define automaticamente con un solo proceso.";
+    return;
+  }
+
+  if (sidePanel) sidePanel.classList.remove("is-blocked");
+  if (hint) {
+    hint.textContent = "";
+  }
+
+  list.innerHTML = routeProcessDraft.map((item, index) => `
+    <div class="route-item">
+      <span class="route-index">${index + 1}</span>
+      <div>
+        <div class="route-item-title">
+          <span>${esc(item.displayLabel)}</span>
+        </div>
+      </div>
+      <div class="route-actions">
+        <button
+          class="route-arrow-btn"
+          type="button"
+          data-route-move="up"
+          data-route-index="${index}"
+          ${index === 0 ? "disabled" : ""}
+          aria-label="Mover arriba"
+          title="Mover arriba"
+        >&#8593;</button>
+        <button
+          class="route-arrow-btn"
+          type="button"
+          data-route-move="down"
+          data-route-index="${index}"
+          ${index === routeProcessDraft.length - 1 ? "disabled" : ""}
+          aria-label="Mover abajo"
+          title="Mover abajo"
+        >&#8595;</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function openRouteModal() {
+  syncRouteDraftFromForm();
+  $("routeWrap")?.classList.remove("hide");
+  $("routeWrap")?.setAttribute("aria-hidden", "false");
+}
+
+function closeRouteModal() {
+  $("routeWrap")?.classList.add("hide");
+  $("routeWrap")?.setAttribute("aria-hidden", "true");
+}
+
+function moveRouteItem(index, direction) {
+  const pos = Number(index);
+  if (!Number.isInteger(pos) || pos < 0 || pos >= routeProcessDraft.length) return;
+  const target = direction === "up" ? pos - 1 : pos + 1;
+  if (target < 0 || target >= routeProcessDraft.length) return;
+  const next = [...routeProcessDraft];
+  [next[pos], next[target]] = [next[target], next[pos]];
+  routeProcessDraft = next.map((item, idx) => ({ ...item, order: idx + 1 }));
+  applyRouteDraftToFormControls();
+  renderRouteSummary();
+  renderRouteProcessPicker();
+  renderRouteModalList();
+}
+
+function toggleRouteProcess(key) {
+  const meta = PROCESS_ROUTE_META[String(key || "").trim()];
+  if (!meta) return;
+
+  const exists = routeProcessDraft.find((item) => item.key === meta.key);
+  if (exists) {
+    routeProcessDraft = routeProcessDraft
+      .filter((item) => item.key !== meta.key)
+      .map((item, idx) => ({ ...item, order: idx + 1 }));
+  } else {
+    const variantMeta = getProcessVariantMeta(meta.key);
+    const variant = variantMeta
+      ? (getProcessVariantValue(meta.key, { fallbackDefault: true }) || variantMeta.defaultValue)
+      : null;
+    routeProcessDraft = [
+      ...routeProcessDraft,
+      buildRouteDraftItem(meta, { variant, order: routeProcessDraft.length + 1 })
+    ];
+  }
+
+  applyRouteDraftToFormControls();
+  renderRouteSummary();
+  renderRouteProcessPicker();
+  renderRouteModalList();
+  refreshFormState();
+}
+
+function setRouteProcessVariant(key, value) {
+  const variantMeta = getProcessVariantMeta(key);
+  if (!variantMeta) return;
+  const safeVariant = normalizeProcessVariant(key, value) || variantMeta.defaultValue;
+  routeProcessDraft = routeProcessDraft.map((item) => (
+    item.key === key
+      ? buildRouteDraftItem(PROCESS_ROUTE_META[key], { variant: safeVariant, order: item.order })
+      : item
+  ));
+  applyRouteDraftToFormControls();
+  renderRouteSummary();
+  renderRouteProcessPicker();
+  renderRouteModalList();
+  refreshFormState();
+}
+
 function syncJuegosPlacaUI({ forceRegenerate = false } = {}) {
   const section = $("d_multi_placas_section");
   const isExternal = $("o_externo")?.checked ?? false;
@@ -391,13 +824,33 @@ function clearOrdenForm() {
   if ($("d_color_text")) $("d_color_text").value = "F/C";
   if ($("d_obs_tecnica")) $("d_obs_tecnica").value = "";
   if ($("p_plast")) $("p_plast").value = "";
+  if ($("p_perforado_tipo")) $("p_perforado_tipo").value = "";
   if ($("d_multi_placas")) $("d_multi_placas").checked = false;
   if ($("d_placas_total")) $("d_placas_total").value = "2";
   if ($("d_placas_list")) $("d_placas_list").innerHTML = "";
 
-  ["p_corte", "p_empaq", "p_doblez", "p_compa", "p_troq", "p_sect", "p_barniz"].forEach((id) => {
+  [
+    "p_corte",
+    "p_empaq",
+    "p_doblez",
+    "p_compa",
+    "p_troq",
+    "p_sect",
+    "p_barniz",
+    "p_encolado",
+    "p_marcado",
+    "p_anillado",
+    "p_perforado",
+    "p_pegado_solapa",
+    "p_semi_corte",
+    "p_enumerado"
+  ].forEach((id) => {
     if ($(id)) $(id).checked = false;
   });
+
+  routeProcessDraft = [];
+  renderRouteSummary();
+  renderRouteModalList();
 
   syncResponsableDisenoField();
   syncClienteSelectedText();
@@ -458,6 +911,7 @@ async function openOrdenModalForEdit(row) {
   if ($("d_color_text")) $("d_color_text").value = det?.color_text || "F/C";
   if ($("d_obs_tecnica")) $("d_obs_tecnica").value = det?.observacion_tecnica || "";
   if ($("p_plast")) $("p_plast").value = det?.plastificado || "";
+  if ($("p_perforado_tipo")) $("p_perforado_tipo").value = det?.perforado_tipo || "";
   if ($("d_multi_placas")) $("d_multi_placas").checked = !!det?.requiere_juegos_placa;
   if ($("d_placas_total")) {
     const totalSaved = sanitizePlacasTotal(det?.juegos_placa_total || 2);
@@ -474,6 +928,18 @@ async function openOrdenModalForEdit(row) {
   if ($("p_troq")) $("p_troq").checked = !!det?.troquelado;
   if ($("p_sect")) $("p_sect").checked = !!det?.sectorizado;
   if ($("p_barniz")) $("p_barniz").checked = !!det?.barniz;
+  if ($("p_encolado")) $("p_encolado").checked = !!det?.encolado;
+  if ($("p_marcado")) $("p_marcado").checked = !!det?.marcado;
+  if ($("p_anillado")) $("p_anillado").checked = !!det?.anillado;
+  if ($("p_perforado")) $("p_perforado").checked = !!det?.perforado;
+  if ($("p_pegado_solapa")) $("p_pegado_solapa").checked = !!det?.pegado_solapa;
+  if ($("p_semi_corte")) $("p_semi_corte").checked = !!det?.semi_corte;
+  if ($("p_enumerado")) $("p_enumerado").checked = !!det?.enumerado;
+  if (Array.isArray(det?.ruta_procesos) || typeof det?.ruta_procesos === "string") {
+    buildRouteDraftFromStoredRoute(det?.ruta_procesos);
+  } else {
+    buildDefaultRouteDraft();
+  }
 
   syncClienteSelectedText();
   syncMaterialSelectedText();
@@ -1403,7 +1869,16 @@ async function onGuardarOrden() {
       troquelado: $("p_troq")?.checked ?? false,
       sectorizado: $("p_sect")?.checked ?? false,
       barniz: $("p_barniz")?.checked ?? false,
-      plastificado: $("p_plast")?.value || null
+      plastificado: $("p_plast")?.value || null,
+      encolado: $("p_encolado")?.checked ?? false,
+      marcado: $("p_marcado")?.checked ?? false,
+      anillado: $("p_anillado")?.checked ?? false,
+      perforado: $("p_perforado")?.checked ?? false,
+      perforado_tipo: $("p_perforado")?.checked ? ($("p_perforado_tipo")?.value || "PERFORADO") : null,
+      pegado_solapa: $("p_pegado_solapa")?.checked ?? false,
+      semi_corte: $("p_semi_corte")?.checked ?? false,
+      enumerado: $("p_enumerado")?.checked ?? false,
+      ruta_procesos: buildRoutePayload()
     };
     let res = null;
     if (ordenModalMode === "edit" && ordenEditId) {
@@ -1616,6 +2091,13 @@ async function exportReporteEntregadosCsv() {
     closeEntregaModal,
     confirmEntregaDesdeModal,
     syncEntregaGuiaFields,
+    syncRouteDraftFromForm,
+    openRouteModal,
+    closeRouteModal,
+    moveRouteItem,
+    buildDefaultRouteDraft,
+    toggleRouteProcess,
+    setRouteProcessVariant,
     syncRegsPresetChips
   });
 
@@ -1628,6 +2110,8 @@ async function exportReporteEntregadosCsv() {
   syncEntregaGuiaFields();
   syncExternalFlowUI();
   syncJuegosPlacaUI();
+  renderRouteSummary();
+  renderRouteModalList();
   refreshFormState();
   bindRealtime();
   await loadJobs();

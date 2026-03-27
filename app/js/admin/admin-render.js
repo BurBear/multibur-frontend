@@ -35,6 +35,19 @@ export function getProcesosAcabadosText(row) {
   if (row?.sectorizado) list.push("Sectorizado");
   if (row?.barniz) list.push("Barniz");
   if (row?.plastificado) list.push(`Plastificado: ${row.plastificado}`);
+  if (row?.encolado) list.push("Encolado");
+  if (row?.marcado) list.push("Marcado");
+  if (row?.anillado) list.push("Anillado");
+  if (row?.perforado) {
+    list.push(
+      row?.perforado_tipo === "PICADO_PERFORADO"
+        ? "Perforado: Picado/Perforado"
+        : "Perforado"
+    );
+  }
+  if (row?.pegado_solapa) list.push("Pegado solapa");
+  if (row?.semi_corte) list.push("Semi corte");
+  if (row?.enumerado) list.push("Enumerado");
   return list.length ? list.join(" | ") : "-";
 }
 

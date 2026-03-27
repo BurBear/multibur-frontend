@@ -365,17 +365,30 @@
                 <input id="d_color_text" value="F/C" />
               </div>
 
-              <div class="inl-4">
-                <label class="field-lb" for="p_plast">Plastificado</label>
-                <select id="p_plast">
-                  <option value="">Ninguno</option>
-                  <option value="BRILLO">BRILLO</option>
-                  <option value="MATE">MATE</option>
-                </select>
+              <div class="inl-6">
+                <label class="field-lb">Ruta de procesos</label>
+                <div class="route-launcher">
+                  <input id="routePickerTrigger" readonly placeholder="Click para elegir procesos y definir la secuencia" />
+                </div>
+                <div id="procesoRutaSummary" class="route-summary is-empty">Haz click en el cuadro para definir procesos y secuencia.</div>
+                <div class="route-hidden-inputs hide" aria-hidden="true">
+                  <label class="field-lb" for="p_plast">Plastificado</label>
+                  <select id="p_plast">
+                    <option value="">Ninguno</option>
+                    <option value="BRILLO">BRILLO</option>
+                    <option value="MATE">MATE</option>
+                  </select>
+                  <label class="field-lb" for="p_perforado_tipo">Perforado</label>
+                  <select id="p_perforado_tipo">
+                    <option value="">Ninguno</option>
+                    <option value="PERFORADO">PERFORADO</option>
+                    <option value="PICADO_PERFORADO">PICADO/PERFORADO</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div class="inl-6">
+            <div class="inl-6 route-hidden-inputs hide" aria-hidden="true">
               <label class="field-lb">Procesos acabados</label>
               <div class="check-grid">
                 <label class="check-item"><input id="p_corte" type="checkbox" /> Corte</label>
@@ -385,6 +398,13 @@
                 <label class="check-item"><input id="p_troq" type="checkbox" /> Troquelado</label>
                 <label class="check-item"><input id="p_sect" type="checkbox" /> Sectorizado</label>
                 <label class="check-item"><input id="p_barniz" type="checkbox" /> Barniz</label>
+                <label class="check-item"><input id="p_encolado" type="checkbox" /> Encolado</label>
+                <label class="check-item"><input id="p_marcado" type="checkbox" /> Marcado</label>
+                <label class="check-item"><input id="p_anillado" type="checkbox" /> Anillado</label>
+                <label class="check-item"><input id="p_perforado" type="checkbox" /> Perforado</label>
+                <label class="check-item"><input id="p_pegado_solapa" type="checkbox" /> Pegado solapa</label>
+                <label class="check-item"><input id="p_semi_corte" type="checkbox" /> Semi corte</label>
+                <label class="check-item"><input id="p_enumerado" type="checkbox" /> Enumerado</label>
               </div>
             </div>
             <div class="inl-6">
@@ -402,6 +422,42 @@
     </div>
   </div>
 
+  <div id="routeWrap" class="modal-wrap hide" aria-hidden="true">
+    <div class="modal route-modal" role="dialog" aria-modal="true" aria-labelledby="routeTitle">
+      <div class="modal-head">
+        <div>
+          <strong id="routeTitle">Procesos y secuencia</strong>
+          <div class="small muted">Selecciona los procesos de la orden y define que va primero y que continua.</div>
+        </div>
+        <button id="btnCloseRoute" class="btn btn-ghost" type="button">Cerrar</button>
+      </div>
+      <div class="modal-body">
+        <div class="route-layout">
+          <section class="route-section route-section-process">
+            <div class="route-section-head">
+              <div>
+                <div class="field-lb route-section-label">Procesos disponibles</div>
+                <div class="small muted">Marca los acabados que aplican a esta orden.</div>
+              </div>
+              <div id="routeSelectionCount" class="route-selection-count">0 procesos</div>
+            </div>
+            <div id="routeProcessPicker" class="route-picker-grid"></div>
+          </section>
+          <aside id="routeSidePanel" class="route-side-panel">
+            <div class="route-side-head">
+              <div class="field-lb route-section-label">Secuencia de trabajo</div>
+              <div id="routeHint" class="small muted"></div>
+            </div>
+            <div id="routeList" class="route-list"></div>
+          </aside>
+        </div>
+        <div class="toolbar inl-7">
+          <button id="btnRouteReset" class="btn btn-ghost" type="button">Restablecer</button>
+          <button id="btnRouteSave" class="btn btn-primary" type="button">Usar esta ruta</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="jobDetailWrap" class="modal-wrap hide" aria-hidden="true">
     <div class="modal inl-8" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
       <div class="modal-head">
@@ -487,3 +543,4 @@
 </body>
 
 </html>
+
