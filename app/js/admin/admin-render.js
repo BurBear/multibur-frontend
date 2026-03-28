@@ -51,4 +51,77 @@ export function getProcesosAcabadosText(row) {
   return list.length ? list.join(" | ") : "-";
 }
 
-// Reserved for future UI enhancements.
+export function renderRouteStatusPill(row) {
+  const label = String(row?.route_badge_label || "").trim();
+  if (!label) return `<span class="small muted">Seguimiento en detalle</span>`;
+
+  const tone = String(row?.route_badge_tone || "ready").trim().toLowerCase();
+  const toneClass = ({
+    ready: "is-ready",
+    printing: "is-printing",
+    paused: "is-paused",
+    cutting: "is-cutting",
+    "cut-ready": "is-cut-ready",
+    "route-ready": "is-route-ready",
+    "route-active": "is-route-active",
+    handoff: "is-handoff",
+    done: "is-done"
+  })[tone] || "is-ready";
+
+  return `<span class="state-pill ${toneClass}">${escapeHtml(label)}</span>`;
+}
+
+export function renderProcesoActualCell(row) {
+  const estado = String(row?.estado || "").trim().toUpperCase();
+  const prodEstado = String(row?.produccion_estado || "").trim().toUpperCase();
+
+  if (estado === "IMPRESION") {
+    const primary = "Impresion";
+    const secondary = prodEstado === "PAUSADO"
+      ? "Pausado en operador"
+      : "Trabajando en operador";
+    return `
+      <div><b>${escapeHtml(primary)}</b></div>
+      <div class="small muted">${escapeHtml(secondary)}</div>
+    `;
+  }
+
+  if (estado === "ACABADOS") {
+    const primary = String(row?.route_stage_primary || "").trim() || "Ruta activa";
+    const secondary = String(row?.route_stage_secondary || "").trim() || "Seguimiento de ruta";
+    return `
+      <div><b>${escapeHtml(primary)}</b></div>
+      <div class="small muted">${escapeHtml(secondary)}</div>
+    `;
+  }
+
+  if (estado === "DISENO") {
+    return `
+      <div><b>Diseno</b></div>
+      <div class="small muted">Preparacion inicial</div>
+    `;
+  }
+
+  if (estado === "PLACAS") {
+    return `
+      <div><b>Placas</b></div>
+      <div class="small muted">Listo para operador</div>
+    `;
+  }
+
+  if (estado === "TERMINADO") {
+    return `
+      <div><b>Terminado</b></div>
+      <div class="small muted">Listo para entregar</div>
+    `;
+  }
+
+  if (estado === "ENTREGADO") {
+    return `
+      <div><b>Entregado</b></div>
+      <div class="small muted">Flujo cerrado</div>
+    `;
+  }
+
+  return `<div class="small muted">-</div>`;
+}

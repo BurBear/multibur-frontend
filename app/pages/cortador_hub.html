@@ -4,15 +4,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MultiBur | Acabados</title>
+  <title>MultiBur | Selector CORTADOR</title>
   <link rel="icon" type="image/svg+xml" href="../assets/logo.svg" />
 
   <link rel="stylesheet" href="../css/global.css" />
-  <link rel="stylesheet" href="../css/acabados.css" />
+  <link rel="stylesheet" href="../css/cortador-hub.css" />
   <link rel="stylesheet" href="../css/loader.css" />
 </head>
 
-<body class="page-acabados">
+<body class="page-cortador-hub">
   <div id="loader" aria-label="Cargando">
     <svg class="logo-loader" viewBox="0 0 104.88 104.88" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -34,74 +34,50 @@
   <header class="top">
     <div class="brand-wrap">
       <div class="brand-main">MultiBur</div>
-      <span class="role-chip">ACABADOS V1</span>
+      <span class="role-chip">CORTADOR</span>
     </div>
     <div>
-      <div class="brand">Tablero de Acabados</div>
-      <div class="brand-sub">Procesos por orden, en una vista simple y compacta</div>
+      <div class="brand">Selector de trabajo</div>
+      <div class="brand-sub">Elige el modulo que vas a realizar en esta sesion.</div>
     </div>
     <div class="top-right">
       <span id="userPill" class="pill">-</span>
-      <button id="btnMainMenu" class="btn btn-ghost" type="button" hidden>Menu principal</button>
       <button id="btnLogout" class="btn btn-ghost" type="button">Cerrar sesion</button>
     </div>
   </header>
 
   <main class="main">
-    <section class="content-grid">
-      <div class="card board-card">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Ordenes y procesos</h2>
-            <div class="card-sub">Vista agrupada por orden con progreso general</div>
-          </div>
-          <div class="filters">
-            <input id="qAcabados" class="grow" placeholder="Buscar por cliente o numero de orden..." />
-          </div>
-        </div>
-
-        <div class="card-body">
-          <section class="subsection">
-            <div class="board-scroll">
-              <div id="boardOrders" class="board-orders"></div>
-            </div>
-          </section>
-
-          <div id="msgAcabados" class="msg"></div>
-        </div>
+    <section class="hub-card">
+      <div class="hub-copy">
+        <div class="hub-kicker">CORTADOR</div>
+        <h1>¿QUE ES LO QUE VA A REALIZAR?</h1>
+        <p>Selecciona el panel al que deseas entrar. Puedes usar CORTE o ACABADOS con este usuario. MATERIAL quedara habilitado mas adelante.</p>
       </div>
 
-      <aside class="card side-card">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">En curso</h2>
-            <div class="card-sub">Tus trabajos activos o pausados</div>
-          </div>
-        </div>
-        <div class="card-body">
-          <div id="myProcesses" class="my-processes my-processes-side"></div>
-        </div>
-      </aside>
+      <div class="hub-grid">
+        <button id="cardCorte" class="hub-option is-corte" type="button">
+          <span class="hub-option-title">CORTE</span>
+          <span class="hub-option-sub">Entrar al tablero de corte</span>
+        </button>
+
+        <button id="cardAcabados" class="hub-option is-acabados" type="button">
+          <span class="hub-option-title">ACABADOS</span>
+          <span class="hub-option-sub">Entrar al tablero de acabados</span>
+        </button>
+
+        <button id="cardMaterial" class="hub-option is-disabled" type="button" disabled aria-disabled="true">
+          <span class="hub-option-title">MATERIAL</span>
+          <span class="hub-option-coming">PROXIMAMENTE</span>
+          <span class="hub-option-sub">Se habilitara proximamente</span>
+        </button>
+      </div>
+
+      <div id="msgHub" class="msg"></div>
     </section>
   </main>
 
-  <div id="detailModal" class="detail-modal" hidden>
-    <div class="detail-modal-card card" role="dialog" aria-modal="true" aria-labelledby="acabadosDetailTitle">
-      <div class="card-head">
-        <div>
-          <h2 id="acabadosDetailTitle" class="card-title">Detalle</h2>
-          <div class="card-sub">Proceso y contexto de la orden seleccionada</div>
-        </div>
-        <button id="btnCloseAcabadosDetail" class="btn btn-ghost" type="button">Cerrar</button>
-      </div>
-      <div class="card-body">
-        <div id="detailPane" class="detail-pane"></div>
-      </div>
-    </div>
-  </div>
-
   <script src="../js/loader.js"></script>
-  <script type="module" src="../js/acabados.js"></script>
+  <script type="module" src="../js/cortador-hub.js"></script>
 </body>
 
 </html>

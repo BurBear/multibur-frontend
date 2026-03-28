@@ -4,7 +4,7 @@ export const ROLE_HOME = Object.freeze({
   ADMIN: "./admin.html",
   OPERADOR: "./operador.html",
   ACABADOS: "./acabados.html",
-  CORTADOR: "./cortador.html"
+  CORTADOR: "./cortador_hub.html"
 });
 
 export const ROLE_CAPABILITIES = Object.freeze({

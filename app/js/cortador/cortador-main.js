@@ -41,6 +41,16 @@ function syncUserPill() {
   el.textContent = display;
 }
 
+function syncMainMenuButton() {
+  const el = document.getElementById("btnMainMenu");
+  if (!el) return;
+
+  el.hidden = false;
+  el.onclick = () => {
+    window.location.href = "./cortador_hub.html";
+  };
+}
+
 function renderAll() {
   renderCortadorApp();
 }
@@ -408,11 +418,12 @@ async function handleLogout() {
 }
 
 async function init() {
-  const session = await requireRole(["CORTADOR", "ADMIN"]);
+  const session = await requireRole("CORTADOR");
   if (!session) return;
 
   setSession(session);
   syncUserPill();
+  syncMainMenuButton();
   initFullscreenToggle({ containerSelector: ".top-right", insertBeforeSelector: "#btnLogout" });
   renderAll();
 

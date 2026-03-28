@@ -41,6 +41,19 @@ function syncUserPill() {
   el.textContent = display;
 }
 
+function syncMainMenuButton() {
+  const el = document.getElementById("btnMainMenu");
+  if (!el) return;
+
+  const role = String(acabadosState.currentProfile?.rol || "").toUpperCase();
+  const shouldShow = role === "CORTADOR";
+
+  el.hidden = !shouldShow;
+  el.onclick = shouldShow ? () => {
+    window.location.href = "./cortador_hub.html";
+  } : null;
+}
+
 function renderAll() {
   renderAcabadosApp();
 }
@@ -407,11 +420,12 @@ async function handleLogout() {
 }
 
 async function init() {
-  const session = await requireRole(["ACABADOS", "ADMIN"]);
+  const session = await requireRole(["ACABADOS", "CORTADOR"]);
   if (!session) return;
 
   setSession(session);
   syncUserPill();
+  syncMainMenuButton();
   initFullscreenToggle({ containerSelector: ".top-right", insertBeforeSelector: "#btnLogout" });
   renderAll();
 
