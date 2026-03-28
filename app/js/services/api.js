@@ -238,6 +238,38 @@ function processCodeToRouteKey(code) {
   }
 }
 
+function processCodeToDisplayLabel(code, config = {}, order = null) {
+  const processCode = String(code || "").trim().toUpperCase();
+  const cfg = config && typeof config === "object" ? config : {};
+
+  switch (processCode) {
+    case "CORTE": return "Corte";
+    case "EMPAQUETADO": return "Empaquetado";
+    case "DOBLEZ": return "Doblez";
+    case "COMPAGINADO": return "Compaginado";
+    case "TROQUELADO": return "Troquelado";
+    case "SECTORIZADO": return "Sectorizado";
+    case "BARNIZ": return "Barniz";
+    case "PLASTIFICADO": {
+      const modo = String(cfg.modo || order?.plastificado || "").trim().toUpperCase();
+      return modo ? `Plastificado (${modo})` : "Plastificado";
+    }
+    case "ENCOLADO": return "Encolado";
+    case "MARCADO": return "Marcado";
+    case "ANILLADO": return "Anillado";
+    case "PERFORADO": {
+      const tipo = String(cfg.tipo || order?.perforado_tipo || "").trim().toUpperCase();
+      return tipo === "PICADO_PERFORADO"
+        ? "Perforado (Picado/Perforado)"
+        : "Perforado";
+    }
+    case "PEGADO_SOLAPA": return "Pegado solapa";
+    case "SEMI_CORTE": return "Semi corte";
+    case "ENUMERADO": return "Enumerado";
+    default: return processCode || "-";
+  }
+}
+
 function parseRouteProcesos(raw) {
   let data = raw;
   if (typeof data === "string") {
@@ -330,6 +362,121 @@ function isVisibleProcessForModule(order, process, allProcesses = [], moduleName
   return currentSeq === nextSeq;
 }
 
+function buildVisibleProcessesForModule(order, allProcesses = [], moduleName, currentModule, nextOpenProcess) {
+  const targetModule = String(moduleName || "").trim().toUpperCase();
+  const current = String(currentModule || "").trim().toUpperCase();
+  const moduleProcesos = (allProcesses || []).filter(
+    (process) => String(process?.modulo_responsable || "").trim().toUpperCase() === targetModule
+  );
+
+  const visibleMap = new Map();
+
+  for (const process of moduleProcesos) {
+    const status = String(process?.estado || "").trim().toUpperCase();
+    if (["EN_PROCESO", "PAUSADO"].includes(status)) {
+      visibleMap.set(Number(process.id), process);
+    }
+  }
+
+  if (
+    current === targetModule
+    && nextOpenProcess
+    && String(nextOpenProcess?.modulo_responsable || "").trim().toUpperCase() === targetModule
+  ) {
+    const forced = moduleProcesos.find((process) => Number(process.id) === Number(nextOpenProcess.id));
+    if (forced) {
+      visibleMap.set(Number(forced.id), forced);
+    }
+  }
+
+  for (const process of moduleProcesos) {
+    if (isVisibleProcessForModule(order, process, allProcesses, targetModule, currentModule, nextOpenProcess)) {
+      visibleMap.set(Number(process.id), process);
+    }
+  }
+
+  return Array.from(visibleMap.values()).sort((a, b) => {
+    const seqDiff = getEffectiveSequence(order, a) - getEffectiveSequence(order, b);
+    if (seqDiff !== 0) return seqDiff;
+    return Number(a.id) - Number(b.id);
+  });
+}
+
+function buildAdminRouteStatus(order, allProcesses = []) {
+  const currentRouteModule = getCurrentRouteModule(order, allProcesses);
+  const nextOpenProcess = getNextOpenRouteProcess(order, allProcesses);
+  const nextModule = String(nextOpenProcess?.modulo_responsable || "").trim().toUpperCase();
+  const nextStatus = String(nextOpenProcess?.estado || "").trim().toUpperCase();
+  const nextProcessLabel = nextOpenProcess
+    ? processCodeToDisplayLabel(nextOpenProcess.proceso_codigo, nextOpenProcess.configuracion, order)
+    : null;
+  const nextProcessLabelUpper = String(nextProcessLabel || "").trim().toUpperCase();
+  const requiresHandoff = !!currentRouteModule && !!nextOpenProcess && !!nextModule && currentRouteModule !== nextModule;
+
+  let routeStagePrimary = null;
+  let routeStageSecondary = null;
+  let routeBadgeLabel = null;
+  let routeBadgeTone = "ready";
+
+  if (!nextOpenProcess) {
+    routeStagePrimary = "Ruta completada";
+    routeStageSecondary = currentRouteModule || "Sin modulo activo";
+    routeBadgeLabel = "Procesos completados";
+    routeBadgeTone = "done";
+  } else if (requiresHandoff) {
+    routeStagePrimary = nextProcessLabel || (nextModule === "CORTADOR" ? "Corte" : "Acabado");
+    routeStageSecondary = nextModule === "CORTADOR"
+      ? "Listo para mandar a corte"
+      : "Listo para mandar a acabados";
+    routeBadgeLabel = nextModule === "CORTADOR"
+      ? "Listo para corte"
+      : "Listo para acabados";
+    routeBadgeTone = nextModule === "CORTADOR" ? "cut-ready" : "route-ready";
+  } else if (nextStatus === "PAUSADO") {
+    routeStagePrimary = nextProcessLabel || (currentRouteModule === "CORTADOR" ? "Corte" : "Acabado");
+    routeStageSecondary = currentRouteModule === "CORTADOR"
+      ? "Pausado en CORTADOR"
+      : "Pausado en ACABADOS";
+    routeBadgeLabel = nextProcessLabelUpper
+      ? `PAUSADO: ${nextProcessLabelUpper}`
+      : (currentRouteModule === "CORTADOR" ? "Corte pausado" : "Acabado pausado");
+    routeBadgeTone = "paused";
+  } else if (nextStatus === "EN_PROCESO") {
+    routeStagePrimary = nextProcessLabel || (currentRouteModule === "CORTADOR" ? "Corte" : "Acabado");
+    routeStageSecondary = currentRouteModule === "CORTADOR"
+      ? "Trabajando en CORTADOR"
+      : "Trabajando en ACABADOS";
+    routeBadgeLabel = nextProcessLabelUpper
+      ? `EN: ${nextProcessLabelUpper}`
+      : (currentRouteModule === "CORTADOR" ? "EN: CORTE" : "EN: ACABADOS");
+    routeBadgeTone = currentRouteModule === "CORTADOR" ? "cutting" : "route-active";
+  } else if (currentRouteModule === "CORTADOR") {
+    routeStagePrimary = nextProcessLabel || "Corte";
+    routeStageSecondary = "Pendiente en CORTADOR";
+    routeBadgeLabel = "Listo para corte";
+    routeBadgeTone = "cut-ready";
+  } else {
+    routeStagePrimary = nextProcessLabel || "Acabado";
+    routeStageSecondary = "Pendiente en ACABADOS";
+    routeBadgeLabel = "Listo para acabados";
+    routeBadgeTone = "route-ready";
+  }
+
+  return {
+    route_current_module: currentRouteModule || null,
+    route_next_process_id: nextOpenProcess?.id ?? null,
+    route_next_process_codigo: nextOpenProcess?.proceso_codigo ?? null,
+    route_next_process_label: nextProcessLabel,
+    route_next_process_modulo: nextModule || null,
+    route_next_process_estado: nextStatus || null,
+    route_requires_handoff: requiresHandoff,
+    route_stage_primary: routeStagePrimary,
+    route_stage_secondary: routeStageSecondary,
+    route_badge_label: routeBadgeLabel,
+    route_badge_tone: routeBadgeTone
+  };
+}
+
 export async function fetchOrdenProcesosAcabadosByOrdenIds(orderIds = []) {
   if (!orderIds.length) return [];
   const { data, error } = await supabase
@@ -377,8 +524,12 @@ async function fetchRouteBoardSnapshot(moduleName, { userId = null } = {}) {
     const currentRouteModule = getCurrentRouteModule(order, allProcesos);
     const nextOpenProcess = getNextOpenRouteProcess(order, allProcesos);
     const moduleProcesos = allProcesos.filter((p) => String(p.modulo_responsable || "").toUpperCase() === targetModule);
-    const visibleProcesos = moduleProcesos.filter((process) =>
-      isVisibleProcessForModule(order, process, allProcesos, targetModule, currentRouteModule, nextOpenProcess)
+    const visibleProcesos = buildVisibleProcessesForModule(
+      order,
+      allProcesos,
+      targetModule,
+      currentRouteModule,
+      nextOpenProcess
     );
     const handoffTargetModule = nextOpenProcess
       ? String(nextOpenProcess.modulo_responsable || "").trim().toUpperCase()
@@ -415,6 +566,30 @@ export async function fetchAcabadosBoardSnapshot({ userId = null } = {}) {
 
 export async function fetchCortadorBoardSnapshot({ userId = null } = {}) {
   return fetchRouteBoardSnapshot("CORTADOR", { userId });
+}
+
+export async function fetchTrabajosAdminBoardSnapshot({ estado = "" } = {}) {
+  const orders = await fetchTrabajosAdminBoard({ estado });
+  if (!orders.length) return [];
+
+  const orderIds = [...new Set(orders.map((o) => Number(o.orden_id)).filter(Boolean))];
+  const procesos = await fetchOrdenProcesosAcabadosByOrdenIds(orderIds);
+  const procesosByOrden = new Map();
+
+  for (const proceso of procesos || []) {
+    const oid = Number(proceso.orden_id);
+    const bucket = procesosByOrden.get(oid) || [];
+    bucket.push(proceso);
+    procesosByOrden.set(oid, bucket);
+  }
+
+  return orders.map((order) => {
+    const allProcesos = procesosByOrden.get(Number(order.orden_id)) || [];
+    return {
+      ...order,
+      ...buildAdminRouteStatus(order, allProcesos)
+    };
+  });
 }
 
 function peruDayWindowUtc(daysFromToday = 0) {

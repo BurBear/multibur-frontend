@@ -7,7 +7,13 @@ import { msgJobs, msgRegs, msgCreate, showToast } from "./admin-ui.js";
 import { bindAdminRealtime } from "./admin-realtime.js";
 import { bindAdminEvents } from "./admin-events.js";
 import { isEditableEstado, toDbTipoImpresion, toDbColorMode, fmtTipoImpresion } from "./admin-orders.js";
-import { renderPrioridadBadge, renderIncidenciaBadge, getProcesosAcabadosText, renderOverdueBadge } from "./admin-render.js";
+import {
+  renderPrioridadBadge,
+  renderIncidenciaBadge,
+  getProcesosAcabadosText,
+  renderOverdueBadge,
+  renderRouteStatusPill
+} from "./admin-render.js";
 import { syncRegsPresetChips, createLiveDurationHelpers } from "./admin-registros.js";
 import { csvCell, downloadCsv } from "./admin-actions.js";
 import {
@@ -18,7 +24,7 @@ import {
 import {
   fetchClientes,
   fetchMaquinas,
-  fetchTrabajosAdminBoard,
+  fetchTrabajosAdminBoardSnapshot,
   fetchUltimasIncidenciasByOrdenIds,
   fetchUltimosEstadosProduccionByOrdenIds,
   fetchRegistros,
@@ -1336,7 +1342,7 @@ function renderAccion(r) {
     return `<span class="state-pill is-printing">Imprimiendo</span>`;
   }
   if (e === "ACABADOS") {
-    return `<button class="btn btn-primary" type="button" data-action="set" data-oid="${r.orden_id}" data-to="${ESTADO_FINAL}" style="padding:8px 10px">FINALIZAR</button>`;
+    return renderRouteStatusPill(r);
   }
   if (e === estadoKey(ESTADO_FINAL)) {
     return `<button class="btn btn-deliver" type="button" data-action="deliver" data-oid="${r.orden_id}" style="padding:8px 10px">ENTREGAR</button>`;
@@ -1399,12 +1405,20 @@ function openDetalleOrden(r, extra = null) {
   const guiaObs = extra?.guia_observacion || "-";
   const incMotivo = r?.incidencia_motivo || "-";
   const incObs = r?.incidencia_obs || "-";
+  const procesoActualDetalle = estadoKey(r.estado) === "ACABADOS"
+    ? [r.route_stage_primary, r.route_stage_secondary].filter(Boolean).join(" | ")
+    : estadoKey(r.estado) === "IMPRESION"
+      ? `Impresion | ${String(r.produccion_estado || "").trim().toUpperCase() === "PAUSADO" ? "Pausado en operador" : "Trabajando en operador"}`
+      : r.estado || "-";
+  const moduloRutaActual = r.route_current_module || "-";
   const juegosLabel = juegosPlacaLabel(r);
   const juegosNombres = juegosPlacaNombres(r, extra);
   $("jobDetailBody").innerHTML = `
     <div class="detail-grid">
       <div><span class="detail-k">Orden</span><span class="detail-v">${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</span></div>
       <div><span class="detail-k">Estado</span><span class="detail-v">${esc(r.estado || "-")}</span></div>
+      <div><span class="detail-k">Proceso actual</span><span class="detail-v">${esc(procesoActualDetalle || "-")}</span></div>
+      <div><span class="detail-k">Modulo actual</span><span class="detail-v">${esc(moduloRutaActual)}</span></div>
       <div><span class="detail-k">Prioridad</span><span class="detail-v">${renderPrioridadBadge(r.prioridad)}</span></div>
       <div><span class="detail-k">Entrega</span><span class="detail-v">${esc(entrega)}</span></div>
       <div><span class="detail-k">Cliente</span><span class="detail-v">${esc(r.cliente_nombre || "-")}</span></div>
@@ -1546,7 +1560,7 @@ async function loadJobs() {
   const estado = toDbEstado(estadoRaw);
   const tipoClienteFiltro = String($("fTipoCliente")?.value || "").trim().toUpperCase();
   const q = ($("q")?.value || "").trim().toLowerCase();
-  let rows = await fetchTrabajosAdminBoard({ estado });
+  let rows = await fetchTrabajosAdminBoardSnapshot({ estado });
   const orderIds = (rows || []).map((r) => Number(r.orden_id)).filter(Boolean);
   const metas = await fetchOrdenesMetaByIds(orderIds).catch(() => []);
   const metaMap = new Map((metas || []).map((m) => [Number(m.id), m]));
@@ -1580,7 +1594,20 @@ async function loadJobs() {
   if (tipoClienteFiltro) {
     rows = rows.filter((r) => normalizeTipoCliente(r.cliente_tipo) === tipoClienteFiltro);
   }
-  if (q) rows = rows.filter((r) => [r.numero_orden_fisica, r.cliente_nombre, r.descripcion_trabajo, r.estado, r.tipo_impresion, r.color_text, r.maquina_sugerida_nombre].join(" ").toLowerCase().includes(q));
+  if (q) rows = rows.filter((r) => [
+    r.numero_orden_fisica,
+    r.cliente_nombre,
+    r.descripcion_trabajo,
+    r.estado,
+    r.route_stage_primary,
+    r.route_stage_secondary,
+    r.route_current_module,
+    r.route_next_process_label,
+    r.route_badge_label,
+    r.tipo_impresion,
+    r.color_text,
+    r.maquina_sugerida_nombre
+  ].join(" ").toLowerCase().includes(q));
   const tb = $("tbJobs");
   if (!tb) return;
   tb.innerHTML = (rows || []).map((r) => {
@@ -1615,10 +1642,6 @@ async function loadJobs() {
       <td><div class="text-elide" style="max-width: 130px" title="${esc(r.descripcion_trabajo || '-')}">${esc(r.descripcion_trabajo || "-")}</div></td>
       <td><b>${esc(r.cantidad_solicitada || "-")}</b>${r.demasia ? `<div class="small muted">+${esc(r.demasia)} demasía</div>` : ""}</td>
       <td><b>${esc(formato)}</b><div class="small muted">${esc(r.papel_material || "")} ${esc(r.gramaje ? (r.gramaje + "g") : "")}</div></td>
-      <td>
-        ${esc(fmtTipoImpresion(r.tipo_impresion))}
-        ${isTipoImpresionTR(r.tipo_impresion) && juegosLabel ? `<div class="small muted">${esc(juegosLabel)}</div>` : ""}
-      </td>
       <td>${esc(r.color_text || "-")}</td>
       <td>${esc(r.maquina_sugerida_nombre || "-")}</td>
       <td>

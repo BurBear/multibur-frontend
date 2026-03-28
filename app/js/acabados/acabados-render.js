@@ -20,6 +20,24 @@ const PROCESS_LABELS = Object.freeze({
   ENUMERADO: "Enumerado"
 });
 
+const ROUTE_KEY_BY_PROCESS_CODE = Object.freeze({
+  CORTE: "corte",
+  EMPAQUETADO: "empaquetado",
+  DOBLEZ: "doblez",
+  COMPAGINADO: "compaginado",
+  TROQUELADO: "troquelado",
+  SECTORIZADO: "sectorizado",
+  BARNIZ: "barniz",
+  PLASTIFICADO: "plastificado",
+  ENCOLADO: "encolado",
+  MARCADO: "marcado",
+  ANILLADO: "anillado",
+  PERFORADO: "perforado",
+  PEGADO_SOLAPA: "pegado_solapa",
+  SEMI_CORTE: "semi_corte",
+  ENUMERADO: "enumerado"
+});
+
 function esc(value) {
   return escapeHtml(value);
 }
@@ -41,9 +59,104 @@ function formatCantidad(order) {
 function formatObservacionOrden(order) {
   const observacionOrden = String(order?.observacion_orden || "").trim();
   if (observacionOrden) return observacionOrden;
-  const observacionTecnica = String(order?.observacion_tecnica || "").trim();
-  if (observacionTecnica) return observacionTecnica;
   return "-";
+}
+
+function processCodeToRouteKey(code) {
+  return ROUTE_KEY_BY_PROCESS_CODE[String(code || "").trim().toUpperCase()] || "";
+}
+
+function routeEntryMatchesProcess(order, entry, process) {
+  if (!entry || !process) return false;
+  const routeKey = String(entry.key || "").trim();
+  const processKey = processCodeToRouteKey(process.proceso_codigo);
+  if (!routeKey || routeKey !== processKey) return false;
+
+  if (routeKey === "plastificado") {
+    const routeVariant = String(entry.variant || order?.plastificado || "").trim().toUpperCase();
+    const processVariant = String(process?.configuracion?.modo || order?.plastificado || "").trim().toUpperCase();
+    return !routeVariant || !processVariant || routeVariant === processVariant;
+  }
+
+  if (routeKey === "perforado") {
+    const routeVariant = String(entry.variant || order?.perforado_tipo || "").trim().toUpperCase();
+    const processVariant = String(process?.configuracion?.tipo || order?.perforado_tipo || "").trim().toUpperCase();
+    return !routeVariant || !processVariant || routeVariant === processVariant;
+  }
+
+  return true;
+}
+
+function getRouteEntryLabel(order, entry) {
+  const key = String(entry?.key || "").trim();
+  switch (key) {
+    case "corte": return "Corte";
+    case "empaquetado": return "Empaquetado";
+    case "doblez": return "Doblez";
+    case "compaginado": return "Compaginado";
+    case "troquelado": return "Troquelado";
+    case "sectorizado": return "Sectorizado";
+    case "barniz": return "Barniz";
+    case "plastificado": {
+      const mode = String(entry?.variant || order?.plastificado || "").trim().toUpperCase();
+      return mode ? `Plastificado (${mode})` : "Plastificado";
+    }
+    case "encolado": return "Encolado";
+    case "marcado": return "Marcado";
+    case "anillado": return "Anillado";
+    case "perforado": {
+      const tipo = String(entry?.variant || order?.perforado_tipo || "").trim().toUpperCase();
+      return tipo === "PICADO_PERFORADO" ? "Perforado (Picado/Perforado)" : "Perforado";
+    }
+    case "pegado_solapa": return "Pegado solapa";
+    case "semi_corte": return "Semi corte";
+    case "enumerado": return "Enumerado";
+    default: return "-";
+  }
+}
+
+function buildRouteDisplayItems(order, selectedProcessId) {
+  const allProcesses = Array.isArray(order?.procesos_ruta) && order.procesos_ruta.length
+    ? order.procesos_ruta
+    : (order?.procesos || []);
+  const visibleIds = new Set((order?.procesos || []).map((item) => Number(item.id)));
+  const route = Array.isArray(order?.ruta_procesos) && order.ruta_procesos.length
+    ? [...order.ruta_procesos].sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+    : [];
+
+  if (!route.length) {
+    return [...allProcesses]
+      .sort((a, b) => Number(a?.secuencia || 0) - Number(b?.secuencia || 0) || Number(a?.id) - Number(b?.id))
+      .map((process, index) => ({
+        step: index + 1,
+        label: formatProcesoLabel(process),
+        status: String(process?.estado || "PENDIENTE"),
+        isCurrent: Number(process?.id) === Number(selectedProcessId),
+        clickable: visibleIds.has(Number(process?.id)),
+        processId: Number(process?.id),
+        orderId: Number(order?.orden_id)
+      }));
+  }
+
+  const usedProcessIds = new Set();
+
+  return route.map((entry, index) => {
+    const process = allProcesses.find((candidate) => {
+      const candidateId = Number(candidate?.id);
+      if (usedProcessIds.has(candidateId)) return false;
+      return routeEntryMatchesProcess(order, entry, candidate);
+    }) || null;
+    if (process?.id != null) usedProcessIds.add(Number(process.id));
+    return {
+      step: Number(entry?.order || index + 1),
+      label: process ? formatProcesoLabel(process) : getRouteEntryLabel(order, entry),
+      status: String(process?.estado || "PENDIENTE"),
+      isCurrent: process ? Number(process.id) === Number(selectedProcessId) : false,
+      clickable: process ? visibleIds.has(Number(process.id)) : false,
+      processId: process ? Number(process.id) : null,
+      orderId: Number(order?.orden_id)
+    };
+  });
 }
 
 function hasProcessContext(process) {
@@ -91,8 +204,8 @@ function renderActionButtons(process) {
   if (!process && order?.requires_handoff) {
     const toCortador = String(order.handoff_target_module || "").toUpperCase() === "CORTADOR";
     const actionKey = toCortador ? "handoff-cortador" : "handoff-acabados";
-    const actionText = toCortador ? "MANDAR A CORTE" : "MANDAR A ACABADOS";
-    const loadingText = toCortador ? "ENVIANDO A CORTE..." : "ENVIANDO A ACABADOS...";
+    const actionText = toCortador ? "Mandar a corte" : "Mandar a acabados";
+    const loadingText = toCortador ? "Enviando a corte..." : "Enviando a acabados...";
     return `
       <div class="detail-panel-callout">
         ${toCortador
@@ -101,11 +214,11 @@ function renderActionButtons(process) {
       </div>
       <div class="detail-actions">
         <button
-          class="btn btn-transfer"
+          class="btn btn-transfer detail-btn"
           type="button"
           data-acabados-action="${actionKey}"
           ${ctx.busy ? "disabled" : ""}
-        >${ctx.busy ? loadingText : actionText}</button>
+        ><span class="detail-action-icon" aria-hidden="true">↗</span><span>${ctx.busy ? loadingText : actionText}</span></button>
       </div>
     `;
   }
@@ -116,27 +229,27 @@ function renderActionButtons(process) {
         Selecciona un proceso para operar esta orden.
       </div>
       <div class="detail-actions">
-        <button class="btn btn-primary" type="button" disabled>INICIAR</button>
+        <button class="btn btn-primary detail-btn" type="button" disabled><span class="detail-action-icon" aria-hidden="true">▶</span><span>Iniciar</span></button>
       </div>
     `;
   }
 
   if (status === "PENDIENTE") {
     const disabled = ctx.busy;
-    const text = ctx.busyAction === "INICIAR" ? "INICIANDO..." : "INICIAR";
+    const text = ctx.busyAction === "INICIAR" ? "Iniciando..." : "Iniciar";
     return `
       <div class="detail-actions">
-        <button class="btn btn-primary" type="button" data-acabados-action="start" ${disabled ? "disabled" : ""}>${text}</button>
+        <button class="btn btn-primary detail-btn" type="button" data-acabados-action="start" ${disabled ? "disabled" : ""}><span class="detail-action-icon" aria-hidden="true">▶</span><span>${text}</span></button>
       </div>
     `;
   }
 
   if (status === "PAUSADO") {
     const disabled = ctx.busy;
-    const text = ctx.busyAction === "RETOMAR" ? "RETOMANDO..." : "RETOMAR";
+    const text = ctx.busyAction === "RETOMAR" ? "Retomando..." : "Retomar";
     return `
       <div class="detail-actions">
-        <button class="btn btn-resume" type="button" data-acabados-action="resume" ${disabled ? "disabled" : ""}>${text}</button>
+        <button class="btn btn-resume detail-btn" type="button" data-acabados-action="resume" ${disabled ? "disabled" : ""}><span class="detail-action-icon" aria-hidden="true">↻</span><span>${text}</span></button>
       </div>
     `;
   }
@@ -147,7 +260,7 @@ function renderActionButtons(process) {
         Este proceso esta en curso por otro operador.
       </div>
       <div class="detail-actions">
-        <button class="btn btn-ghost" type="button" disabled>OCUPADO</button>
+        <button class="btn btn-ghost detail-btn" type="button" disabled><span class="detail-action-icon" aria-hidden="true">•</span><span>Ocupado</span></button>
       </div>
     `;
   }
@@ -163,15 +276,15 @@ function renderActionButtons(process) {
         >${esc(acabadosState.actionNoteDraft || "")}</textarea>
       </div>
       <div class="detail-actions">
-        <button class="btn btn-warn" type="button" data-acabados-action="pause" ${ctx.busy ? "disabled" : ""}>${ctx.busyAction === "PAUSAR" ? "PAUSANDO..." : "PAUSAR"}</button>
-        <button class="btn btn-primary" type="button" data-acabados-action="finish" ${ctx.busy ? "disabled" : ""}>${ctx.busyAction === "FINALIZAR" ? "FINALIZANDO..." : "FINALIZAR"}</button>
+        <button class="btn btn-warn detail-btn" type="button" data-acabados-action="pause" ${ctx.busy ? "disabled" : ""}><span class="detail-action-icon" aria-hidden="true">❚❚</span><span>${ctx.busyAction === "PAUSAR" ? "Pausando..." : "Pausar"}</span></button>
+        <button class="btn btn-primary detail-btn detail-btn-finish" type="button" data-acabados-action="finish" ${ctx.busy ? "disabled" : ""}><span class="detail-action-icon" aria-hidden="true">✓</span><span>${ctx.busyAction === "FINALIZAR" ? "Finalizando..." : "Finalizar"}</span></button>
       </div>
     `;
   }
 
   return `
     <div class="detail-actions">
-      <button class="btn btn-ghost" type="button" disabled>PROCESO CERRADO</button>
+      <button class="btn btn-ghost detail-btn" type="button" disabled><span class="detail-action-icon" aria-hidden="true">✓</span><span>Proceso cerrado</span></button>
     </div>
   `;
 }
@@ -324,104 +437,131 @@ function renderDetail() {
   const progress = order.progreso || {};
   const orderObservation = formatObservacionOrden(order);
   const showProcessContext = hasProcessContext(process);
+  const routeItems = buildRouteDisplayItems(order, acabadosState.selectedProcessId);
+  const currentRouteLabel = process
+    ? processTitle
+    : order?.requires_handoff
+      ? formatProcesoLabel({ proceso_codigo: order.next_process_codigo })
+      : "Selecciona un proceso";
+  const currentRouteMeta = process
+    ? processStatus
+    : order?.requires_handoff
+      ? String(order.handoff_target_module || "").toUpperCase() === "CORTADOR"
+        ? "Mandar a corte"
+        : "Mandar a acabados"
+      : "Sin proceso activo";
 
   mount.innerHTML = `
-    <div class="detail-block">
-      <div class="detail-topline">
-        <span class="detail-order">${esc(order.numero_orden_fisica || `#${order.orden_id}`)}</span>
-        <span class="status-pill ${statusPillClass(processStatus)}">${esc(processStatus)}</span>
-      </div>
-      <h3 class="detail-title">${esc(order.descripcion_trabajo || "-")}</h3>
-      <div class="detail-client">${esc(order.cliente_nombre || "-")}</div>
-    </div>
-
-    <div class="detail-grid">
-      <div class="detail-stat">
-        <span class="k">Proceso</span>
-        <span class="v">${esc(processTitle)}</span>
-      </div>
-      <div class="detail-stat">
-        <span class="k">Progreso</span>
-        <span class="v">${progress.completados || 0}/${progress.total || 0}</span>
-      </div>
-      <div class="detail-stat">
-        <span class="k">Entrega</span>
-        <span class="v">${esc(fmtEntrega(order.fecha_entrega))}</span>
-      </div>
-      <div class="detail-stat detail-stat-split">
-        <div>
-          <span class="k">Cantidad</span>
-          <span class="v">${esc(formatCantidad(order))}</span>
+    <div class="detail-layout">
+      <section class="detail-panel detail-panel-data">
+        <div class="detail-block">
+          <div class="detail-topline">
+            <span class="detail-order">${esc(order.numero_orden_fisica || `#${order.orden_id}`)}</span>
+            <span class="status-pill ${statusPillClass(processStatus)}">${esc(processStatus)}</span>
+          </div>
+          <h3 class="detail-title">${esc(order.descripcion_trabajo || "-")}</h3>
+          <div class="detail-client">${esc(order.cliente_nombre || "-")}</div>
         </div>
-        <div>
-          <span class="k">Demasia</span>
-          <span class="v">${esc(String(order.demasia ?? "-"))}</span>
+
+        <div class="detail-grid">
+          <div class="detail-stat">
+            <span class="k">Proceso</span>
+            <span class="v">${esc(processTitle)}</span>
+          </div>
+          <div class="detail-stat">
+            <span class="k">Progreso</span>
+            <span class="v">${progress.completados || 0}/${progress.total || 0}</span>
+          </div>
+          <div class="detail-stat">
+            <span class="k">Entrega</span>
+            <span class="v">${esc(fmtEntrega(order.fecha_entrega))}</span>
+          </div>
+          <div class="detail-stat detail-stat-split">
+            <div>
+              <span class="k">Cantidad</span>
+              <span class="v">${esc(formatCantidad(order))}</span>
+            </div>
+            <div>
+              <span class="k">Demasia</span>
+              <span class="v">${esc(String(order.demasia ?? "-"))}</span>
+            </div>
+          </div>
+          <div class="detail-stat detail-stat-split">
+            <div>
+              <span class="k">Material</span>
+              <span class="v">${esc(order.papel_material || "-")}</span>
+            </div>
+            <div>
+              <span class="k">Gramaje</span>
+              <span class="v">${esc(order.gramaje != null && order.gramaje !== "" ? `${order.gramaje}g` : "-")}</span>
+            </div>
+          </div>
+          <div class="detail-stat">
+            <span class="k">Prioridad</span>
+            <span class="v">${esc(order.prioridad || "-")}</span>
+          </div>
         </div>
-      </div>
-      <div class="detail-stat">
-        <span class="k">Prioridad</span>
-        <span class="v">${esc(order.prioridad || "-")}</span>
-      </div>
-    </div>
 
-    <div class="detail-order-note">
-      <span class="k">Observacion de orden</span>
-      <span class="v">${esc(orderObservation)}</span>
-    </div>
+        <div class="detail-order-note">
+          <span class="k">Observacion de orden</span>
+          <span class="v">${esc(orderObservation)}</span>
+        </div>
+      </section>
 
-    ${
-      order?.requires_handoff
-        ? `
-          <div class="detail-note">
-            <div><b>Siguiente paso de ruta:</b> ${esc(formatProcesoLabel({ proceso_codigo: order.next_process_codigo }))}</div>
-            <div><b>Destino:</b> ${esc(String(order.handoff_target_module || "").toUpperCase() === "CORTADOR" ? "CORTADOR" : "ACABADOS")}</div>
+      <aside class="detail-panel detail-panel-actions">
+        <div class="detail-action-head">
+          <div>
+            <h4>Acciones</h4>
+            <div class="detail-action-sub">Proceso segun la ruta configurada en admin.</div>
           </div>
-        `
-        : ""
-    }
+        </div>
 
-    ${
-      process && showProcessContext
-        ? `
-          <div class="detail-note">
-            <div><b>Responsable actual:</b> ${esc(process.assigned_user_nombre || "-")}</div>
-            <div><b>Inicio:</b> ${esc(fmtDateTimePE(process.started_at))}</div>
-            <div><b>Fin:</b> ${esc(fmtDateTimePE(process.finished_at))}</div>
-            <div><b>Observaciones:</b> ${esc(process.observaciones || "-")}</div>
-          </div>
-        `
-        : !process
-        ? `
-          <div class="detail-note">
-            Esta orden esta seleccionada, pero aun no elegiste un proceso.
-          </div>
-        `
-        : ""
-    }
+        <div class="detail-current-route">
+          <span class="k">Proceso actual</span>
+          <strong>${esc(currentRouteLabel)}</strong>
+          <small>${esc(currentRouteMeta)}</small>
+        </div>
 
-    <div class="detail-processes">
-      <h4>Procesos requeridos</h4>
-      <div class="detail-process-list">
+        <div class="detail-processes detail-processes-side">
+          <h4>Ruta de procesos</h4>
+          <div class="detail-route-list">
+            ${
+              routeItems.length
+                ? routeItems.map((item) => `
+                    <${item.clickable ? "button" : "div"}
+                      ${item.clickable ? 'type="button"' : ""}
+                      class="detail-route-step ${statusPillClass(item.status)} ${item.isCurrent ? "is-current" : ""} ${item.clickable ? "" : "is-static"}"
+                      ${item.clickable ? `data-order-id="${item.orderId}" data-process-id="${item.processId}"` : ""}
+                    >
+                      <span class="detail-route-index">${item.step}</span>
+                      <span class="detail-route-body">
+                        <span class="detail-route-label">${esc(item.label)}</span>
+                        <small>${esc(item.status)}</small>
+                      </span>
+                      ${item.isCurrent ? '<span class="detail-route-current">Actual</span>' : ""}
+                    </${item.clickable ? "button" : "div"}>
+                  `).join("")
+                : '<div class="seed-warning">No hay procesos sembrados para esta orden.</div>'
+            }
+          </div>
+        </div>
+
         ${
-          order.hasSeed
-            ? (order.procesos || []).map((item) => `
-                <button
-                  type="button"
-                  class="detail-process-item ${statusPillClass(item.estado)} ${Number(item.id) === Number(acabadosState.selectedProcessId) ? "is-current" : ""}"
-                  data-order-id="${order.orden_id}"
-                  data-process-id="${item.id}"
-                >
-                  <span>${esc(formatProcesoLabel(item))}</span>
-                  ${Number(item.id) === Number(acabadosState.selectedProcessId) ? '<span class="selected-badge">Seleccionado</span>' : ""}
-                  <small>${esc(item.estado)}</small>
-                </button>
-              `).join("")
-            : '<div class="seed-warning">No hay procesos sembrados para esta orden.</div>'
+          process && showProcessContext
+            ? `
+              <div class="detail-note">
+                <div><b>Responsable actual:</b> ${esc(process.assigned_user_nombre || "-")}</div>
+                <div><b>Inicio:</b> ${esc(fmtDateTimePE(process.started_at))}</div>
+                <div><b>Fin:</b> ${esc(fmtDateTimePE(process.finished_at))}</div>
+                <div><b>Observaciones:</b> ${esc(process.observaciones || "-")}</div>
+              </div>
+            `
+            : ""
         }
-      </div>
-    </div>
 
-    ${renderActionButtons(process)}
+        ${renderActionButtons(process)}
+      </aside>
+    </div>
   `;
 }
 

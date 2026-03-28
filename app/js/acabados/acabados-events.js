@@ -12,7 +12,6 @@ export function bindAcabadosEvents({ onStateChange, onAction, onLogout }) {
   const board = document.getElementById("boardOrders");
   const mine = document.getElementById("myProcesses");
   const detail = document.getElementById("detailPane");
-  const detailModal = document.getElementById("detailModal");
   const detailClose = document.getElementById("btnCloseAcabadosDetail");
   const btnLogout = document.getElementById("btnLogout");
 
@@ -67,19 +66,6 @@ export function bindAcabadosEvents({ onStateChange, onAction, onLogout }) {
   });
 
   detailClose?.addEventListener("click", () => {
-    closeDetail();
-    onStateChange?.();
-  });
-
-  detailModal?.addEventListener("click", (event) => {
-    if (event.target === detailModal) {
-      closeDetail();
-      onStateChange?.();
-    }
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
     closeDetail();
     onStateChange?.();
   });
