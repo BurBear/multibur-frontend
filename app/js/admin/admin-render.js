@@ -1,5 +1,71 @@
 import { escapeHtml } from "../utils/helpers.js";
 
+function parseRouteProcesos(raw) {
+  let data = raw;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      data = null;
+    }
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+function formatRouteEntryLabel(row, entry) {
+  const key = String(entry?.key || "").trim();
+  switch (key) {
+    case "corte": return "Corte";
+    case "empaquetado": return "Empaquetado";
+    case "doblez": return "Doblez";
+    case "compaginado": return "Compaginado";
+    case "troquelado": return "Troquelado";
+    case "sectorizado": return "Sectorizado";
+    case "barniz": return "Barniz";
+    case "plastificado": {
+      const mode = String(entry?.variant || row?.plastificado || "").trim().toUpperCase();
+      return mode ? `Plastificado (${mode})` : "Plastificado";
+    }
+    case "encolado": return "Encolado";
+    case "marcado": return "Marcado";
+    case "anillado": return "Anillado";
+    case "perforado": {
+      const tipo = String(entry?.variant || row?.perforado_tipo || "").trim().toUpperCase();
+      return tipo === "PICADO_PERFORADO" ? "Perforado (Picado/Perforado)" : "Perforado";
+    }
+    case "pegado_solapa": return "Pegado solapa";
+    case "semi_corte": return "Semi corte";
+    case "enumerado": return "Enumerado";
+    default: return "";
+  }
+}
+
+function getFallbackProcesosAcabados(row) {
+  const list = [];
+  if (row?.corte) list.push("Corte");
+  if (row?.empaquetado) list.push("Empaquetado");
+  if (row?.doblez) list.push("Doblez");
+  if (row?.compaginado) list.push("Compaginado");
+  if (row?.troquelado) list.push("Troquelado");
+  if (row?.sectorizado) list.push("Sectorizado");
+  if (row?.barniz) list.push("Barniz");
+  if (row?.plastificado) list.push(`Plastificado (${row.plastificado})`);
+  if (row?.encolado) list.push("Encolado");
+  if (row?.marcado) list.push("Marcado");
+  if (row?.anillado) list.push("Anillado");
+  if (row?.perforado) {
+    list.push(
+      row?.perforado_tipo === "PICADO_PERFORADO"
+        ? "Perforado (Picado/Perforado)"
+        : "Perforado"
+    );
+  }
+  if (row?.pegado_solapa) list.push("Pegado solapa");
+  if (row?.semi_corte) list.push("Semi corte");
+  if (row?.enumerado) list.push("Enumerado");
+  return list;
+}
+
 export function renderPrioridadBadge(prio) {
   const p = String(prio || "NORMAL").toUpperCase();
   if (p === "URGENTE") return `<span class="prio-badge is-urgent">URGENTE</span>`;
@@ -26,28 +92,11 @@ export function renderIncidenciaBadge(incidencia) {
 }
 
 export function getProcesosAcabadosText(row) {
-  const list = [];
-  if (row?.corte) list.push("Corte");
-  if (row?.empaquetado) list.push("Empaquetado");
-  if (row?.doblez) list.push("Doblez");
-  if (row?.compaginado) list.push("Compaginado");
-  if (row?.troquelado) list.push("Troquelado");
-  if (row?.sectorizado) list.push("Sectorizado");
-  if (row?.barniz) list.push("Barniz");
-  if (row?.plastificado) list.push(`Plastificado: ${row.plastificado}`);
-  if (row?.encolado) list.push("Encolado");
-  if (row?.marcado) list.push("Marcado");
-  if (row?.anillado) list.push("Anillado");
-  if (row?.perforado) {
-    list.push(
-      row?.perforado_tipo === "PICADO_PERFORADO"
-        ? "Perforado: Picado/Perforado"
-        : "Perforado"
-    );
-  }
-  if (row?.pegado_solapa) list.push("Pegado solapa");
-  if (row?.semi_corte) list.push("Semi corte");
-  if (row?.enumerado) list.push("Enumerado");
+  const route = parseRouteProcesos(row?.ruta_procesos)
+    .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+  const list = route.length
+    ? route.map((entry) => formatRouteEntryLabel(row, entry)).filter(Boolean)
+    : getFallbackProcesosAcabados(row);
   return list.length ? list.join(" | ") : "-";
 }
 
