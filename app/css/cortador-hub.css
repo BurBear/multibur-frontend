@@ -124,31 +124,11 @@ body.page-cortador-hub {
   max-width: 700px;
 }
 
-.hub-kicker {
-  display: inline-flex;
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(245, 158, 11, .35);
-  color: #fcd34d;
-  background: rgba(245, 158, 11, .10);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .08em;
-}
-
 .hub-copy h1 {
-  margin: 14px 0 10px;
+  margin: 0;
   font-size: 34px;
   line-height: 1.02;
   letter-spacing: -.04em;
-}
-
-.hub-copy p {
-  margin: 0;
-  max-width: 720px;
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.5;
 }
 
 .hub-grid {
@@ -271,11 +251,6 @@ body.page-cortador-hub {
     font-size: 30px;
   }
 
-  .hub-copy p {
-    font-size: 14px;
-    line-height: 1.42;
-  }
-
   .hub-grid {
     margin-top: 18px;
     gap: 12px;
@@ -341,11 +316,6 @@ body.page-cortador-hub {
     font-size: 29px;
   }
 
-  .hub-copy p {
-    font-size: 14px;
-    line-height: 1.38;
-  }
-
   .hub-grid {
     margin-top: 16px;
     gap: 12px;
@@ -394,11 +364,6 @@ body.page-cortador-hub {
   .hub-copy h1 {
     font-size: 26px;
     margin: 8px 0 6px;
-  }
-
-  .hub-copy p {
-    font-size: 13px;
-    line-height: 1.32;
   }
 
   .hub-grid {
