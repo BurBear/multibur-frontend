@@ -2,9 +2,13 @@ import { requireRole, logout, getProfileDisplayName } from "../auth.js";
 import {
   fetchCortadorBoardSnapshot,
   rpcEnsureOrdenProcesosAcabados,
+  rpcFinalizarProcesoAcabado,
   rpcFinalizarProcesoCortador,
+  rpcIniciarProcesoAcabado,
   rpcIniciarProcesoCortador,
+  rpcPausarProcesoAcabado,
   rpcPausarProcesoCortador,
+  rpcRetomarProcesoAcabado,
   rpcRetomarProcesoCortador,
   rpcTransferirOrdenRuta
 } from "../api.js";
@@ -233,6 +237,10 @@ function getActionNote() {
   return el?.value?.trim() || null;
 }
 
+function isAcabadosProcess(process = null) {
+  return String(process?.modulo_responsable || "").trim().toUpperCase() === "ACABADOS";
+}
+
 async function runAction(actionName, runner) {
   setActionLoading(true, actionName);
   renderAll();
@@ -262,10 +270,20 @@ async function runAction(actionName, runner) {
 
 async function handleStart() {
   const process = getSelectedProcess();
-  if (!process?.id) return;
+  const order = getSelectedOrder();
+  if (!process?.id || !order?.orden_id) return;
 
   await runAction("INICIAR", async () => {
-    const result = await rpcIniciarProcesoCortador({ procesoId: process.id });
+    let result = null;
+    if (isAcabadosProcess(process)) {
+      await rpcTransferirOrdenRuta({
+        ordenId: order.orden_id,
+        moduloDestino: "ACABADOS"
+      });
+      result = await rpcIniciarProcesoAcabado({ procesoId: process.id });
+    } else {
+      result = await rpcIniciarProcesoCortador({ procesoId: process.id });
+    }
     clearActionNoteDraft();
     await loadBoard({
       keepOrderId: result?.orden_id || process.orden_id,
@@ -283,10 +301,15 @@ async function handlePause() {
   const note = getActionNote();
 
   await runAction("PAUSAR", async () => {
-    const result = await rpcPausarProcesoCortador({
-      procesoId: process.id,
-      observaciones: note
-    });
+    const result = isAcabadosProcess(process)
+      ? await rpcPausarProcesoAcabado({
+        procesoId: process.id,
+        observaciones: note
+      })
+      : await rpcPausarProcesoCortador({
+        procesoId: process.id,
+        observaciones: note
+      });
     clearActionNoteDraft();
     await loadBoard({
       keepOrderId: result?.orden_id || process.orden_id,
@@ -300,10 +323,20 @@ async function handlePause() {
 
 async function handleResume() {
   const process = getSelectedProcess();
-  if (!process?.id) return;
+  const order = getSelectedOrder();
+  if (!process?.id || !order?.orden_id) return;
 
   await runAction("RETOMAR", async () => {
-    const result = await rpcRetomarProcesoCortador({ procesoId: process.id });
+    let result = null;
+    if (isAcabadosProcess(process)) {
+      await rpcTransferirOrdenRuta({
+        ordenId: order.orden_id,
+        moduloDestino: "ACABADOS"
+      });
+      result = await rpcRetomarProcesoAcabado({ procesoId: process.id });
+    } else {
+      result = await rpcRetomarProcesoCortador({ procesoId: process.id });
+    }
     clearActionNoteDraft();
     await loadBoard({
       keepOrderId: result?.orden_id || process.orden_id,
@@ -322,10 +355,15 @@ async function handleFinish() {
   const note = getActionNote();
 
   await runAction("FINALIZAR", async () => {
-    const result = await rpcFinalizarProcesoCortador({
-      procesoId: process.id,
-      observaciones: note
-    });
+    const result = isAcabadosProcess(process)
+      ? await rpcFinalizarProcesoAcabado({
+        procesoId: process.id,
+        observaciones: note
+      })
+      : await rpcFinalizarProcesoCortador({
+        procesoId: process.id,
+        observaciones: note
+      });
     clearActionNoteDraft();
     await loadBoard({
       keepOrderId: result?.orden_id || order.orden_id,
@@ -347,6 +385,10 @@ async function handleFinish() {
       return;
     }
     const nextProcess = pickNextOpenProcess(refreshedOrder, process.id);
+    if (refreshedOrder?.same_operator_tail_empaquetado && String(nextProcess?.proceso_codigo || "").trim().toUpperCase() === "EMPAQUETADO") {
+      showToast("Proceso finalizado. Puedes continuar con Empaquetado aqui mismo.", "success");
+      return;
+    }
     if (!nextProcess) {
       closeDetail();
       renderAll();

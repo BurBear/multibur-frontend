@@ -345,7 +345,7 @@ function getNextOpenRouteProcess(order, allProcesses = []) {
   return abiertos[0] || null;
 }
 
-function getCurrentRouteModule(order, allProcesses = []) {
+function getStoredOrDerivedRouteModule(order, allProcesses = []) {
   const explicit = String(order?.modulo_ruta_actual || "").trim().toUpperCase();
   if (["ACABADOS", "CORTADOR"].includes(explicit)) return explicit;
 
@@ -358,6 +358,37 @@ function getCurrentRouteModule(order, allProcesses = []) {
   if (["ACABADOS", "CORTADOR"].includes(firstRouteModule)) return firstRouteModule;
 
   return "";
+}
+
+function shouldKeepTailEmpaquetadoInCortador(order, allProcesses = [], currentModule = "", nextOpenProcess = null) {
+  const routeItems = parseRouteProcesos(order?.ruta_procesos)
+    .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+  if (!routeItems.length) return false;
+
+  const firstRouteItem = routeItems[0] || null;
+  const lastRouteItem = routeItems[routeItems.length - 1] || null;
+  if (String(firstRouteItem?.key || "").trim() !== "corte") return false;
+  if (String(lastRouteItem?.key || "").trim() !== "empaquetado") return false;
+
+  const nextOpen = nextOpenProcess || getNextOpenRouteProcess(order, allProcesses);
+  if (!nextOpen) return false;
+  if (String(nextOpen?.proceso_codigo || "").trim().toUpperCase() !== "EMPAQUETADO") return false;
+
+  const current = String(currentModule || "").trim().toUpperCase();
+  if (current && !["CORTADOR", "ACABADOS"].includes(current)) return false;
+
+  return true;
+}
+
+function getCurrentRouteModule(order, allProcesses = []) {
+  const currentModule = getStoredOrDerivedRouteModule(order, allProcesses);
+  const nextOpenProcess = getNextOpenRouteProcess(order, allProcesses);
+
+  if (shouldKeepTailEmpaquetadoInCortador(order, allProcesses, currentModule, nextOpenProcess)) {
+    return "CORTADOR";
+  }
+
+  return currentModule;
 }
 
 function isReadyProcessBySequence(order, process, allProcesses = []) {
@@ -398,6 +429,8 @@ function buildVisibleProcessesForModule(order, allProcesses = [], moduleName, cu
   const moduleProcesos = (allProcesses || []).filter(
     (process) => String(process?.modulo_responsable || "").trim().toUpperCase() === targetModule
   );
+  const sameOperatorTailEmpaquetado = targetModule === "CORTADOR"
+    && shouldKeepTailEmpaquetadoInCortador(order, allProcesses, current, nextOpenProcess);
 
   const visibleMap = new Map();
 
@@ -417,6 +450,10 @@ function buildVisibleProcessesForModule(order, allProcesses = [], moduleName, cu
     if (forced) {
       visibleMap.set(Number(forced.id), forced);
     }
+  }
+
+  if (sameOperatorTailEmpaquetado && nextOpenProcess?.id != null) {
+    visibleMap.set(Number(nextOpenProcess.id), nextOpenProcess);
   }
 
   for (const process of moduleProcesos) {
@@ -440,14 +477,24 @@ function buildAdminRouteStatus(order, allProcesses = []) {
   const nextOpenProcess = getNextOpenRouteProcess(order, allProcesses);
   const nextModule = String(nextOpenProcess?.modulo_responsable || "").trim().toUpperCase();
   const nextStatus = String(nextOpenProcess?.estado || "").trim().toUpperCase();
+  const sameOperatorTailEmpaquetado = shouldKeepTailEmpaquetadoInCortador(
+    order,
+    allProcesses,
+    currentRouteModule,
+    nextOpenProcess
+  );
   const nextProcessLabel = nextOpenProcess
     ? processCodeToDisplayLabel(nextOpenProcess.proceso_codigo, nextOpenProcess.configuracion, order)
     : (firstRouteItem ? routeEntryToDisplayLabel(firstRouteItem, order) : null);
   const nextProcessLabelUpper = String(nextProcessLabel || "").trim().toUpperCase();
-  const requiresHandoff = !!currentRouteModule && !!nextOpenProcess && !!nextModule && currentRouteModule !== nextModule;
+  const requiresHandoff = !!currentRouteModule
+    && !!nextOpenProcess
+    && !!nextModule
+    && currentRouteModule !== nextModule
+    && !sameOperatorTailEmpaquetado;
   const routeAllClosed = allProcesses.length > 0 && !nextOpenProcess;
   const pendingModule = String(
-    nextModule
+    (sameOperatorTailEmpaquetado ? "CORTADOR" : nextModule)
     || firstRouteItem?.module
     || currentRouteModule
     || "ACABADOS"
@@ -463,6 +510,11 @@ function buildAdminRouteStatus(order, allProcesses = []) {
     routeStageSecondary = "Listo para entregar";
     routeBadgeLabel = "Listo para entregar";
     routeBadgeTone = "done";
+  } else if (sameOperatorTailEmpaquetado && nextStatus === "PENDIENTE") {
+    routeStagePrimary = nextProcessLabel || "Empaquetado";
+    routeStageSecondary = "Pendiente en CORTADOR";
+    routeBadgeLabel = "Listo para empaquetado";
+    routeBadgeTone = "cut-ready";
   } else if (requiresHandoff) {
     routeStagePrimary = nextProcessLabel || (nextModule === "CORTADOR" ? "Corte" : "Acabado");
     routeStageSecondary = nextModule === "CORTADOR"
@@ -564,6 +616,12 @@ async function fetchRouteBoardSnapshot(moduleName, { userId = null } = {}) {
     const allProcesos = procesosByOrden.get(Number(order.orden_id)) || [];
     const currentRouteModule = getCurrentRouteModule(order, allProcesos);
     const nextOpenProcess = getNextOpenRouteProcess(order, allProcesos);
+    const sameOperatorTailEmpaquetado = shouldKeepTailEmpaquetadoInCortador(
+      order,
+      allProcesos,
+      currentRouteModule,
+      nextOpenProcess
+    );
     const moduleProcesos = allProcesos.filter((p) => String(p.modulo_responsable || "").toUpperCase() === targetModule);
     const visibleProcesos = buildVisibleProcessesForModule(
       order,
@@ -578,7 +636,8 @@ async function fetchRouteBoardSnapshot(moduleName, { userId = null } = {}) {
     const requiresHandoff = currentRouteModule === targetModule
       && !!nextOpenProcess
       && handoffTargetModule
-      && handoffTargetModule !== targetModule;
+      && handoffTargetModule !== targetModule
+      && !sameOperatorTailEmpaquetado;
 
     return {
       ...order,
@@ -589,6 +648,7 @@ async function fetchRouteBoardSnapshot(moduleName, { userId = null } = {}) {
       next_process_id: nextOpenProcess?.id ?? null,
       next_process_codigo: nextOpenProcess?.proceso_codigo ?? null,
       next_process_modulo: handoffTargetModule || null,
+      same_operator_tail_empaquetado: sameOperatorTailEmpaquetado,
       requires_handoff: !!requiresHandoff,
       handoff_target_module: requiresHandoff ? handoffTargetModule : null,
       handoff_target_label: requiresHandoff
