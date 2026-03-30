@@ -270,6 +270,36 @@ function processCodeToDisplayLabel(code, config = {}, order = null) {
   }
 }
 
+function routeEntryToDisplayLabel(entry, order = null) {
+  const key = String(entry?.key || "").trim();
+  switch (key) {
+    case "corte": return "Corte";
+    case "empaquetado": return "Empaquetado";
+    case "doblez": return "Doblez";
+    case "compaginado": return "Compaginado";
+    case "troquelado": return "Troquelado";
+    case "sectorizado": return "Sectorizado";
+    case "barniz": return "Barniz";
+    case "plastificado": {
+      const mode = String(entry?.variant || order?.plastificado || "").trim().toUpperCase();
+      return mode ? `Plastificado (${mode})` : "Plastificado";
+    }
+    case "encolado": return "Encolado";
+    case "marcado": return "Marcado";
+    case "anillado": return "Anillado";
+    case "perforado": {
+      const tipo = String(entry?.variant || order?.perforado_tipo || "").trim().toUpperCase();
+      return tipo === "PICADO_PERFORADO"
+        ? "Perforado (Picado/Perforado)"
+        : "Perforado";
+    }
+    case "pegado_solapa": return "Pegado solapa";
+    case "semi_corte": return "Semi corte";
+    case "enumerado": return "Enumerado";
+    default: return "";
+  }
+}
+
 function parseRouteProcesos(raw) {
   let data = raw;
   if (typeof data === "string") {
@@ -403,25 +433,35 @@ function buildVisibleProcessesForModule(order, allProcesses = [], moduleName, cu
 }
 
 function buildAdminRouteStatus(order, allProcesses = []) {
+  const routeItems = parseRouteProcesos(order?.ruta_procesos)
+    .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+  const firstRouteItem = routeItems[0] || null;
   const currentRouteModule = getCurrentRouteModule(order, allProcesses);
   const nextOpenProcess = getNextOpenRouteProcess(order, allProcesses);
   const nextModule = String(nextOpenProcess?.modulo_responsable || "").trim().toUpperCase();
   const nextStatus = String(nextOpenProcess?.estado || "").trim().toUpperCase();
   const nextProcessLabel = nextOpenProcess
     ? processCodeToDisplayLabel(nextOpenProcess.proceso_codigo, nextOpenProcess.configuracion, order)
-    : null;
+    : (firstRouteItem ? routeEntryToDisplayLabel(firstRouteItem, order) : null);
   const nextProcessLabelUpper = String(nextProcessLabel || "").trim().toUpperCase();
   const requiresHandoff = !!currentRouteModule && !!nextOpenProcess && !!nextModule && currentRouteModule !== nextModule;
+  const routeAllClosed = allProcesses.length > 0 && !nextOpenProcess;
+  const pendingModule = String(
+    nextModule
+    || firstRouteItem?.module
+    || currentRouteModule
+    || "ACABADOS"
+  ).trim().toUpperCase();
 
   let routeStagePrimary = null;
   let routeStageSecondary = null;
   let routeBadgeLabel = null;
   let routeBadgeTone = "ready";
 
-  if (!nextOpenProcess) {
-    routeStagePrimary = "Ruta completada";
-    routeStageSecondary = currentRouteModule || "Sin modulo activo";
-    routeBadgeLabel = "Procesos completados";
+  if (routeAllClosed) {
+    routeStagePrimary = "Terminado";
+    routeStageSecondary = "Listo para entregar";
+    routeBadgeLabel = "Listo para entregar";
     routeBadgeTone = "done";
   } else if (requiresHandoff) {
     routeStagePrimary = nextProcessLabel || (nextModule === "CORTADOR" ? "Corte" : "Acabado");
@@ -450,7 +490,7 @@ function buildAdminRouteStatus(order, allProcesses = []) {
       ? `EN: ${nextProcessLabelUpper}`
       : (currentRouteModule === "CORTADOR" ? "EN: CORTE" : "EN: ACABADOS");
     routeBadgeTone = currentRouteModule === "CORTADOR" ? "cutting" : "route-active";
-  } else if (currentRouteModule === "CORTADOR") {
+  } else if (pendingModule === "CORTADOR") {
     routeStagePrimary = nextProcessLabel || "Corte";
     routeStageSecondary = "Pendiente en CORTADOR";
     routeBadgeLabel = "Listo para corte";
@@ -469,6 +509,7 @@ function buildAdminRouteStatus(order, allProcesses = []) {
     route_next_process_label: nextProcessLabel,
     route_next_process_modulo: nextModule || null,
     route_next_process_estado: nextStatus || null,
+    route_all_closed: routeAllClosed,
     route_requires_handoff: requiresHandoff,
     route_stage_primary: routeStagePrimary,
     route_stage_secondary: routeStageSecondary,

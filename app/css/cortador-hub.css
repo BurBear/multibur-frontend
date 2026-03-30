@@ -16,6 +16,8 @@
 body.page-cortador-hub {
   margin: 0;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   font-family: system-ui, Arial;
   color: var(--text);
   background:
@@ -101,9 +103,13 @@ body.page-cortador-hub {
 }
 
 .main {
+  flex: 1;
   max-width: 1080px;
   margin: 0 auto;
   padding: 24px 16px;
+  width: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .hub-card {
@@ -250,16 +256,51 @@ body.page-cortador-hub {
 }
 
 @media (max-width: 980px) {
+  .main {
+    align-items: stretch;
+    padding: 18px 14px;
+  }
+
+  .hub-card {
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .hub-copy h1 {
+    margin: 10px 0 8px;
+    font-size: 30px;
+  }
+
+  .hub-copy p {
+    font-size: 14px;
+    line-height: 1.42;
+  }
+
   .hub-grid {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "corte"
-      "acabados"
-      "material";
+    margin-top: 18px;
+    gap: 12px;
   }
 
   .hub-option {
-    min-height: 150px;
+    min-height: 168px;
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .hub-option-title {
+    font-size: 24px;
+  }
+
+  .hub-option-sub {
+    font-size: 12px;
+  }
+
+  .hub-option-coming {
+    font-size: 26px;
+  }
+
+  .hub-option.is-disabled {
+    min-height: 112px;
   }
 }
 
@@ -269,7 +310,121 @@ body.page-cortador-hub {
     flex-wrap: wrap;
   }
 
+  .main {
+    align-items: stretch;
+  }
+
+  .hub-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "corte"
+      "acabados"
+      "material";
+  }
+
   .hub-copy h1 {
     font-size: 28px;
+  }
+}
+
+@media (max-height: 860px) and (min-width: 761px) {
+  .main {
+    padding: 14px 14px;
+  }
+
+  .hub-card {
+    padding: 18px;
+  }
+
+  .hub-copy h1 {
+    margin: 10px 0 8px;
+    font-size: 29px;
+  }
+
+  .hub-copy p {
+    font-size: 14px;
+    line-height: 1.38;
+  }
+
+  .hub-grid {
+    margin-top: 16px;
+    gap: 12px;
+  }
+
+  .hub-option {
+    min-height: 155px;
+    padding: 14px;
+  }
+
+  .hub-option-title {
+    font-size: 23px;
+  }
+
+  .hub-option-sub {
+    font-size: 12px;
+    max-width: 240px;
+  }
+
+  .hub-option-coming {
+    font-size: 24px;
+  }
+
+  .hub-option.is-disabled {
+    min-height: 100px;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 761px) {
+  .top {
+    padding: 10px 14px;
+  }
+
+  .brand-main {
+    font-size: 24px;
+  }
+
+  .main {
+    padding: 10px 12px;
+  }
+
+  .hub-card {
+    padding: 14px;
+  }
+
+  .hub-copy h1 {
+    font-size: 26px;
+    margin: 8px 0 6px;
+  }
+
+  .hub-copy p {
+    font-size: 13px;
+    line-height: 1.32;
+  }
+
+  .hub-grid {
+    margin-top: 14px;
+    gap: 10px;
+  }
+
+  .hub-option {
+    min-height: 136px;
+    padding: 12px;
+  }
+
+  .hub-option-title {
+    font-size: 21px;
+  }
+
+  .hub-option-sub {
+    font-size: 11px;
+    max-width: 220px;
+  }
+
+  .hub-option-coming {
+    font-size: 22px;
+  }
+
+  .hub-option.is-disabled {
+    min-height: 88px;
   }
 }

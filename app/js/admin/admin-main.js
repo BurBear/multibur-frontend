@@ -1342,6 +1342,9 @@ function renderAccion(r) {
     return `<span class="state-pill is-printing">Imprimiendo</span>`;
   }
   if (e === "ACABADOS") {
+    if (r.route_all_closed || String(r.route_badge_tone || "").trim().toLowerCase() === "done") {
+      return `<button class="btn btn-deliver" type="button" data-action="deliver" data-oid="${r.orden_id}" style="padding:8px 10px">ENTREGAR</button>`;
+    }
     return renderRouteStatusPill(r);
   }
   if (e === estadoKey(ESTADO_FINAL)) {
