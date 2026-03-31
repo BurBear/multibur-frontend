@@ -428,19 +428,6 @@ function renderDetail() {
   const progress = order.progreso || {};
   const orderObservation = formatObservacionOrden(order);
   const routeItems = buildRouteDisplayItems(order, acabadosState.selectedProcessId);
-  const currentRouteLabel = process
-    ? processTitle
-    : order?.requires_handoff
-      ? formatProcesoLabel({ proceso_codigo: order.next_process_codigo })
-      : "Selecciona un proceso";
-  const currentRouteMeta = process
-    ? processStatus
-    : order?.requires_handoff
-      ? String(order.handoff_target_module || "").toUpperCase() === "CORTADOR"
-        ? "Mandar a corte"
-        : "Mandar a acabados"
-      : "Sin proceso activo";
-
   mount.innerHTML = `
     <div class="detail-layout">
       <section class="detail-panel detail-panel-data">
@@ -499,19 +486,6 @@ function renderDetail() {
       </section>
 
       <aside class="detail-panel detail-panel-actions">
-        <div class="detail-action-head">
-          <div>
-            <h4>Acciones</h4>
-            <div class="detail-action-sub">Proceso segun la ruta configurada en admin.</div>
-          </div>
-        </div>
-
-        <div class="detail-current-route">
-          <span class="k">Proceso actual</span>
-          <strong>${esc(currentRouteLabel)}</strong>
-          <small>${esc(currentRouteMeta)}</small>
-        </div>
-
         <div class="detail-processes detail-processes-side">
           <h4>Ruta de procesos</h4>
           <div class="detail-route-list">

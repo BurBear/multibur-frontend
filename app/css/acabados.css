@@ -610,36 +610,6 @@ body.page-acabados.is-modal-open {
   align-content: start;
 }
 
-.detail-action-head h4 {
-  margin: 0;
-  font-size: 13px;
-}
-
-.detail-action-sub {
-  margin-top: 3px;
-  font-size: 10px;
-  color: var(--muted);
-}
-
-.detail-current-route {
-  padding: 7px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(14, 22, 39, .7);
-  display: grid;
-  gap: 2px;
-}
-
-.detail-current-route strong {
-  font-size: 12px;
-  line-height: 1.15;
-}
-
-.detail-current-route small {
-  color: var(--muted);
-  font-size: 10px;
-}
-
 .detail-processes-side h4 {
   margin: 0 0 8px;
   font-size: 12px;
