@@ -104,41 +104,44 @@ body.page-cortador-hub {
 
 .main {
   flex: 1;
-  max-width: 1080px;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 28px 20px;
   width: 100%;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .hub-card {
+  width: 100%;
+  max-width: 1140px;
   background: rgba(18, 27, 46, .92);
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 24px;
+  padding: 28px;
   box-shadow: 0 18px 44px rgba(2, 8, 23, .34);
 }
 
 .hub-copy {
-  max-width: 700px;
+  max-width: 860px;
 }
 
 .hub-copy h1 {
   margin: 0;
-  font-size: 34px;
+  font-size: 44px;
   line-height: 1.02;
   letter-spacing: -.04em;
 }
 
 .hub-grid {
-  margin-top: 24px;
+  margin-top: 28px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-areas:
     "corte acabados"
     "material material";
-  gap: 14px;
+  gap: 18px;
 }
 
 #cardCorte {
@@ -159,8 +162,8 @@ body.page-cortador-hub {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 210px;
-  padding: 18px;
+  min-height: 248px;
+  padding: 24px;
   border-radius: 18px;
   border: 1px solid var(--line-2);
   color: var(--text);
@@ -177,22 +180,22 @@ body.page-cortador-hub {
 }
 
 .hub-option-title {
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 900;
   letter-spacing: -.03em;
   width: 100%;
 }
 
 .hub-option-sub {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--muted);
   line-height: 1.35;
-  max-width: 280px;
+  max-width: 320px;
 }
 
 .hub-option-coming {
   display: inline-flex;
-  font-size: 30px;
+  font-size: 38px;
   line-height: 1;
   font-weight: 900;
   letter-spacing: .08em;
@@ -220,7 +223,7 @@ body.page-cortador-hub {
   border-style: dashed;
   background:
     linear-gradient(180deg, rgba(17, 24, 39, .92), rgba(11, 17, 32, .96));
-  min-height: 128px;
+  min-height: 152px;
   justify-content: center;
 }
 
@@ -242,40 +245,41 @@ body.page-cortador-hub {
   }
 
   .hub-card {
-    padding: 18px;
+    max-width: none;
+    padding: 22px;
     border-radius: 16px;
   }
 
   .hub-copy h1 {
-    margin: 10px 0 8px;
-    font-size: 30px;
+    margin: 0;
+    font-size: 34px;
   }
 
   .hub-grid {
-    margin-top: 18px;
-    gap: 12px;
+    margin-top: 20px;
+    gap: 14px;
   }
 
   .hub-option {
-    min-height: 168px;
-    padding: 14px;
+    min-height: 178px;
+    padding: 16px;
     border-radius: 16px;
   }
 
   .hub-option-title {
-    font-size: 24px;
+    font-size: 28px;
   }
 
   .hub-option-sub {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .hub-option-coming {
-    font-size: 26px;
+    font-size: 30px;
   }
 
   .hub-option.is-disabled {
-    min-height: 112px;
+    min-height: 116px;
   }
 }
 
@@ -308,39 +312,40 @@ body.page-cortador-hub {
   }
 
   .hub-card {
-    padding: 18px;
+    max-width: 1180px;
+    padding: 20px;
   }
 
   .hub-copy h1 {
-    margin: 10px 0 8px;
-    font-size: 29px;
+    margin: 0;
+    font-size: 34px;
   }
 
   .hub-grid {
-    margin-top: 16px;
-    gap: 12px;
+    margin-top: 18px;
+    gap: 14px;
   }
 
   .hub-option {
-    min-height: 155px;
-    padding: 14px;
+    min-height: 170px;
+    padding: 16px;
   }
 
   .hub-option-title {
-    font-size: 23px;
+    font-size: 27px;
   }
 
   .hub-option-sub {
-    font-size: 12px;
-    max-width: 240px;
+    font-size: 13px;
+    max-width: 260px;
   }
 
   .hub-option-coming {
-    font-size: 24px;
+    font-size: 30px;
   }
 
   .hub-option.is-disabled {
-    min-height: 100px;
+    min-height: 110px;
   }
 }
 
