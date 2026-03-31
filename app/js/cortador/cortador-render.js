@@ -159,15 +159,6 @@ function buildRouteDisplayItems(order, selectedProcessId) {
   });
 }
 
-function hasProcessContext(process) {
-  if (!process) return false;
-  if (String(process?.assigned_user_nombre || "").trim() && String(process.assigned_user_nombre).trim() !== "-") return true;
-  if (process?.started_at) return true;
-  if (process?.finished_at) return true;
-  if (String(process?.observaciones || "").trim()) return true;
-  return false;
-}
-
 function statusPillClass(status) {
   switch (String(status || "").toUpperCase()) {
     case "EN_PROCESO":
@@ -436,7 +427,6 @@ function renderDetail() {
   const processStatus = process?.estado || "-";
   const progress = order.progreso || {};
   const orderObservation = formatObservacionOrden(order);
-  const showProcessContext = hasProcessContext(process);
   const routeItems = buildRouteDisplayItems(order, cortadorState.selectedProcessId);
   const currentRouteLabel = process
     ? processTitle
@@ -545,19 +535,6 @@ function renderDetail() {
             }
           </div>
         </div>
-
-        ${
-          process && showProcessContext
-            ? `
-              <div class="detail-note">
-                <div><b>Responsable actual:</b> ${esc(process.assigned_user_nombre || "-")}</div>
-                <div><b>Inicio:</b> ${esc(fmtDateTimePE(process.started_at))}</div>
-                <div><b>Fin:</b> ${esc(fmtDateTimePE(process.finished_at))}</div>
-                <div><b>Observaciones:</b> ${esc(process.observaciones || "-")}</div>
-              </div>
-            `
-            : ""
-        }
 
         ${renderActionButtons(process)}
       </aside>
