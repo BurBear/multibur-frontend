@@ -258,14 +258,6 @@ function renderActionButtons(process) {
 
   if (status === "EN_PROCESO" && ctx.isMineActive) {
     return `
-      <div class="detail-action-form">
-        <label class="field-lb" for="detailActionNote">Observacion del proceso</label>
-        <textarea
-          id="detailActionNote"
-          class="detail-textarea"
-          placeholder="Opcional: deja una nota para la pausa o el cierre..."
-        >${esc(acabadosState.actionNoteDraft || "")}</textarea>
-      </div>
       <div class="detail-actions">
         <button class="btn btn-warn detail-btn" type="button" data-acabados-action="pause" ${ctx.busy ? "disabled" : ""}><span class="detail-action-icon" aria-hidden="true">❚❚</span><span>${ctx.busyAction === "PAUSAR" ? "Pausando..." : "Pausar"}</span></button>
         <button class="btn btn-primary detail-btn detail-btn-finish" type="button" data-acabados-action="finish" ${ctx.busy ? "disabled" : ""}><span class="detail-action-icon" aria-hidden="true">✓</span><span>${ctx.busyAction === "FINALIZAR" ? "Finalizando..." : "Finalizar"}</span></button>

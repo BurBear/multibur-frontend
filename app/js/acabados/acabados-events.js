@@ -3,7 +3,6 @@ import {
   closeDetail,
   selectOrder,
   selectProcess,
-  setActionNoteDraft,
   setQuery
 } from "./acabados-state.js";
 
@@ -58,11 +57,6 @@ export function bindAcabadosEvents({ onStateChange, onAction, onLogout }) {
     }
 
     selectFromTarget(event.target);
-  });
-
-  detail?.addEventListener("input", (event) => {
-    if (event.target?.id !== "detailActionNote") return;
-    setActionNoteDraft(event.target.value || "");
   });
 
   detailClose?.addEventListener("click", () => {
