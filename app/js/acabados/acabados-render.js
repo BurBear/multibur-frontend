@@ -56,10 +56,84 @@ function formatCantidad(order) {
   return order?.cantidad_solicitada != null ? String(order.cantidad_solicitada) : "-";
 }
 
+function formatProductionQty(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? String(amount) : "0";
+}
+
 function formatObservacionOrden(order) {
   const observacionOrden = String(order?.observacion_orden || "").trim();
   if (observacionOrden) return observacionOrden;
   return "-";
+}
+
+function renderImpresionDetalle(order) {
+  const detail = Array.isArray(order?.impresion_totales_detalle)
+    ? order.impresion_totales_detalle
+    : [];
+  if (!detail.length) return "";
+
+  const plates = detail.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+
+    if (Array.isArray(item.placas)) {
+      return item.placas
+        .map((plate) => ({
+          nombre: String(plate?.nombre || "").trim(),
+          buena: plate?.buena,
+          mala: plate?.mala
+        }))
+        .filter((plate) => plate.nombre);
+    }
+
+    if (item.nombre) {
+      return [{
+        nombre: String(item.nombre || "").trim(),
+        buena: item?.buena,
+        mala: item?.mala
+      }].filter((plate) => plate.nombre);
+    }
+
+    return [
+      item?.nombre_tira
+        ? { nombre: String(item.nombre_tira || "").trim(), buena: item?.buena_tira, mala: item?.mala_tira }
+        : null,
+      item?.nombre_retira
+        ? { nombre: String(item.nombre_retira || "").trim(), buena: item?.buena_retira, mala: item?.mala_retira }
+        : null
+    ].filter((plate) => plate?.nombre);
+  });
+
+  if (!plates.length) return "";
+
+  return `
+    <details class="detail-print-breakdown">
+      <summary class="detail-print-breakdown-summary">
+        <span class="detail-print-breakdown-summary-copy">
+          <span class="k">Detalle impresion T+R</span>
+          <strong>Desplegar cantidades por placa</strong>
+        </span>
+        <span class="detail-print-breakdown-toggle" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="detail-print-breakdown-list">
+        ${plates.map((plate) => `
+          <div class="detail-print-breakdown-side">
+            <span class="detail-print-breakdown-side-name">${esc(plate.nombre || "-")}</span>
+            <div class="detail-print-breakdown-side-qty">
+              <div>
+                <span>Buena</span>
+                <strong>${esc(formatProductionQty(plate.buena))}</strong>
+              </div>
+              <div>
+                <span>Mala</span>
+                <strong>${esc(formatProductionQty(plate.mala))}</strong>
+              </div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </details>
+  `;
 }
 
 function processCodeToRouteKey(code) {
@@ -434,25 +508,25 @@ function renderDetail() {
 
         <div class="detail-grid">
           <div class="detail-stat">
-            <span class="k">Proceso</span>
-            <span class="v">${esc(processTitle)}</span>
+            <span class="k">Entrega</span>
+            <span class="v">${esc(fmtEntrega(order.fecha_entrega))}</span>
           </div>
           <div class="detail-stat">
             <span class="k">Progreso</span>
             <span class="v">${progress.completados || 0}/${progress.total || 0}</span>
           </div>
           <div class="detail-stat">
-            <span class="k">Entrega</span>
-            <span class="v">${esc(fmtEntrega(order.fecha_entrega))}</span>
+            <span class="k">Cantidad solicitada</span>
+            <span class="v">${esc(formatCantidad(order))}</span>
           </div>
           <div class="detail-stat detail-stat-split">
             <div>
-              <span class="k">Cantidad</span>
-              <span class="v">${esc(formatCantidad(order))}</span>
+              <span class="k">Cantidad buena</span>
+              <span class="v">${esc(formatProductionQty(order.cantidad_buena_total))}</span>
             </div>
             <div>
-              <span class="k">Demasia</span>
-              <span class="v">${esc(String(order.demasia ?? "-"))}</span>
+              <span class="k">Cantidad mala</span>
+              <span class="v">${esc(formatProductionQty(order.cantidad_mala_total))}</span>
             </div>
           </div>
           <div class="detail-stat detail-stat-split">
@@ -470,6 +544,8 @@ function renderDetail() {
             <span class="v">${esc(order.prioridad || "-")}</span>
           </div>
         </div>
+
+        ${renderImpresionDetalle(order)}
 
         <div class="detail-order-note">
           <span class="k">Observacion de orden</span>

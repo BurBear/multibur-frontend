@@ -270,6 +270,20 @@ function processCodeToDisplayLabel(code, config = {}, order = null) {
   }
 }
 
+function normalizeTipoImpresion(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return "";
+  if (raw === "TIRA/RETIRA") return "TIRA_RETIRA";
+  if (raw === "T+R") return "TIRA+RETIRA";
+  return raw;
+}
+
+function shouldUseConsolidatedJuegoTotals(order) {
+  if (!order?.requiere_juegos_placa) return false;
+  const tipo = normalizeTipoImpresion(order?.tipo_impresion);
+  return tipo === "TIRA_RETIRA" || tipo === "TIRA+RETIRA";
+}
+
 function routeEntryToDisplayLabel(entry, order = null) {
   const key = String(entry?.key || "").trim();
   switch (key) {
@@ -583,6 +597,82 @@ export async function fetchOrdenProcesosAcabadosByOrdenIds(orderIds = []) {
   return data || [];
 }
 
+async function fetchOrdenProduccionCantidadesByOrdenIds(orderIds = []) {
+  if (!orderIds.length) return new Map();
+  const { data, error } = await supabase
+    .from("registro_produccion")
+    .select("orden_id,cantidad_buena,cantidad_mala,buena_reportada,mala_reportada")
+    .in("orden_id", orderIds);
+  if (error) throw error;
+
+  const totals = new Map();
+  for (const row of data || []) {
+    const orderId = Number(row?.orden_id || 0);
+    if (!orderId) continue;
+    const current = totals.get(orderId) || { buena: 0, mala: 0 };
+    const buena = Number(row?.buena_reportada ?? row?.cantidad_buena ?? 0);
+    const mala = Number(row?.mala_reportada ?? row?.cantidad_mala ?? 0);
+    current.buena += Number.isFinite(buena) ? buena : 0;
+    current.mala += Number.isFinite(mala) ? mala : 0;
+    totals.set(orderId, current);
+  }
+
+  return totals;
+}
+
+async function fetchOrdenJuegosConsolidadoCantidadesByOrdenIds(orderIds = []) {
+  if (!orderIds.length) return new Map();
+  const { data, error } = await supabase
+    .from("v_orden_juegos_tr_consolidado")
+    .select("orden_id,buena_final_par,mala_final_par")
+    .in("orden_id", orderIds);
+
+  if (error) {
+    console.warn("No pude leer v_orden_juegos_tr_consolidado:", error);
+    return new Map();
+  }
+
+  const totals = new Map();
+  for (const row of data || []) {
+    const orderId = Number(row?.orden_id || 0);
+    if (!orderId) continue;
+    const current = totals.get(orderId) || { buena: 0, mala: 0 };
+    const buena = Number(row?.buena_final_par ?? 0);
+    const mala = Number(row?.mala_final_par ?? 0);
+    current.buena += Number.isFinite(buena) ? buena : 0;
+    current.mala += Number.isFinite(mala) ? mala : 0;
+    totals.set(orderId, current);
+  }
+
+  return totals;
+}
+
+async function fetchOrdenImpresionTotalesByOrdenIds(orderIds = []) {
+  if (!orderIds.length) return null;
+  const { data, error } = await supabase.rpc("get_orden_impresion_totales", {
+    p_order_ids: orderIds
+  });
+
+  if (error) {
+    if (!isMissingRpc(error)) {
+      console.warn("No pude leer get_orden_impresion_totales:", error);
+    }
+    return null;
+  }
+
+  const totals = new Map();
+  for (const row of data || []) {
+    const orderId = Number(row?.orden_id || 0);
+    if (!orderId) continue;
+    totals.set(orderId, {
+      buena: Number(row?.buena_total ?? 0),
+      mala: Number(row?.mala_total ?? 0),
+      detalle: row?.detalle ?? null
+    });
+  }
+  return totals;
+}
+
 async function fetchRouteBoardSnapshot(moduleName, { userId = null } = {}) {
   const targetModule = String(moduleName || "").trim().toUpperCase();
   const orders = await fetchTrabajosAdminBoard({ estado: "ACABADOS" });
@@ -590,6 +680,17 @@ async function fetchRouteBoardSnapshot(moduleName, { userId = null } = {}) {
 
   const orderIds = [...new Set(orders.map((o) => Number(o.orden_id)).filter(Boolean))];
   const procesos = await fetchOrdenProcesosAcabadosByOrdenIds(orderIds);
+  const impresionTotales = await fetchOrdenImpresionTotalesByOrdenIds(orderIds);
+  const produccionCantidades = impresionTotales ? new Map() : await fetchOrdenProduccionCantidadesByOrdenIds(orderIds);
+  const juegosOrderIds = impresionTotales
+    ? []
+    : orders
+      .filter((order) => shouldUseConsolidatedJuegoTotals(order))
+      .map((order) => Number(order.orden_id))
+      .filter(Boolean);
+  const juegosConsolidados = impresionTotales
+    ? new Map()
+    : await fetchOrdenJuegosConsolidadoCantidadesByOrdenIds(juegosOrderIds);
   const assignedIds = [...new Set((procesos || []).map((p) => p.assigned_user_id).filter(Boolean))];
   const profiles = await fetchProfilesByIds(assignedIds);
   const profileMap = new Map(
@@ -639,8 +740,19 @@ async function fetchRouteBoardSnapshot(moduleName, { userId = null } = {}) {
       && handoffTargetModule !== targetModule
       && !sameOperatorTailEmpaquetado;
 
+    const orderId = Number(order.orden_id);
+    const secureTotals = impresionTotales?.get(orderId) || null;
+    const gameTotals = shouldUseConsolidatedJuegoTotals(order)
+      ? (juegosConsolidados.get(orderId) || null)
+      : null;
+      const productionTotals = produccionCantidades.get(orderId) || null;
+    const finalTotals = secureTotals || gameTotals || productionTotals || { buena: 0, mala: 0 };
+
     return {
       ...order,
+      cantidad_buena_total: finalTotals.buena ?? 0,
+      cantidad_mala_total: finalTotals.mala ?? 0,
+      impresion_totales_detalle: secureTotals?.detalle ?? null,
       modulo_ruta_actual: currentRouteModule || order.modulo_ruta_actual || null,
       procesos: visibleProcesos,
       procesos_todos: moduleProcesos,
