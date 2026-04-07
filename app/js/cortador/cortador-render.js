@@ -261,6 +261,16 @@ function buildActionContext(process) {
   };
 }
 
+function syncHeaderPauseButton(process) {
+  const button = document.getElementById("btnDetailPause");
+  if (!button) return;
+
+  const ctx = buildActionContext(process);
+  const shouldShow = !!process && ctx.isMineActive;
+  button.hidden = !shouldShow;
+  button.disabled = !shouldShow || ctx.busy;
+}
+
 function renderActionButtons(process) {
   const order = getSelectedOrder();
   const status = String(process?.estado || "").toUpperCase();
@@ -333,7 +343,6 @@ function renderActionButtons(process) {
   if (status === "EN_PROCESO" && ctx.isMineActive) {
     return `
       <div class="detail-actions">
-        <button class="btn btn-warn detail-btn" type="button" data-cortador-action="pause" ${ctx.busy ? "disabled" : ""}><span class="detail-action-icon" aria-hidden="true">❚❚</span><span>${ctx.busyAction === "PAUSAR" ? "Pausando..." : "Pausar"}</span></button>
         <button class="btn btn-primary detail-btn detail-btn-finish" type="button" data-cortador-action="finish" ${ctx.busy ? "disabled" : ""}><span class="detail-action-icon" aria-hidden="true">✓</span><span>${ctx.busyAction === "FINALIZAR" ? "Finalizando..." : "Finalizar"}</span></button>
       </div>
     `;
@@ -483,6 +492,7 @@ function renderDetail() {
     modal.classList.toggle("is-open", isOpen);
   }
   document.body.classList.toggle("is-modal-open", isOpen);
+  syncHeaderPauseButton(isOpen ? process : null);
 
   if (!order || !isOpen) {
     mount.innerHTML = "";

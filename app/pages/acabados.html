@@ -92,7 +92,14 @@
           <h2 id="acabadosDetailTitle" class="card-title">Detalle</h2>
           <div class="card-sub">Proceso y contexto de la orden seleccionada</div>
         </div>
-        <button id="btnCloseAcabadosDetail" class="btn btn-ghost" type="button">Cerrar</button>
+        <div class="detail-head-actions">
+          <button id="btnDetailPause" class="btn btn-pause-short" type="button" hidden aria-label="Pausar proceso" title="Pausar proceso">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+            </svg>
+          </button>
+          <button id="btnCloseAcabadosDetail" class="btn btn-ghost" type="button">Cerrar</button>
+        </div>
       </div>
       <div class="card-body">
         <div id="detailPane" class="detail-pane"></div>

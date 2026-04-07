@@ -12,6 +12,7 @@ export function bindCortadorEvents({ onStateChange, onAction, onLogout, onPauseC
   const mine = document.getElementById("myProcesses");
   const detail = document.getElementById("detailPane");
   const detailClose = document.getElementById("btnCloseCortadorDetail");
+  const detailPause = document.getElementById("btnDetailPause");
   const pauseClose = document.getElementById("btnClosePauseModal");
   const pauseCancel = document.getElementById("btnCancelPause");
   const pauseConfirm = document.getElementById("btnConfirmPause");
@@ -67,6 +68,8 @@ export function bindCortadorEvents({ onStateChange, onAction, onLogout, onPauseC
     onPauseClose?.();
     onStateChange?.();
   });
+
+  detailPause?.addEventListener("click", () => onAction?.("pause"));
 
   pauseClose?.addEventListener("click", () => onPauseClose?.());
   pauseCancel?.addEventListener("click", () => onPauseClose?.());

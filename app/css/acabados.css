@@ -141,6 +141,12 @@ body.page-cortador {
   background: linear-gradient(180deg, rgba(13, 23, 48, .94), rgba(13, 23, 48, .78));
 }
 
+.detail-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .card-title {
   margin: 0;
   font-size: 15px;
@@ -222,6 +228,36 @@ body.page-cortador {
 .btn-ghost {
   background: var(--panel-2);
   color: var(--text);
+}
+
+.btn-pause-short {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  background: linear-gradient(180deg, rgba(251, 191, 36, .22), rgba(180, 83, 9, .34));
+  border-color: rgba(251, 191, 36, .45);
+  color: #fde68a;
+  white-space: nowrap;
+}
+
+.btn-pause-short svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.detail-head-actions .btn:disabled {
+  opacity: .55;
+  color: #98a8c9;
+  border-color: rgba(73, 93, 134, .65);
+  background: linear-gradient(180deg, rgba(17, 32, 65, .88), rgba(11, 22, 46, .96));
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .subsection + .subsection {
