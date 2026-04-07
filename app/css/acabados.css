@@ -699,6 +699,62 @@ body.page-cortador {
   overflow: auto;
 }
 
+.detail-modal-overlay {
+  z-index: 90;
+  background: rgba(3, 8, 20, .76);
+}
+
+.pause-modal-card {
+  width: min(520px, 100%);
+  max-height: min(84vh, 760px);
+  overflow: auto;
+}
+
+.pause-modal-body {
+  display: grid;
+  gap: 14px;
+}
+
+.pause-modal-callout {
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, .24);
+  background: rgba(251, 191, 36, .07);
+  color: #fde68a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pause-modal-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.pause-field {
+  display: grid;
+  gap: 6px;
+}
+
+.pause-field select,
+.pause-field textarea {
+  width: 100%;
+  padding: 10px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(9, 19, 38, .78);
+  color: var(--text);
+  font: inherit;
+}
+
+.pause-field textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+.pause-actions {
+  margin-top: 2px;
+}
+
 .detail-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.42fr) minmax(250px, 0.58fr);

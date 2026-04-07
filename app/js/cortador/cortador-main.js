@@ -31,6 +31,59 @@ import {
 
 const { showToast } = createToastController();
 
+function getPauseModalElements() {
+  return {
+    modal: document.getElementById("pauseModal"),
+    reason: document.getElementById("pauseReason"),
+    observation: document.getElementById("pauseObservation"),
+    message: document.getElementById("pauseMsg")
+  };
+}
+
+function setPauseMessage(text, isError = false) {
+  const { message } = getPauseModalElements();
+  if (!message) return;
+  message.textContent = text || "";
+  message.classList.toggle("is-error", !!isError);
+}
+
+function buildPauseNote() {
+  const { reason, observation } = getPauseModalElements();
+  const motivo = String(reason?.value || "").trim();
+  const observacion = String(observation?.value || "").trim();
+  if (!motivo) return null;
+  if (!observacion) return `Motivo: ${motivo}`;
+  return `Motivo: ${motivo}\nObservacion: ${observacion}`;
+}
+
+function openPauseModal() {
+  const process = getSelectedProcess();
+  const currentUserId = cortadorState.currentUser?.id || null;
+  const isMineActive = process?.estado === "EN_PROCESO" && currentUserId && process?.assigned_user_id === currentUserId;
+  if (!isMineActive) {
+    showToast("Solo puedes pausar un proceso que ya esta en curso contigo.", "warn");
+    return;
+  }
+
+  const { modal, reason, observation } = getPauseModalElements();
+  if (!modal) return;
+  if (reason) reason.value = "";
+  if (observation) observation.value = "";
+  setPauseMessage("");
+  modal.hidden = false;
+  modal.classList.add("is-open");
+}
+
+function closePauseModal() {
+  const { modal, reason, observation } = getPauseModalElements();
+  if (!modal) return;
+  modal.hidden = true;
+  modal.classList.remove("is-open");
+  if (reason) reason.value = "";
+  if (observation) observation.value = "";
+  setPauseMessage("");
+}
+
 function setMessage(text, isError = false) {
   const el = document.getElementById("msgCortador");
   if (!el) return;
@@ -56,6 +109,9 @@ function syncMainMenuButton() {
 }
 
 function renderAll() {
+  if (!cortadorState.detailOpen) {
+    closePauseModal();
+  }
   renderCortadorApp();
 }
 
@@ -298,9 +354,13 @@ async function handleStart() {
 async function handlePause() {
   const process = getSelectedProcess();
   if (!process?.id) return;
-  const note = getActionNote();
+  const note = buildPauseNote();
+  if (!note) {
+    setPauseMessage("Selecciona un motivo de pausa.", true);
+    return false;
+  }
 
-  await runAction("PAUSAR", async () => {
+  const ok = await runAction("PAUSAR", async () => {
     const result = isAcabadosProcess(process)
       ? await rpcPausarProcesoAcabado({
         procesoId: process.id,
@@ -319,6 +379,8 @@ async function handlePause() {
     setMessage(result?.mensaje || `Proceso ${process.proceso_codigo} pausado correctamente.`);
     showToast(result?.mensaje || `Proceso pausado: ${process.proceso_codigo}.`, "warn");
   });
+  if (ok) closePauseModal();
+  return ok;
 }
 
 async function handleResume() {
@@ -435,6 +497,9 @@ async function handleAction(action) {
       await handleStart();
       return;
     case "pause":
+      openPauseModal();
+      return;
+    case "confirm-pause":
       await handlePause();
       return;
     case "resume":
@@ -472,6 +537,7 @@ async function init() {
   bindCortadorEvents({
     onStateChange: renderAll,
     onAction: handleAction,
+    onPauseClose: closePauseModal,
     onLogout: handleLogout
   });
 

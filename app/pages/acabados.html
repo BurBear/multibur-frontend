@@ -100,6 +100,50 @@
     </div>
   </div>
 
+  <div id="pauseModal" class="detail-modal detail-modal-overlay" hidden>
+    <div class="pause-modal-card card" role="dialog" aria-modal="true" aria-labelledby="acabadosPauseTitle">
+      <div class="card-head">
+        <div>
+          <h2 id="acabadosPauseTitle" class="card-title">Pausar proceso</h2>
+          <div class="card-sub">Confirma la pausa para evitar un click accidental.</div>
+        </div>
+        <button id="btnClosePauseModal" class="btn btn-ghost" type="button">Cerrar</button>
+      </div>
+      <div class="card-body pause-modal-body">
+        <div class="pause-modal-callout">
+          Este paso dejara el proceso disponible para retomarlo despues. Selecciona un motivo y confirma la pausa.
+        </div>
+
+        <div class="pause-modal-fields">
+          <label class="pause-field">
+            <span class="k">Motivo de pausa</span>
+            <select id="pauseReason">
+              <option value="">Selecciona motivo</option>
+              <option value="Cambio de trabajo">Cambio de trabajo</option>
+              <option value="Hora de almuerzo">Hora de almuerzo</option>
+              <option value="Cambio de maquina">Cambio de maquina</option>
+              <option value="No se termino">No se termino</option>
+              <option value="Se fue la luz">Se fue la luz</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </label>
+
+          <label class="pause-field">
+            <span class="k">Observacion opcional</span>
+            <textarea id="pauseObservation" rows="3" placeholder="Agrega una nota corta si hace falta."></textarea>
+          </label>
+        </div>
+
+        <div id="pauseMsg" class="msg"></div>
+
+        <div class="detail-actions pause-actions">
+          <button id="btnCancelPause" class="btn btn-ghost detail-btn" type="button">Volver</button>
+          <button id="btnConfirmPause" class="btn btn-warn detail-btn" type="button">Confirmar pausa</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="../js/loader.js"></script>
   <script type="module" src="../js/acabados.js"></script>
 </body>

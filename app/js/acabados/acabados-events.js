@@ -6,12 +6,15 @@ import {
   setQuery
 } from "./acabados-state.js";
 
-export function bindAcabadosEvents({ onStateChange, onAction, onLogout }) {
+export function bindAcabadosEvents({ onStateChange, onAction, onLogout, onPauseClose }) {
   const q = document.getElementById("qAcabados");
   const board = document.getElementById("boardOrders");
   const mine = document.getElementById("myProcesses");
   const detail = document.getElementById("detailPane");
   const detailClose = document.getElementById("btnCloseAcabadosDetail");
+  const pauseClose = document.getElementById("btnClosePauseModal");
+  const pauseCancel = document.getElementById("btnCancelPause");
+  const pauseConfirm = document.getElementById("btnConfirmPause");
   const btnLogout = document.getElementById("btnLogout");
 
   q?.addEventListener("input", debounce((event) => {
@@ -61,8 +64,13 @@ export function bindAcabadosEvents({ onStateChange, onAction, onLogout }) {
 
   detailClose?.addEventListener("click", () => {
     closeDetail();
+    onPauseClose?.();
     onStateChange?.();
   });
+
+  pauseClose?.addEventListener("click", () => onPauseClose?.());
+  pauseCancel?.addEventListener("click", () => onPauseClose?.());
+  pauseConfirm?.addEventListener("click", () => onAction?.("confirm-pause"));
 
   btnLogout?.addEventListener("click", () => onLogout?.());
 }

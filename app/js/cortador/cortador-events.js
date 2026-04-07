@@ -6,12 +6,15 @@ import {
   setQuery
 } from "./cortador-state.js";
 
-export function bindCortadorEvents({ onStateChange, onAction, onLogout }) {
+export function bindCortadorEvents({ onStateChange, onAction, onLogout, onPauseClose }) {
   const q = document.getElementById("qCortador");
   const board = document.getElementById("boardOrders");
   const mine = document.getElementById("myProcesses");
   const detail = document.getElementById("detailPane");
   const detailClose = document.getElementById("btnCloseCortadorDetail");
+  const pauseClose = document.getElementById("btnClosePauseModal");
+  const pauseCancel = document.getElementById("btnCancelPause");
+  const pauseConfirm = document.getElementById("btnConfirmPause");
   const btnLogout = document.getElementById("btnLogout");
 
   q?.addEventListener("input", debounce((event) => {
@@ -61,8 +64,13 @@ export function bindCortadorEvents({ onStateChange, onAction, onLogout }) {
 
   detailClose?.addEventListener("click", () => {
     closeDetail();
+    onPauseClose?.();
     onStateChange?.();
   });
+
+  pauseClose?.addEventListener("click", () => onPauseClose?.());
+  pauseCancel?.addEventListener("click", () => onPauseClose?.());
+  pauseConfirm?.addEventListener("click", () => onAction?.("confirm-pause"));
 
   btnLogout?.addEventListener("click", () => onLogout?.());
 }

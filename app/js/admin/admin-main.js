@@ -37,7 +37,8 @@ import {
   fetchClienteTiposByOrdenIds,
   fetchOrdenesMetaByIds,
   fetchReporteEntregados,
-  rpcFinalizarEntregaOrden
+  rpcFinalizarEntregaOrden,
+  rpcTransferirOrdenRuta
 } from "../api.js";
 import { supabase } from "../supabaseClient.js";
 
@@ -1342,8 +1343,14 @@ function renderAccion(r) {
     return `<span class="state-pill is-printing">Imprimiendo</span>`;
   }
   if (e === "ACABADOS") {
+    const routeNeedsHandoff = !!r.route_requires_handoff;
+    const nextRouteModule = String(r.route_next_process_modulo || "").trim().toUpperCase();
     if (r.route_all_closed || String(r.route_badge_tone || "").trim().toLowerCase() === "done") {
       return `<button class="btn btn-deliver" type="button" data-action="deliver" data-oid="${r.orden_id}" style="padding:8px 10px">ENTREGAR</button>`;
+    }
+    if (routeNeedsHandoff && (nextRouteModule === "ACABADOS" || nextRouteModule === "CORTADOR")) {
+      const label = nextRouteModule === "CORTADOR" ? "Enviar a CORTE" : "Enviar a ACABADOS";
+      return `<button class="btn btn-warn" type="button" data-action="route-transfer" data-oid="${r.orden_id}" data-module="${nextRouteModule}" style="padding:8px 10px">${label}</button>`;
     }
     return renderRouteStatusPill(r);
   }
@@ -1461,6 +1468,87 @@ function closeDetalleOrden() {
   $("btnPrintDetail").disabled = true;
   $("jobDetailWrap")?.classList.add("hide");
 }
+
+async function inspectOrdenesFisicas(...rawNumbers) {
+  const numbers = rawNumbers
+    .flat()
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  if (!numbers.length) {
+    console.warn("inspectOrdenesFisicas: indica al menos un numero de orden fisica.");
+    return [];
+  }
+
+  const { data: ordenes, error: ordenesError } = await supabase
+    .from("ordenes")
+    .select("id,numero_orden_fisica,estado,fecha_entrega,prioridad,descripcion_trabajo")
+    .in("numero_orden_fisica", numbers)
+    .order("id", { ascending: false });
+
+  if (ordenesError) throw ordenesError;
+
+  const orderIds = (ordenes || []).map((row) => Number(row.id)).filter(Boolean);
+  if (!orderIds.length) {
+    console.warn("inspectOrdenesFisicas: no encontre esas ordenes.", numbers);
+    return [];
+  }
+
+  const [
+    { data: detalles, error: detallesError },
+    { data: procesos, error: procesosError }
+  ] = await Promise.all([
+    supabase
+      .from("detalles_orden")
+      .select("*")
+      .in("orden_id", orderIds),
+    supabase
+      .from("orden_procesos")
+      .select("id,orden_id,proceso_codigo,modulo_responsable,estado,secuencia,configuracion,observaciones,assigned_user_id,started_at,finished_at,created_at,updated_at")
+      .in("orden_id", orderIds)
+      .order("orden_id", { ascending: true })
+      .order("secuencia", { ascending: true })
+      .order("id", { ascending: true })
+  ]);
+
+  if (detallesError) throw detallesError;
+  if (procesosError) throw procesosError;
+
+  const detalleMap = new Map((detalles || []).map((row) => [Number(row.orden_id), row]));
+  const procesosMap = new Map();
+
+  for (const proceso of procesos || []) {
+    const oid = Number(proceso.orden_id);
+    const bucket = procesosMap.get(oid) || [];
+    bucket.push(proceso);
+    procesosMap.set(oid, bucket);
+  }
+
+  const output = (ordenes || []).map((orden) => ({
+    ...orden,
+    detalle: detalleMap.get(Number(orden.id)) || null,
+    procesos: procesosMap.get(Number(orden.id)) || []
+  }));
+
+  console.group("inspectOrdenesFisicas");
+  console.table(output.map((row) => ({
+    id: row.id,
+    numero_orden_fisica: row.numero_orden_fisica,
+    estado: row.estado,
+    fecha_entrega: row.fecha_entrega,
+    modulo_ruta_actual: row.detalle?.modulo_ruta_actual || null,
+    ruta_procesos: row.detalle?.ruta_procesos || null,
+    procesos_total: Array.isArray(row.procesos) ? row.procesos.length : 0
+  })));
+  output.forEach((row) => {
+    console.log(`Orden ${row.numero_orden_fisica || row.id}`, row);
+  });
+  console.groupEnd();
+
+  return output;
+}
+
+window.inspectOrdenesFisicas = inspectOrdenesFisicas;
 
 function printOrden(r, extra = null) {
   const entregaRaw = extra?.fecha_entrega || r.fecha_entrega || null;
@@ -1698,6 +1786,30 @@ async function loadJobs() {
     const row = (rows || []).find((x) => Number(x.orden_id) === oid);
     if (!row) return;
     await openEntregaModal(row);
+  }));
+
+  tb.querySelectorAll('button[data-action="route-transfer"]').forEach((btn) => btn.addEventListener("click", async () => {
+    const oid = Number(btn.getAttribute("data-oid"));
+    const moduleTarget = String(btn.getAttribute("data-module") || "").trim().toUpperCase();
+    const row = (rows || []).find((x) => Number(x.orden_id) === oid);
+    if (!row || !moduleTarget) return;
+    const old = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = moduleTarget === "CORTADOR" ? "Enviando a CORTE..." : "Enviando a ACABADOS...";
+    try {
+      const res = await rpcTransferirOrdenRuta({
+        ordenId: oid,
+        moduloDestino: moduleTarget
+      });
+      msgJobs(res?.mensaje || `OK Orden ${oid} enviada a ${moduleTarget}.`);
+      await loadJobs();
+    } catch (e) {
+      const detail = formatDbError(e);
+      msgJobs(`ERROR: No se pudo transferir la orden ${row.numero_orden_fisica || oid}: ${detail}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
+    }
   }));
 
   tb.querySelectorAll('button[data-action="detail"]').forEach((btn) => btn.addEventListener("click", async () => {
