@@ -13,20 +13,58 @@
 .top .brand-wrap > .brand-main{
   display:flex;
   align-items:center;
-  gap:12px;
+  gap:var(--brand-logo-gap, 12px);
   min-width:0;
+  position:relative;
+  z-index:1;
 }
 
 .top .brand-wrap > .brand::before,
 .top .brand-wrap > .brand-main::before{
   content:"";
-  width:clamp(36px,4vw,44px);
-  height:clamp(36px,4vw,44px);
+  width:var(--brand-logo-size, clamp(36px,4vw,44px));
+  height:var(--brand-logo-size, clamp(36px,4vw,44px));
   flex:0 0 auto;
   display:block;
   background:center / contain no-repeat url("../assets/logo.svg");
   filter:drop-shadow(0 12px 24px var(--role-logo-shadow));
   opacity:.98;
+}
+
+.top .brand-wrap{
+  --brand-logo-size:clamp(36px,4vw,44px);
+  --brand-logo-gap:8px;
+  --brand-chip-width:56px;
+  --brand-chip-overlap:30px;
+  --brand-chip-bottom:0px;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  min-width:0;
+  width:max-content;
+  position:relative;
+  padding-right:calc(var(--brand-chip-width) - var(--brand-chip-overlap));
+  padding-bottom:0;
+}
+
+.top .brand-wrap > .role-chip{
+  position:absolute;
+  right:0;
+  bottom:var(--brand-chip-bottom);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:var(--brand-chip-width);
+  margin:0;
+  padding:3px 8px;
+  border-width:1px;
+  font-size:7px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  line-height:1;
+  transform:none;
+  z-index:2;
 }
 
 @supports ((-webkit-mask-image: url("")) or (mask-image: url(""))){
@@ -45,15 +83,22 @@
 }
 
 @media (max-width:640px){
-  .top .brand-wrap > .brand,
-  .top .brand-wrap > .brand-main{
-    gap:10px;
+  .top .brand-wrap{
+    --brand-logo-size:32px;
+    --brand-logo-gap:7px;
+    --brand-chip-width:48px;
+    --brand-chip-overlap:24px;
+    --brand-chip-bottom:0px;
   }
 
-  .top .brand-wrap > .brand::before,
-  .top .brand-wrap > .brand-main::before{
-    width:32px;
-    height:32px;
+  .top .brand-wrap > .brand,
+  .top .brand-wrap > .brand-main{
+    gap:var(--brand-logo-gap);
+  }
+
+  .top .brand-wrap > .role-chip{
+    padding:2px 7px;
+    font-size:6px;
   }
 }
 
