@@ -14,6 +14,11 @@
       --blue-soft:#143c77;
       --green:#22c55e;
       --green-soft:rgba(34,197,94,.12);
+      --role-accent:#22c55e;
+      --role-accent-strong:#15803d;
+      --role-accent-border:#1f7a57;
+      --role-accent-soft:rgba(34,197,94,.12);
+      --role-logo-shadow:rgba(34,197,94,.28);
       --shadow:0 22px 60px rgba(2,8,23,.45);
     }
     body{
@@ -42,9 +47,9 @@
       font-size:11px;
       padding:3px 9px;
       border-radius:999px;
-      border:1px solid #1f7a57;
-      color:var(--green);
-      background:var(--green-soft);
+      border:1px solid var(--role-accent-border);
+      color:var(--role-accent);
+      background:var(--role-accent-soft);
     }
     .brand{font-weight:900; font-size:28px; line-height:1.05}
     .brand-sub{font-size:13px; color:var(--muted)}

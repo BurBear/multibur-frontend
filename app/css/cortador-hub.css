@@ -11,6 +11,11 @@
   --green: #22c55e;
   --amber: #f59e0b;
   --blue: #2563eb;
+  --role-accent: #fcd34d;
+  --role-accent-strong: #f59e0b;
+  --role-accent-border: #d97706;
+  --role-accent-soft: rgba(245, 158, 11, .12);
+  --role-logo-shadow: rgba(245, 158, 11, .28);
 }
 
 body.page-cortador-hub {
@@ -55,9 +60,9 @@ body.page-cortador-hub {
   font-size: 11px;
   padding: 3px 9px;
   border-radius: 999px;
-  border: 1px solid #d97706;
-  color: #fcd34d;
-  background: rgba(245, 158, 11, .12);
+  border: 1px solid var(--role-accent-border);
+  color: var(--role-accent);
+  background: var(--role-accent-soft);
 }
 
 .brand {

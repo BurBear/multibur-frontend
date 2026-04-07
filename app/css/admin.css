@@ -12,6 +12,17 @@ body {
   color: #e8eefc;
 }
 
+body.page-admin-main,
+body.page-admin-reportes,
+body.page-admin-catalogos,
+body.page-admin-materiales {
+  --role-accent: #22c55e;
+  --role-accent-strong: #15803d;
+  --role-accent-border: #1f7a57;
+  --role-accent-soft: rgba(34, 197, 94, .12);
+  --role-logo-shadow: rgba(34, 197, 94, .28);
+}
+
 .top {
   display: flex;
   justify-content: space-between;
@@ -38,9 +49,9 @@ body {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid #1f7a57;
-  color: #22c55e;
-  background: rgba(34, 197, 94, .12)
+  border: 1px solid var(--role-accent-border);
+  color: var(--role-accent);
+  background: var(--role-accent-soft)
 }
 
 .top-right {
@@ -1507,9 +1518,9 @@ body {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid #1f7a57;
-  color: #22c55e;
-  background: rgba(34, 197, 94, .12)
+  border: 1px solid var(--role-accent-border);
+  color: var(--role-accent);
+  background: var(--role-accent-soft)
 }
 
 .top-right {
@@ -2140,9 +2151,9 @@ body {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid #1f7a57;
-  color: #22c55e;
-  background: rgba(34, 197, 94, .12)
+  border: 1px solid var(--role-accent-border);
+  color: var(--role-accent);
+  background: var(--role-accent-soft)
 }
 
 .top-right {
@@ -2509,9 +2520,9 @@ body {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid #1f7a57;
-  color: #22c55e;
-  background: rgba(34, 197, 94, .12)
+  border: 1px solid var(--role-accent-border);
+  color: var(--role-accent);
+  background: var(--role-accent-soft)
 }
 
 .top-right {
