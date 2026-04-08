@@ -42,6 +42,10 @@ function esc(value) {
   return escapeHtml(value);
 }
 
+function renderPinnedBadge() {
+  return `<span class="pin-badge" title="Anclado" aria-label="Anclado">&#128204;</span>`;
+}
+
 function formatProcesoLabel(process) {
   const code = String(process?.proceso_codigo || "").trim().toUpperCase();
   const base = PROCESS_LABELS[code] || code || "-";
@@ -392,15 +396,19 @@ function renderOrderCard(order) {
 
   return `
     <article
-      class="order-card ${isSelected ? "is-selected" : ""}"
+      class="order-card ${isSelected ? "is-selected" : ""} ${order.is_pinned ? "is-pinned" : ""}"
       data-order-id="${order.orden_id}"
       style="--client-color:${clientColor};--client-bg:${clientBg}"
     >
       <div class="order-head">
-        <button class="order-anchor" type="button" data-order-id="${order.orden_id}">
-          ${esc(orderButtonLabel)}
-        </button>
+        <div class="order-head-left">
+          <button class="order-anchor" type="button" data-order-id="${order.orden_id}">
+            ${esc(orderButtonLabel)}
+          </button>
+          ${order.visible_pinned_rank ? `<span class="pin-order-badge" title="Anclado #${order.visible_pinned_rank}" aria-label="Anclado ${order.visible_pinned_rank}">${order.visible_pinned_rank}</span>` : ""}
+        </div>
         <div class="order-head-right">
+          ${order.is_pinned ? renderPinnedBadge() : ""}
           <span class="macro-pill">CORTADOR</span>
           <span class="progress-pill">${progress.completados || 0}/${progress.total || 0}</span>
         </div>

@@ -27,6 +27,7 @@ import { filterTrabajosByQuery } from "./operador-trabajos.js";
 import { buildKpiSnapshot } from "./operador-registros.js";
 import {
   fetchMaquinas,
+  fetchOrdenesAncladas,
   fetchTrabajosAdminBoard,
   fetchMiRegistroActivo,
   fetchRegistrosPausadosDisponibles,
@@ -70,6 +71,8 @@ let selectedOrderPausedRegistros = [];
 let startActionBusy = false;
 let stopActionBusy = false;
 let finalizeValidationRequested = false;
+let pinnedOrderIds = new Set();
+let pinnedOrderRankMap = new Map();
 
 /* =========================
    MODAL
@@ -181,6 +184,57 @@ function isVisibleForOperador(row) {
   if (estado === "PLACAS") return true;
   if (estado !== "IMPRESION") return false;
   return !!row?.requiere_juegos_placa && isTipoImpresionTR(row?.tipo_impresion);
+}
+
+function renderPinnedBadge() {
+  return `<span class="pin-badge" title="Anclado" aria-label="Anclado">&#128204;</span>`;
+}
+
+function setPinnedOrderState(pinnedRows = []) {
+  const orderedIds = [...new Set(
+    (pinnedRows || [])
+      .map((row) => Number(row?.orden_id || row))
+      .filter(Boolean)
+  )];
+  pinnedOrderIds = new Set(orderedIds);
+  pinnedOrderRankMap = new Map(orderedIds.map((ordenId, index) => [ordenId, index + 1]));
+}
+
+function applyPinnedPriority(rows = []) {
+  const orderedRows = (rows || [])
+    .map((row, index) => {
+      const ordenId = Number(row?.orden_id || 0);
+      return {
+        ...row,
+        is_pinned: pinnedOrderIds.has(ordenId),
+        pinned_rank: pinnedOrderRankMap.get(ordenId) || null,
+        _list_index: index
+      };
+    })
+    .sort((a, b) => {
+      const aPinned = a.is_pinned ? 0 : 1;
+      const bPinned = b.is_pinned ? 0 : 1;
+      if (aPinned !== bPinned) return aPinned - bPinned;
+      if (aPinned === 0 && bPinned === 0) {
+        return (a.pinned_rank || Number.MAX_SAFE_INTEGER) - (b.pinned_rank || Number.MAX_SAFE_INTEGER);
+      }
+      return Number(a._list_index || 0) - Number(b._list_index || 0);
+    });
+
+  let visiblePinnedRank = 0;
+  return orderedRows.map((row) => {
+    if (!row?.is_pinned) {
+      return {
+        ...row,
+        visible_pinned_rank: null
+      };
+    }
+    visiblePinnedRank += 1;
+    return {
+      ...row,
+      visible_pinned_rank: visiblePinnedRank
+    };
+  });
 }
 
 function enrichTrabajosWithPausados(rows, pausedRows) {
@@ -505,6 +559,8 @@ function renderPendientes(rows) {
     const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
     const entrega = r.fecha_entrega ? fmtDatePE(r.fecha_entrega) : "-";
     const juegosLabel = buildJuegosPlacaLabel(r);
+    const pinnedBadge = r.is_pinned ? renderPinnedBadge() : "";
+    const pinnedRank = r.visible_pinned_rank || null;
     const pausedBadge = r.tiene_pausado_retomable
       ? `<span class="badge" style="margin-left:6px; border-color: rgba(251,191,36,.45); color:#fde68a;">PAUSADO</span>`
       : "";
@@ -512,9 +568,12 @@ function renderPendientes(rows) {
     const title = `title="Ver detalle y acciones"`;
 
     return `
-      <tr style="border-left: 5px solid ${getClientColor(r.cliente_nombre)}; background-color: ${getClientBgColor(r.cliente_nombre)};">
+      <tr class="${r.is_pinned ? "is-pinned-row" : ""}" style="border-left: 5px solid ${getClientColor(r.cliente_nombre)}; background-color: ${getClientBgColor(r.cliente_nombre)};">
         <td>
-          <div><b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b></div>
+          <div class="order-headline">
+            ${pinnedRank ? `<span class="pin-order-badge" title="Anclado #${pinnedRank}" aria-label="Anclado ${pinnedRank}">${pinnedRank}</span>` : ""}
+            <b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b>
+          </div>
           <div class="muted">
             ${esc(r.estado)} - 
             <span class="${r.prioridad === 'URGENTE' ? 'badge is-urgente' : ''}" style="${r.prioridad === 'URGENTE' ? 'color: #ef4444; font-weight: bold;' : ''}">${esc(r.prioridad)}</span>
@@ -531,7 +590,12 @@ function renderPendientes(rows) {
           ${juegosLabel ? `<div class="small muted">${esc(juegosLabel)}</div>` : ""}
         </td>
         <td>${esc(r.color_text || "-")}</td>
-        <td>${esc(r.maquina_sugerida_nombre || "-")}</td>
+        <td>
+          <div class="machine-cell">
+            <div class="machine-name">${esc(r.maquina_sugerida_nombre || "-")}</div>
+            ${pinnedBadge ? `<div class="machine-pin">${pinnedBadge}</div>` : ""}
+          </div>
+        </td>
         <td>
           <button class="btn btn-ghost" data-oid="${r.orden_id}" data-est="${esc(r.estado)}" ${title}>Elegir</button>
         </td>
@@ -581,15 +645,17 @@ async function loadTrabajos() {
   msgL("");
 
   const q = getValue("q");
-  const [boardRows, pausedRows] = await Promise.all([
+  const [boardRows, pausedRows, pinnedRows] = await Promise.all([
     fetchTrabajosAdminBoard({}),
-    fetchRegistrosPausadosDisponibles().catch(() => [])
+    fetchRegistrosPausadosDisponibles().catch(() => []),
+    fetchOrdenesAncladas().catch(() => null)
   ]);
+  setPinnedOrderState(pinnedRows || []);
   const allRows = enrichTrabajosWithPausados(boardRows || [], pausedRows || []);
-  const rows = filterTrabajosByQuery(
+  const rows = applyPinnedPriority(filterTrabajosByQuery(
     (allRows || []).filter((r) => isVisibleForOperador(r)),
     q
-  );
+  ));
 
   allPendientes = rows || [];
   filteredPendientes = allPendientes.slice();

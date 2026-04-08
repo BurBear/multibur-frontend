@@ -81,6 +81,10 @@ export function renderOverdueBadge(overdue) {
   return overdue ? `<span class="prio-badge is-overdue">RETRASO</span>` : "";
 }
 
+export function renderPinnedBadge() {
+  return `<span class="pin-badge" title="Anclado" aria-label="Anclado">&#128204;</span>`;
+}
+
 export function renderIncidenciaBadge(incidencia) {
   if (!incidencia || !incidencia.estado_registro) return "";
   const hasLegacyIncidencia = String(incidencia.motivo_incidencia || "").trim() || String(incidencia.obs_incidencia || "").trim();

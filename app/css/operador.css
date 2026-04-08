@@ -97,6 +97,9 @@
       color:#c6d6f3;
     }
     tr:hover td{background:#112041;}
+    tr.is-pinned-row td{
+      box-shadow: inset 0 1px 0 rgba(251,191,36,.2), inset 0 -1px 0 rgba(251,191,36,.2);
+    }
     .muted{color:var(--muted)}
     .btn{
       padding:11px 14px;
@@ -196,6 +199,43 @@
     }
     .tableWrap thead th{position:sticky; top:0; background:#14203a; z-index:1;}
     @media (max-width: 960px){ .tableWrap{max-height:none;} }
+    .order-headline{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .pin-order-badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:20px;
+      height:20px;
+      padding:0 6px;
+      border-radius:999px;
+      border:1px solid rgba(251,191,36,.45);
+      background:rgba(251,191,36,.16);
+      color:#fde68a;
+      font-size:11px;
+      font-weight:900;
+      line-height:1;
+    }
+    .machine-cell{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .machine-pin{
+      line-height:1;
+    }
+    .pin-badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      font-size:17px;
+      line-height:1;
+      filter: drop-shadow(0 1px 0 rgba(15,23,42,.45));
+    }
 
     .tabs{display:flex; gap:8px; margin:12px 0 14px;}
     .tab{

@@ -1,6 +1,7 @@
 import { requireRole, logout, getProfileDisplayName } from "../auth.js";
 import {
   fetchAcabadosBoardSnapshot,
+  fetchOrdenesAncladas,
   rpcEnsureOrdenProcesosAcabados,
   rpcFinalizarProcesoAcabado,
   rpcIniciarProcesoAcabado,
@@ -141,6 +142,56 @@ function pickNextOpenProcess(order = null, excludeProcessId = null) {
   ) || null;
 }
 
+function buildPinnedMeta(pinnedRows = []) {
+  const orderedIds = [...new Set(
+    (pinnedRows || [])
+      .map((row) => Number(row?.orden_id || row))
+      .filter(Boolean)
+  )];
+  return {
+    ids: new Set(orderedIds),
+    rankMap: new Map(orderedIds.map((ordenId, index) => [ordenId, index + 1]))
+  };
+}
+
+function applyPinnedPriorityToOrders(orders = [], pinnedMeta = buildPinnedMeta()) {
+  const orderedRows = (orders || [])
+    .map((order, index) => {
+      const ordenId = Number(order?.orden_id || 0);
+      const pinnedRank = pinnedMeta.rankMap.get(ordenId) || null;
+      return {
+        ...order,
+        is_pinned: pinnedMeta.ids.has(ordenId),
+        pinned_rank: pinnedRank,
+        _board_index: index
+      };
+    })
+    .sort((a, b) => {
+      const aPinned = a.is_pinned ? 0 : 1;
+      const bPinned = b.is_pinned ? 0 : 1;
+      if (aPinned !== bPinned) return aPinned - bPinned;
+      if (aPinned === 0 && bPinned === 0) {
+        return (a.pinned_rank || Number.MAX_SAFE_INTEGER) - (b.pinned_rank || Number.MAX_SAFE_INTEGER);
+      }
+      return Number(a._board_index || 0) - Number(b._board_index || 0);
+    });
+
+  let visiblePinnedRank = 0;
+  return orderedRows.map((order) => {
+    if (!order?.is_pinned) {
+      return {
+        ...order,
+        visible_pinned_rank: null
+      };
+    }
+    visiblePinnedRank += 1;
+    return {
+      ...order,
+      visible_pinned_rank: visiblePinnedRank
+    };
+  });
+}
+
 function applyPostLoadSelection(orders, options = {}) {
   const {
     keepOrderId = null,
@@ -255,15 +306,21 @@ async function ensureMissingSeeds(orders = []) {
 async function loadBoard(options = {}) {
   setMessage("Cargando tablero de ACABADOS...");
   try {
-    let orders = await fetchAcabadosBoardSnapshot({ userId: acabadosState.currentUser?.id || null });
+    const [fetchedOrders, pinnedRows] = await Promise.all([
+      fetchAcabadosBoardSnapshot({ userId: acabadosState.currentUser?.id || null }),
+      fetchOrdenesAncladas().catch(() => null)
+    ]);
+    let orders = fetchedOrders;
     const seedResult = await ensureMissingSeeds(orders);
     orders = seedResult.orders || orders;
+    const pinnedMeta = buildPinnedMeta(pinnedRows || []);
     const visibleOrders = (orders || []).filter(
       (order) => (order.procesos || []).length > 0 || order.requires_handoff
     );
+    const prioritizedOrders = applyPinnedPriorityToOrders(visibleOrders, pinnedMeta);
 
-    setOrders(visibleOrders);
-    applyPostLoadSelection(visibleOrders, options);
+    setOrders(prioritizedOrders);
+    applyPostLoadSelection(prioritizedOrders, options);
     renderAll();
 
     if (seedResult.seededOrders > 0) {
@@ -274,12 +331,12 @@ async function loadBoard(options = {}) {
       showToast(`No pude preparar ${seedResult.failures.length} orden(es) automaticamente.`, "warn");
     }
 
-    if (!visibleOrders.length) {
+    if (!prioritizedOrders.length) {
       setMessage("No hay trabajos listos para ACABADOS por ahora.");
       return;
     }
 
-    setMessage(`Trabajos listos para ACABADOS: ${visibleOrders.length}.`);
+    setMessage(`Trabajos listos para ACABADOS: ${prioritizedOrders.length}.`);
   } catch (error) {
     console.error(error);
     setMessage(`No pude cargar ACABADOS:\n${formatDbError(error)}`, true);

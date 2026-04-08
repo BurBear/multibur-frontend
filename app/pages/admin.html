@@ -48,7 +48,7 @@
   </header>
 
   <main class="main">
-    <section class="card">
+    <section id="adminBoardCard" class="card">
       <div class="card-head">
         <div>
           <img class="print-logo" src="../assets/logo.svg" alt="Logo MultiBur" style="display:none" />
@@ -117,33 +117,21 @@
       </div>
     </section>
 
-    <aside class="card">
+    <aside id="adminSideCard" class="card admin-side-card">
       <div class="card-head">
-        <div>
-          <h2 class="card-title">Registros Produccion</h2>
-          <div class="card-sub">Monitoreo en tiempo real del taller</div>
+        <div class="live-mode-switch live-mode-switch-head" role="tablist" aria-label="Vista lateral de registros">
+          <button id="btnRegsViewLive" class="live-mode-btn is-active" type="button">En produccion</button>
+          <button id="btnRegsViewPending" class="live-mode-btn" type="button">
+            <span>Pendientes</span>
+            <span id="btnRegsPendingCount" class="live-mode-count" hidden>0</span>
+          </button>
         </div>
         <button id="btnReloadRegs" class="btn btn-ghost hide" type="button">Actualizar</button>
       </div>
 
       <div class="card-body">
-        <div class="live-kpis">
-          <div class="live-kpi">
-            <span class="k">Operadores activos</span>
-            <span id="kAct" class="v">0</span>
-          </div>
-          <div class="live-kpi">
-            <span class="k">Movimientos cargados</span>
-            <span id="kRegs" class="v">0</span>
-          </div>
-          <div class="live-kpi">
-            <span class="k">Ultimo inicio</span>
-            <span id="kLast" class="v">--:--</span>
-          </div>
-        </div>
-
         <div class="live-board">
-          <section class="live-section">
+          <section id="regsLiveSection" class="live-section">
             <div class="live-section-head">
               <div>
                 <div class="live-section-title">En produccion ahora</div>
@@ -151,6 +139,15 @@
               </div>
             </div>
             <div id="regsActiveNow" class="live-cards"></div>
+          </section>
+
+          <section id="regsPendingSection" class="live-section" hidden>
+            <div class="live-section-head">
+              <div>
+                <div class="live-section-title">Seguimiento directos</div>
+              </div>
+            </div>
+            <div id="regsPendingList" class="live-cards live-cards-pending"></div>
           </section>
 
           <section class="live-section" style="display: none;">

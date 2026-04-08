@@ -597,6 +597,28 @@ export async function fetchOrdenProcesosAcabadosByOrdenIds(orderIds = []) {
   return data || [];
 }
 
+export async function fetchOrdenesAncladas() {
+  const { data, error } = await supabase.rpc("get_ordenes_ancladas");
+  if (error) {
+    if (isMissingRpc(error)) return null;
+    throw error;
+  }
+  return (data || []).map((row) => ({
+    orden_id: Number(row?.orden_id || 0) || null,
+    pinned_at: row?.pinned_at || null,
+    pinned_by: row?.pinned_by || null
+  })).filter((row) => row.orden_id);
+}
+
+export async function rpcSetOrdenAnclada({ ordenId, pin = true } = {}) {
+  const { data, error } = await supabase.rpc("set_orden_anclada", {
+    p_orden_id: Number(ordenId || 0),
+    p_pin: !!pin
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] || null) : data;
+}
+
 async function fetchOrdenProduccionCantidadesByOrdenIds(orderIds = []) {
   if (!orderIds.length) return new Map();
   const { data, error } = await supabase

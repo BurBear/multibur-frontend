@@ -366,11 +366,26 @@ body.page-cortador {
   background: linear-gradient(180deg, rgba(20, 32, 58, .96), rgba(15, 26, 46, .96));
 }
 
+.order-card.is-pinned {
+  border-color: rgba(251, 191, 36, .3);
+  box-shadow:
+    inset 0 0 0 1px rgba(251, 191, 36, .08),
+    0 0 0 1px rgba(251, 191, 36, .06);
+}
+
 .order-head {
   display: flex;
   justify-content: space-between;
   gap: 10px;
   align-items: center;
+}
+
+.order-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .order-head-right {
@@ -388,6 +403,31 @@ body.page-cortador {
   font-weight: 900;
   padding: 0;
   cursor: pointer;
+}
+
+.pin-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, .42);
+  background: rgba(251, 191, 36, .14);
+  color: #fde68a;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.pin-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 0 rgba(15, 23, 42, .45));
 }
 
 .macro-pill,
