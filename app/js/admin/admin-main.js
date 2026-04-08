@@ -9,6 +9,7 @@ import { bindAdminEvents } from "./admin-events.js";
 import { isEditableEstado, toDbTipoImpresion, toDbColorMode, fmtTipoImpresion } from "./admin-orders.js";
 import {
   renderPrioridadBadge,
+  renderPinnedBadge,
   renderIncidenciaBadge,
   getProcesosAcabadosText,
   renderOverdueBadge,
@@ -25,6 +26,7 @@ import {
   fetchClientes,
   fetchMaquinas,
   fetchTrabajosAdminBoardSnapshot,
+  fetchOrdenesAncladas,
   fetchUltimasIncidenciasByOrdenIds,
   fetchUltimosEstadosProduccionByOrdenIds,
   fetchRegistros,
@@ -37,6 +39,7 @@ import {
   fetchClienteTiposByOrdenIds,
   fetchOrdenesMetaByIds,
   fetchReporteEntregados,
+  rpcSetOrdenAnclada,
   rpcFinalizarEntregaOrden,
   rpcTransferirOrdenRuta
 } from "../api.js";
@@ -57,6 +60,60 @@ let currentAdminResponsable = "Administrador";
 let ordenModalMode = "create";
 let ordenEditId = null;
 let routeProcessDraft = [];
+let liveRegsStatusText = "";
+let jobsBoardRowsCache = [];
+let adminBoardHeightObserver = null;
+const ADMIN_PENDING_PINS_KEY = "multibur_admin_pending_pins_v1";
+const ADMIN_LIVE_PANEL_MODE_KEY = "multibur_admin_live_panel_mode_v1";
+
+function readLocalJson(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLocalJson(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore localStorage errors in preview mode
+  }
+}
+
+function syncAdminPanelHeights() {
+  const boardCard = $("adminBoardCard");
+  const sideCard = $("adminSideCard");
+  if (!boardCard || !sideCard) return;
+  if (window.innerWidth <= 1200) {
+    sideCard.style.height = "";
+    return;
+  }
+  const boardHeight = Math.ceil(boardCard.getBoundingClientRect().height || 0);
+  if (!boardHeight) return;
+  sideCard.style.height = `${boardHeight}px`;
+}
+
+function bindAdminPanelHeightSync() {
+  if (adminBoardHeightObserver) return;
+  const boardCard = $("adminBoardCard");
+  if (!boardCard || typeof ResizeObserver === "undefined") return;
+  adminBoardHeightObserver = new ResizeObserver(() => syncAdminPanelHeights());
+  adminBoardHeightObserver.observe(boardCard);
+  window.addEventListener("resize", syncAdminPanelHeights);
+}
+
+let livePanelMode = String(readLocalJson(ADMIN_LIVE_PANEL_MODE_KEY, "") || "").trim().toLowerCase();
+let pendingPinnedOrderIds = new Set(
+  (readLocalJson(ADMIN_PENDING_PINS_KEY, []) || [])
+    .map((value) => Number(value))
+    .filter(Boolean)
+);
+let pendingPinsStorageMode = pendingPinnedOrderIds.size ? "local" : "unknown";
+let pendingPinsLegacySyncDone = false;
 const PROCESS_ROUTE_META = Object.freeze({
   corte: { key: "corte", inputId: "p_corte", label: "Corte", module: "CORTADOR" },
   empaquetado: { key: "empaquetado", inputId: "p_empaq", label: "Empaquetado", module: "ACABADOS" },
@@ -211,6 +268,387 @@ function normalizeTipoCliente(v) {
   if (t.includes("SERVICIO")) return "SERVICIO";
   if (t.includes("DIRECTO")) return "DIRECTO";
   return t || "";
+}
+
+function isDeliverableTrackedRow(row) {
+  if (!row) return false;
+  const e = estadoKey(row.estado);
+  if (e === estadoKey(ESTADO_ENTREGADO)) return false;
+  return e === estadoKey(ESTADO_FINAL) || !!row.route_all_closed;
+}
+
+function isTrackedDirectRow(row) {
+  if (!row) return false;
+  const e = estadoKey(row.estado);
+  if (e === estadoKey(ESTADO_ENTREGADO)) return false;
+  if (pendingPinnedOrderIds.has(Number(row?.orden_id))) return true;
+  if (normalizeTipoCliente(row?.cliente_tipo) !== "DIRECTO") return false;
+  if (isDeliverableTrackedRow(row)) return true;
+  return e === "PLACAS" || e === "IMPRESION" || e === "ACABADOS";
+}
+
+function getTrackedDirectStageRank(row) {
+  if (isDeliverableTrackedRow(row)) return 0;
+  const e = estadoKey(row?.estado);
+  if (e === "ACABADOS") return 1;
+  if (e === "IMPRESION") return 2;
+  if (e === "PLACAS") return 3;
+  if (e === "DISENO") return 4;
+  return 5;
+}
+
+function getTrackedDirectBadgeLabel(row) {
+  if (!row) return "-";
+  if (isDeliverableTrackedRow(row)) return "Listo para entregar";
+
+  const e = estadoKey(row.estado);
+  const prodEstado = String(row?.produccion_estado || "").trim().toUpperCase();
+  const routeLabel = String(row?.route_badge_label || "").trim();
+
+  if (e === "PLACAS") return "Listo para operador";
+  if (e === "IMPRESION") return prodEstado === "PAUSADO" ? "Pausado en impresion" : "Imprimiendo";
+  if (e === "ACABADOS") return routeLabel || String(row?.route_stage_primary || "").trim() || "En acabados";
+  if (e === "DISENO") return "En diseno";
+  return routeLabel || row?.estado || "-";
+}
+
+function parseSortNumeroOrden(row) {
+  const raw = String(row?.numero_orden_fisica || "").replace(/\D/g, "");
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  return Number(row?.orden_id || 0) || 0;
+}
+
+function getPinnedOrderRank(ordenId) {
+  const oid = Number(ordenId);
+  if (!oid) return null;
+  const ids = [...pendingPinnedOrderIds];
+  const index = ids.findIndex((value) => Number(value) === oid);
+  return index >= 0 ? index + 1 : null;
+}
+
+function setPinnedOrderIds(ids = []) {
+  const orderedIds = [...new Set((ids || []).map((value) => Number(value)).filter(Boolean))];
+  pendingPinnedOrderIds = new Set(orderedIds);
+}
+
+function getLegacyPinnedOrderIds() {
+  return [...new Set(
+    (readLocalJson(ADMIN_PENDING_PINS_KEY, []) || [])
+      .map((value) => Number(value))
+      .filter(Boolean)
+  )];
+}
+
+function clearLegacyPinnedOrderIds() {
+  try {
+    window.localStorage.removeItem(ADMIN_PENDING_PINS_KEY);
+  } catch {
+    writeLocalJson(ADMIN_PENDING_PINS_KEY, []);
+  }
+}
+
+async function loadSharedPinnedOrders({ syncLegacy = false } = {}) {
+  let dbPins = null;
+  try {
+    dbPins = await fetchOrdenesAncladas();
+  } catch (error) {
+    console.warn("No pude cargar las ordenes ancladas compartidas.", error);
+    pendingPinsStorageMode = "local";
+    return [...pendingPinnedOrderIds];
+  }
+
+  if (dbPins === null) {
+    pendingPinsStorageMode = "local";
+    return [...pendingPinnedOrderIds];
+  }
+
+  pendingPinsStorageMode = "db";
+  let orderedIds = dbPins.map((row) => Number(row?.orden_id)).filter(Boolean);
+
+  if (syncLegacy && !pendingPinsLegacySyncDone) {
+    const legacyIds = getLegacyPinnedOrderIds();
+    const missingLegacyIds = legacyIds.filter((id) => !orderedIds.includes(id));
+    let migrationFailed = false;
+
+    if (missingLegacyIds.length) {
+      for (const ordenId of missingLegacyIds) {
+        try {
+          await rpcSetOrdenAnclada({ ordenId, pin: true });
+        } catch (error) {
+          migrationFailed = true;
+          console.warn(`No pude migrar el anclado local de la orden ${ordenId}.`, error);
+        }
+      }
+
+      const refreshedPins = await fetchOrdenesAncladas().catch(() => dbPins);
+      orderedIds = (refreshedPins || []).map((row) => Number(row?.orden_id)).filter(Boolean);
+    }
+
+    if (!migrationFailed) {
+      clearLegacyPinnedOrderIds();
+      pendingPinsLegacySyncDone = true;
+    }
+  }
+
+  setPinnedOrderIds(orderedIds);
+  return orderedIds;
+}
+
+function comparePendingEntregaRows(a, b) {
+  const aPinned = pendingPinnedOrderIds.has(Number(a?.orden_id)) ? 0 : 1;
+  const bPinned = pendingPinnedOrderIds.has(Number(b?.orden_id)) ? 0 : 1;
+  if (aPinned !== bPinned) return aPinned - bPinned;
+  if (aPinned === 0 && bPinned === 0) {
+    const aRank = getPinnedOrderRank(a?.orden_id) || Number.MAX_SAFE_INTEGER;
+    const bRank = getPinnedOrderRank(b?.orden_id) || Number.MAX_SAFE_INTEGER;
+    if (aRank !== bRank) return aRank - bRank;
+  }
+
+  const aTipo = normalizeTipoCliente(a?.cliente_tipo) === "DIRECTO" ? 0 : 1;
+  const bTipo = normalizeTipoCliente(b?.cliente_tipo) === "DIRECTO" ? 0 : 1;
+  if (aTipo !== bTipo) return aTipo - bTipo;
+
+  const aStage = getTrackedDirectStageRank(a);
+  const bStage = getTrackedDirectStageRank(b);
+  if (aStage !== bStage) return aStage - bStage;
+
+  const aPrio = String(a?.prioridad || "").trim().toUpperCase() === "URGENTE" ? 0 : 1;
+  const bPrio = String(b?.prioridad || "").trim().toUpperCase() === "URGENTE" ? 0 : 1;
+  if (aPrio !== bPrio) return aPrio - bPrio;
+
+  const aEntrega = parseEntregaDate(a?.fecha_entrega)?.getTime() || Number.MAX_SAFE_INTEGER;
+  const bEntrega = parseEntregaDate(b?.fecha_entrega)?.getTime() || Number.MAX_SAFE_INTEGER;
+  if (aEntrega !== bEntrega) return aEntrega - bEntrega;
+
+  return parseSortNumeroOrden(a) - parseSortNumeroOrden(b);
+}
+
+function getPendingEntregaRows(rows = jobsBoardRowsCache) {
+  return (rows || []).filter(isTrackedDirectRow).sort(comparePendingEntregaRows);
+}
+
+function sortJobsBoardRows(rows = []) {
+  return (rows || [])
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const aPinned = pendingPinnedOrderIds.has(Number(a?.row?.orden_id)) ? 0 : 1;
+      const bPinned = pendingPinnedOrderIds.has(Number(b?.row?.orden_id)) ? 0 : 1;
+      if (aPinned !== bPinned) return aPinned - bPinned;
+      if (aPinned === 0 && bPinned === 0) {
+        const aRank = getPinnedOrderRank(a?.row?.orden_id) || Number.MAX_SAFE_INTEGER;
+        const bRank = getPinnedOrderRank(b?.row?.orden_id) || Number.MAX_SAFE_INTEGER;
+        if (aRank !== bRank) return aRank - bRank;
+      }
+      return a.index - b.index;
+    })
+    .map(({ row }) => row);
+}
+
+function setLivePanelMode(mode = "produccion") {
+  livePanelMode = String(mode || "produccion").trim().toLowerCase() === "pendientes"
+    ? "pendientes"
+    : "produccion";
+  writeLocalJson(ADMIN_LIVE_PANEL_MODE_KEY, livePanelMode);
+  syncLivePanelMode();
+}
+
+function syncLivePanelMode() {
+  const liveButton = $("btnRegsViewLive");
+  const pendingButton = $("btnRegsViewPending");
+  const pendingCount = $("btnRegsPendingCount");
+  const liveSection = $("regsLiveSection");
+  const pendingSection = $("regsPendingSection");
+  const pendingRows = getPendingEntregaRows();
+  const effectiveMode = livePanelMode || (pendingRows.length ? "pendientes" : "produccion");
+
+  if (pendingCount) {
+    const total = pendingRows.length;
+    pendingCount.hidden = total <= 0;
+    pendingCount.textContent = total > 99 ? "99+" : String(total);
+  }
+
+  if (liveButton) liveButton.classList.toggle("is-active", effectiveMode === "produccion");
+  if (pendingButton) pendingButton.classList.toggle("is-active", effectiveMode === "pendientes");
+  if (liveSection) liveSection.hidden = effectiveMode !== "produccion";
+  if (pendingSection) pendingSection.hidden = effectiveMode !== "pendientes";
+  if (effectiveMode === "produccion") {
+    msgRegs(liveRegsStatusText || "Sin operadores activos.");
+    return;
+  }
+
+  const directCount = pendingRows.filter((row) => normalizeTipoCliente(row?.cliente_tipo) === "DIRECTO").length;
+  const pinnedCount = pendingRows.filter((row) => pendingPinnedOrderIds.has(Number(row?.orden_id))).length;
+  msgRegs(
+    pendingRows.length
+      ? `${pendingRows.length} seguimiento(s) - ${directCount} directo(s) - ${pinnedCount} anclado(s)`
+      : "No hay trabajos directos en seguimiento."
+  );
+  syncAdminPanelHeights();
+}
+
+async function togglePinnedPendingOrder(ordenId) {
+  const oid = Number(ordenId);
+  if (!oid) return;
+
+  if (pendingPinsStorageMode === "db") {
+    await rpcSetOrdenAnclada({
+      ordenId: oid,
+      pin: !pendingPinnedOrderIds.has(oid)
+    });
+    await loadSharedPinnedOrders();
+  } else {
+    if (pendingPinnedOrderIds.has(oid)) pendingPinnedOrderIds.delete(oid);
+    else pendingPinnedOrderIds.add(oid);
+    writeLocalJson(ADMIN_PENDING_PINS_KEY, [...pendingPinnedOrderIds]);
+  }
+
+  await loadJobs();
+}
+
+async function openPendingPanelDetail(ordenId) {
+  const oid = Number(ordenId);
+  if (!oid) return;
+  const row = (jobsBoardRowsCache || []).find((item) => Number(item?.orden_id) === oid);
+  if (!row) {
+    msgRegs("No se encontro la orden para abrir el detalle.");
+    return;
+  }
+  const extra = await fetchOrdenById(oid).catch(() => null);
+  openDetalleOrden(row, extra);
+}
+
+function renderPendingEntregaCards(rows = jobsBoardRowsCache) {
+  const wrap = $("regsPendingList");
+  if (!wrap) return;
+
+  const pendingRows = getPendingEntregaRows(rows);
+
+  if (!pendingRows.length) {
+    wrap.innerHTML = `<div class="live-empty">No hay trabajos directos en seguimiento.</div>`;
+    syncLivePanelMode();
+    return;
+  }
+
+  wrap.innerHTML = pendingRows.map((row) => {
+    const pinned = pendingPinnedOrderIds.has(Number(row?.orden_id));
+    const pinnedRank = pinned ? getPinnedOrderRank(row?.orden_id) : null;
+    const tipoCliente = normalizeTipoCliente(row?.cliente_tipo) || "SERVICIO";
+    const entrega = splitEntregaLabel(fmtEntrega(row?.fecha_entrega));
+    const prioridadBadge = renderPrioridadBadge(row?.prioridad);
+    const badgeLabel = getTrackedDirectBadgeLabel(row);
+    const overdue = isOrdenOverdue(row?.fecha_entrega, row?.estado);
+    const canDeliver = isDeliverableTrackedRow(row);
+    const actionLabel = canDeliver ? "Entregar" : "Ver detalle";
+    const actionClass = canDeliver ? "btn btn-deliver" : "btn btn-ghost";
+
+    return `
+      <article class="pending-card ${tipoCliente === "DIRECTO" ? "is-directo" : ""} ${pinned ? "is-pinned" : ""}">
+        <div class="pending-card-head">
+          <div class="pending-card-title">
+            <div class="pending-card-order">
+              ${pinnedRank ? `<span class="pin-order-badge" title="Anclado #${pinnedRank}" aria-label="Anclado ${pinnedRank}">${pinnedRank}</span>` : ""}
+              <span>Orden ${esc(row?.numero_orden_fisica || `#${row?.orden_id}`)}</span>
+            </div>
+            <div class="pending-card-client">${esc(row?.cliente_nombre || "-")}</div>
+            <div class="pending-card-job">${esc(row?.descripcion_trabajo || "-")}</div>
+          </div>
+          <div class="pending-card-badges">
+            <span class="pending-chip ${tipoCliente === "DIRECTO" ? "is-directo" : "is-servicio"}">${esc(tipoCliente)}</span>
+            ${pinned ? renderPinnedBadge() : ""}
+          </div>
+        </div>
+
+        <div class="pending-card-grid">
+          <div class="pending-card-meta">
+            <span class="k">Entrega</span>
+            <span class="v">${esc(entrega.date)}</span>
+          </div>
+          <div class="pending-card-meta">
+            <span class="k">Hora</span>
+            <span class="v">${esc(entrega.time || "-")}</span>
+          </div>
+          <div class="pending-card-meta">
+            <span class="k">Estado</span>
+            <span class="v">${esc(badgeLabel)}</span>
+          </div>
+          <div class="pending-card-meta">
+            <span class="k">Prioridad</span>
+            <span class="v">${prioridadBadge}${overdue ? `<div class="small" style="margin-top:4px">${renderOverdueBadge(true)}</div>` : ""}</span>
+          </div>
+        </div>
+
+        <div class="pending-card-actions">
+          <button class="btn btn-pin ${pinned ? "is-pinned" : ""}" type="button" data-pending-action="pin" data-oid="${row.orden_id}">
+            ${pinned ? "Desanclar" : "Anclar"}
+          </button>
+          <button class="${actionClass}" type="button" data-pending-action="${canDeliver ? "deliver" : "detail"}" data-oid="${row.orden_id}">
+            ${actionLabel}
+          </button>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  syncLivePanelMode();
+  syncAdminPanelHeights();
+}
+
+async function buildAdminBoardSupport(orderIds = []) {
+  const uniqueOrderIds = [...new Set((orderIds || []).map((value) => Number(value)).filter(Boolean))];
+  if (!uniqueOrderIds.length) {
+    return {
+      metaMap: new Map(),
+      incidenciaMap: new Map(),
+      produccionEstadoMap: new Map(),
+      tipoClienteMap: new Map()
+    };
+  }
+
+  const [metas, incidencias, produccionEstados, clienteTipos] = await Promise.all([
+    fetchOrdenesMetaByIds(uniqueOrderIds).catch(() => []),
+    fetchUltimasIncidenciasByOrdenIds(uniqueOrderIds).catch(() => []),
+    fetchUltimosEstadosProduccionByOrdenIds(uniqueOrderIds).catch(() => []),
+    fetchClienteTiposByOrdenIds(uniqueOrderIds).catch(() => [])
+  ]);
+
+  return {
+    metaMap: new Map((metas || []).map((m) => [Number(m.id), m])),
+    incidenciaMap: new Map((incidencias || []).map((i) => [Number(i.orden_id), i])),
+    produccionEstadoMap: new Map((produccionEstados || []).map((s) => [Number(s.orden_id), s])),
+    tipoClienteMap: new Map(
+      (clienteTipos || []).map((o) => [Number(o.id), normalizeTipoCliente(o?.cliente?.tipo_cliente)])
+    )
+  };
+}
+
+function hydrateAdminBoardRows(rows = [], support = null) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  if (!safeRows.length) return [];
+
+  const metaMap = support?.metaMap || new Map();
+  const incidenciaMap = support?.incidenciaMap || new Map();
+  const produccionEstadoMap = support?.produccionEstadoMap || new Map();
+  const tipoClienteMap = support?.tipoClienteMap || new Map();
+
+  return safeRows.map((r) => {
+    const inc = incidenciaMap.get(Number(r.orden_id)) || null;
+    const meta = metaMap.get(Number(r.orden_id)) || null;
+    const prod = produccionEstadoMap.get(Number(r.orden_id)) || null;
+    const tipoCliente = normalizeTipoCliente(r?.cliente_tipo || tipoClienteMap.get(Number(r.orden_id)) || "");
+    return {
+      ...r,
+      cliente_tipo: tipoCliente || "",
+      is_external: resolveExternalCompat({
+        es_externo: r?.es_externo ?? meta?.es_externo,
+        observaciones_generales: meta?.observaciones_generales
+      }),
+      incidencia_motivo: inc?.motivo_incidencia || null,
+      incidencia_obs: inc?.obs_incidencia || null,
+      incidencia_estado: inc?.estado_registro || null,
+      produccion_estado: prod?.estado_registro || null
+    };
+  });
 }
 
 function isTipoImpresionTR(v) {
@@ -1285,6 +1723,17 @@ async function openEntregaModal(row) {
   $("entregaWrap")?.classList.remove("hide");
 }
 
+async function openPendingEntregaModal(ordenId) {
+  const oid = Number(ordenId);
+  if (!oid) return;
+  const row = (jobsBoardRowsCache || []).find((item) => Number(item?.orden_id) === oid);
+  if (!row) {
+    msgRegs("No se encontro la orden pendiente para abrir la entrega.");
+    return;
+  }
+  await openEntregaModal(row);
+}
+
 function closeEntregaModal() {
   entregaCtx = null;
   entregaRequiresGuia = false;
@@ -1651,36 +2100,20 @@ async function loadJobs() {
   const estado = toDbEstado(estadoRaw);
   const tipoClienteFiltro = String($("fTipoCliente")?.value || "").trim().toUpperCase();
   const q = ($("q")?.value || "").trim().toLowerCase();
-  let rows = await fetchTrabajosAdminBoardSnapshot({ estado });
-  const orderIds = (rows || []).map((r) => Number(r.orden_id)).filter(Boolean);
-  const metas = await fetchOrdenesMetaByIds(orderIds).catch(() => []);
-  const metaMap = new Map((metas || []).map((m) => [Number(m.id), m]));
-  const incidencias = await fetchUltimasIncidenciasByOrdenIds(orderIds).catch(() => []);
-  const incidenciaMap = new Map((incidencias || []).map((i) => [Number(i.orden_id), i]));
-  const produccionEstados = await fetchUltimosEstadosProduccionByOrdenIds(orderIds).catch(() => []);
-  const produccionEstadoMap = new Map((produccionEstados || []).map((s) => [Number(s.orden_id), s]));
-  const clienteTipos = await fetchClienteTiposByOrdenIds(orderIds).catch(() => []);
-  const tipoClienteMap = new Map(
-    (clienteTipos || []).map((o) => [Number(o.id), normalizeTipoCliente(o?.cliente?.tipo_cliente)])
-  );
-  rows = (rows || []).map((r) => {
-    const inc = incidenciaMap.get(Number(r.orden_id)) || null;
-    const meta = metaMap.get(Number(r.orden_id)) || null;
-    const prod = produccionEstadoMap.get(Number(r.orden_id)) || null;
-    const tipoCliente = normalizeTipoCliente(r?.cliente_tipo || tipoClienteMap.get(Number(r.orden_id)) || "");
-    return {
-      ...r,
-      cliente_tipo: tipoCliente || "",
-      is_external: resolveExternalCompat({
-        es_externo: r?.es_externo ?? meta?.es_externo,
-        observaciones_generales: meta?.observaciones_generales
-      }),
-      incidencia_motivo: inc?.motivo_incidencia || null,
-      incidencia_obs: inc?.obs_incidencia || null,
-      incidencia_estado: inc?.estado_registro || null,
-      produccion_estado: prod?.estado_registro || null
-    };
-  });
+  await loadSharedPinnedOrders({ syncLegacy: true });
+  const [visibleRawRows, pendingRawRows] = await Promise.all([
+    fetchTrabajosAdminBoardSnapshot({ estado }),
+    fetchTrabajosAdminBoardSnapshot({ estado: "" })
+  ]);
+  const allOrderIds = [
+    ...(visibleRawRows || []).map((r) => Number(r.orden_id)).filter(Boolean),
+    ...(pendingRawRows || []).map((r) => Number(r.orden_id)).filter(Boolean)
+  ];
+  const support = await buildAdminBoardSupport(allOrderIds);
+  let rows = hydrateAdminBoardRows(visibleRawRows, support);
+  jobsBoardRowsCache = hydrateAdminBoardRows(pendingRawRows, support);
+  renderPendingEntregaCards(jobsBoardRowsCache);
+  syncLivePanelMode();
   if (!estado) rows = rows.filter((r) => estadoKey(r.estado) !== estadoKey(ESTADO_ENTREGADO));
   if (tipoClienteFiltro) {
     rows = rows.filter((r) => normalizeTipoCliente(r.cliente_tipo) === tipoClienteFiltro);
@@ -1699,6 +2132,7 @@ async function loadJobs() {
     r.color_text,
     r.maquina_sugerida_nombre
   ].join(" ").toLowerCase().includes(q));
+  rows = sortJobsBoardRows(rows);
   const tb = $("tbJobs");
   if (!tb) return;
   tb.innerHTML = (rows || []).map((r) => {
@@ -1707,15 +2141,21 @@ async function loadJobs() {
     const entregaLabel = splitEntregaLabel(entrega);
     const overdue = isOrdenOverdue(r.fecha_entrega, r.estado);
     const prioridadBadge = renderPrioridadBadge(r.prioridad);
+    const isPinned = pendingPinnedOrderIds.has(Number(r?.orden_id));
+    const pinnedBadge = isPinned ? renderPinnedBadge() : "";
+    const pinnedRank = isPinned ? getPinnedOrderRank(r?.orden_id) : null;
     const incidenciaBadge = renderIncidenciaBadge({
       motivo_incidencia: r.incidencia_motivo,
       obs_incidencia: r.incidencia_obs,
       estado_registro: r.incidencia_estado
     });
     const juegosLabel = juegosPlacaLabel(r);
-    return `<tr style="border-left: 5px solid ${getClientColor(r.cliente_nombre)}; background-color: ${getClientBgColor(r.cliente_nombre)};">
+    return `<tr class="jobs-row ${isPinned ? "is-pinned-row" : ""}" style="border-left: 5px solid ${getClientColor(r.cliente_nombre)}; background-color: ${getClientBgColor(r.cliente_nombre)};">
       <td>
-        <b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b>
+        <div class="order-headline">
+          ${pinnedRank ? `<span class="pin-order-badge" title="Anclado #${pinnedRank}" aria-label="Anclado ${pinnedRank}">${pinnedRank}</span>` : ""}
+          <b>${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</b>
+        </div>
         <div class="small muted order-meta">
           <div class="order-state-line">${esc(r.estado)}</div>
           <div class="order-priority-line">
@@ -1735,7 +2175,12 @@ async function loadJobs() {
       <td><b>${esc(formato)}</b><div class="small muted">${esc(r.papel_material || "")} ${esc(r.gramaje ? (r.gramaje + "g") : "")}</div></td>
       <td><b>${esc(fmtTipoImpresion(r.tipo_impresion))}</b>${juegosLabel ? `<div class="small muted">${esc(juegosLabel)}</div>` : ""}</td>
       <td>${esc(r.color_text || "-")}</td>
-      <td>${esc(r.maquina_sugerida_nombre || "-")}</td>
+      <td>
+        <div class="machine-cell">
+          <div class="machine-name">${esc(r.maquina_sugerida_nombre || "-")}</div>
+          ${pinnedBadge ? `<div class="machine-pin">${pinnedBadge}</div>` : ""}
+        </div>
+      </td>
       <td>
         <div class="row-actions">
           <div class="row-actions-main">${renderAccion(r)}</div>
@@ -1832,6 +2277,7 @@ async function loadJobs() {
   }));
 
   msgJobs(`Cargados: ${(rows || []).length} trabajo(s).`);
+  syncAdminPanelHeights();
 }
 
 async function loadRegistros() {
@@ -1933,9 +2379,11 @@ async function loadRegistros() {
   setKPIs(regs);
   refreshLiveDurationLabels();
   ensureLiveDurationTicker();
-  msgRegs(activeRegs.length
+  liveRegsStatusText = activeRegs.length
     ? `Monitoreo activo: ${activeRegs.length} operador(es) trabajando ahora.`
-    : `Sin operadores activos. Movimientos cargados: ${(regs || []).length}`);
+    : `Sin operadores activos. Movimientos cargados: ${(regs || []).length}`;
+  syncLivePanelMode();
+  syncAdminPanelHeights();
 }
 
 async function onGuardarOrden() {
@@ -2237,7 +2685,11 @@ async function exportReporteEntregadosCsv() {
     buildDefaultRouteDraft,
     toggleRouteProcess,
     setRouteProcessVariant,
-    syncRegsPresetChips
+    syncRegsPresetChips,
+    setLivePanelMode,
+    togglePinnedPendingOrder,
+    openPendingEntregaModal,
+    openPendingPanelDetail
   });
 
   wireSmartPickers();
@@ -2252,15 +2704,19 @@ async function exportReporteEntregadosCsv() {
   renderRouteSummary();
   renderRouteModalList();
   refreshFormState();
+  bindAdminPanelHeightSync();
   bindRealtime();
   await loadJobs();
   await loadRegistros();
+  syncAdminPanelHeights();
 })().catch((e) => {
   console.error("ADMIN_INIT_ERROR:", e);
   setText("userPill", "Error de carga");
   msgJobs("ERROR inicializando Admin: " + (e?.message || e));
   msgRegs("Revisa consola del navegador.");
 });
+
+
 
 
 

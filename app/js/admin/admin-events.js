@@ -7,7 +7,11 @@ export function bindAdminEvents(deps) {
     closeEntregaModal, confirmEntregaDesdeModal, syncEntregaGuiaFields,
     syncRouteDraftFromForm, openRouteModal, closeRouteModal, moveRouteItem, buildDefaultRouteDraft,
     toggleRouteProcess, setRouteProcessVariant,
-    syncRegsPresetChips
+    syncRegsPresetChips,
+    setLivePanelMode,
+    togglePinnedPendingOrder,
+    openPendingEntregaModal,
+    openPendingPanelDetail
   } = deps;
   const closeOrdenModal = () => {
     setOrdenModalMode("create");
@@ -19,6 +23,8 @@ export function bindAdminEvents(deps) {
   $("btnReloadJobs")?.addEventListener("click", loadJobs);
   $("btnPrintPendientes")?.addEventListener("click", () => window.print());
   $("btnReloadRegs")?.addEventListener("click", loadRegistros);
+  $("btnRegsViewLive")?.addEventListener("click", () => setLivePanelMode?.("produccion"));
+  $("btnRegsViewPending")?.addEventListener("click", () => setLivePanelMode?.("pendientes"));
   $("btnApplyRegs")?.addEventListener("click", loadRegistros);
   $("q")?.addEventListener("input", debounce(loadJobs, 250));
   $("fTipoCliente")?.addEventListener("change", loadJobs);
@@ -82,6 +88,24 @@ export function bindAdminEvents(deps) {
   $("e_tiene_guia")?.addEventListener("change", syncEntregaGuiaFields);
   $("entregaWrap")?.addEventListener("click", (ev) => {
     if (ev.target && ev.target.id === "entregaWrap") closeEntregaModal();
+  });
+  $("regsPendingList")?.addEventListener("click", async (ev) => {
+    const btn = ev.target?.closest?.("[data-pending-action]");
+    if (!btn) return;
+    const action = String(btn.getAttribute("data-pending-action") || "").trim().toLowerCase();
+    const oid = Number(btn.getAttribute("data-oid"));
+    if (!oid) return;
+    if (action === "pin") {
+      await togglePinnedPendingOrder?.(oid);
+      return;
+    }
+    if (action === "detail") {
+      await openPendingPanelDetail?.(oid);
+      return;
+    }
+    if (action === "deliver") {
+      await openPendingEntregaModal?.(oid);
+    }
   });
 
   $("rgQuickPresets")?.addEventListener("click", (ev) => {
