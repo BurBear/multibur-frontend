@@ -2025,17 +2025,29 @@ function printOrden(r, extra = null) {
   const html = `
 <!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</title>
 <style>
-@page{size:A5 portrait;margin:6mm}
-:root{--line:#d4d4d8;--muted:#52525b;--ink:#111827}
+@page{size:A5 landscape;margin:6mm}
+:root{--page-w:calc(210mm - 12mm);--page-h:calc(148mm - 12mm);--sheet-w:calc(148mm - 12mm);--sheet-h:calc(210mm - 12mm);--line:#d4d4d8;--muted:#52525b;--ink:#111827}
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 html,body{margin:0;padding:0}
 body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
+.page{
+  width:var(--page-w);
+  height:var(--page-h);
+  margin:0;
+  position:relative;
+  overflow:hidden;
+}
 .sheet{
-  width:100%;
-  min-height:calc(210mm - 12mm);
+  width:var(--sheet-w);
+  min-height:var(--sheet-h);
+  position:absolute;
+  top:var(--page-h);
+  left:0;
   margin:0;
   display:flex;
   flex-direction:column;
+  transform-origin:top left;
+  transform:rotate(-90deg);
 }
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;border-bottom:1.4px solid var(--ink);padding-bottom:5px;margin-bottom:6px}
 .brand{display:flex;align-items:center;gap:7px}
@@ -2055,7 +2067,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 .section-tecnica .grid{gap:5px 7px}
 .wide{grid-column:1/-1}
 .foot{margin-top:5px;font-size:7.5px;color:#71717a;text-align:right}
-</style></head><body><div class="sheet">
+</style></head><body><div class="page"><div class="sheet">
 <header class="head"><div class="brand"><img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" /><div><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
 <section class="section"><h3>Datos generales</h3><div class="grid">
 <div><span class="k">Cliente</span><span class="v">${esc(r.cliente_nombre || "-")}</span></div>
@@ -2081,7 +2093,7 @@ ${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}
   <div class="wide"><span class="k">Observacion acabados</span><span class="v">${esc(obsAcabados)}</span></div>
 </div></section>
 <div class="foot">Orden interna MultiBur</div>
-</div></body></html>`;
+</div></div></body></html>`;
   const w = window.open("", "_blank", "width=900,height=700");
   if (!w) {
     msgJobs("ERROR: El navegador bloqueo la ventana de impresion.");
