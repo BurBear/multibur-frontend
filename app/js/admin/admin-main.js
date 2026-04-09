@@ -2039,7 +2039,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 }
 .sheet{
   width:var(--sheet-w);
-  min-height:var(--sheet-h);
+  height:var(--sheet-h);
   position:absolute;
   top:var(--page-h);
   left:0;
@@ -2057,18 +2057,22 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 .meta{text-align:right}
 .meta .n{font-size:12px;font-weight:800}
 .meta .s{font-size:8px;color:var(--muted);margin-top:2px}
+.content{display:flex;flex:1;flex-direction:column;min-height:0}
 .section{border:1px solid var(--line);border-radius:6px;padding:5px 6px;margin-bottom:5px;break-inside:avoid}
+.content .section:last-child{margin-bottom:0}
 .section h3{font-size:8px;text-transform:uppercase;letter-spacing:.45px;color:var(--muted);margin:0 0 4px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 6px}
 .k{display:block;color:var(--muted);font-size:9.5px}
 .v{display:block;font-size:11px;font-weight:600;margin-top:1px;line-height:1.16;word-break:break-word}
+.section-tecnica{display:flex;flex:1;flex-direction:column;min-height:0}
 .section-tecnica .k{font-size:10.5px}
 .section-tecnica .v{font-size:12.5px;line-height:1.2}
-.section-tecnica .grid{gap:5px 7px}
+.section-tecnica .grid{flex:1;gap:5px 7px;align-content:space-between}
 .wide{grid-column:1/-1}
 .foot{margin-top:5px;font-size:7.5px;color:#71717a;text-align:right}
 </style></head><body><div class="page"><div class="sheet">
 <header class="head"><div class="brand"><img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" /><div><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
+<div class="content">
 <section class="section"><h3>Datos generales</h3><div class="grid">
 <div><span class="k">Cliente</span><span class="v">${esc(r.cliente_nombre || "-")}</span></div>
 <div><span class="k">Fecha entrega</span><span class="v">${esc(entrega)}</span></div>
@@ -2092,6 +2096,7 @@ ${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}
   <div class="wide"><span class="k">Observacion tecnica (impresor)</span><span class="v">${esc(obsTecnica)}</span></div>
   <div class="wide"><span class="k">Observacion acabados</span><span class="v">${esc(obsAcabados)}</span></div>
 </div></section>
+</div>
 <div class="foot">Orden interna MultiBur</div>
 </div></div></body></html>`;
   const w = window.open("", "_blank", "width=900,height=700");
