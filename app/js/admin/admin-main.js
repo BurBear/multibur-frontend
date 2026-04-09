@@ -2025,29 +2025,17 @@ function printOrden(r, extra = null) {
   const html = `
 <!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</title>
 <style>
-@page{size:A5 landscape;margin:6mm}
-:root{--page-w:calc(210mm - 12mm);--page-h:calc(148mm - 12mm);--sheet-w:calc(148mm - 12mm);--sheet-h:calc(210mm - 12mm);--line:#d4d4d8;--muted:#52525b;--ink:#111827}
+@page{size:A5 portrait;margin:6mm}
+:root{--line:#d4d4d8;--muted:#52525b;--ink:#111827}
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 html,body{margin:0;padding:0}
 body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
-.page{
-  width:var(--page-w);
-  height:var(--page-h);
-  margin:0;
-  position:relative;
-  overflow:hidden;
-}
 .sheet{
-  width:var(--sheet-w);
-  height:var(--sheet-h);
-  position:absolute;
-  top:var(--page-h);
-  left:0;
+  width:100%;
+  min-height:calc(210mm - 12mm);
   margin:0;
   display:flex;
   flex-direction:column;
-  transform-origin:top left;
-  transform:rotate(-90deg);
 }
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;border-bottom:1.4px solid var(--ink);padding-bottom:5px;margin-bottom:6px}
 .brand{display:flex;align-items:center;gap:7px}
@@ -2057,22 +2045,18 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 .meta{text-align:right}
 .meta .n{font-size:12px;font-weight:800}
 .meta .s{font-size:8px;color:var(--muted);margin-top:2px}
-.content{display:flex;flex:1;flex-direction:column;min-height:0}
 .section{border:1px solid var(--line);border-radius:6px;padding:5px 6px;margin-bottom:5px;break-inside:avoid}
-.content .section:last-child{margin-bottom:0}
 .section h3{font-size:8px;text-transform:uppercase;letter-spacing:.45px;color:var(--muted);margin:0 0 4px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 6px}
 .k{display:block;color:var(--muted);font-size:9.5px}
 .v{display:block;font-size:11px;font-weight:600;margin-top:1px;line-height:1.16;word-break:break-word}
-.section-tecnica{display:flex;flex:1;flex-direction:column;min-height:0}
 .section-tecnica .k{font-size:10.5px}
 .section-tecnica .v{font-size:12.5px;line-height:1.2}
-.section-tecnica .grid{flex:1;gap:5px 7px;align-content:space-between}
+.section-tecnica .grid{gap:5px 7px}
 .wide{grid-column:1/-1}
 .foot{margin-top:5px;font-size:7.5px;color:#71717a;text-align:right}
-</style></head><body><div class="page"><div class="sheet">
+</style></head><body><div class="sheet">
 <header class="head"><div class="brand"><img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" /><div><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
-<div class="content">
 <section class="section"><h3>Datos generales</h3><div class="grid">
 <div><span class="k">Cliente</span><span class="v">${esc(r.cliente_nombre || "-")}</span></div>
 <div><span class="k">Fecha entrega</span><span class="v">${esc(entrega)}</span></div>
@@ -2096,9 +2080,8 @@ ${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}
   <div class="wide"><span class="k">Observacion tecnica (impresor)</span><span class="v">${esc(obsTecnica)}</span></div>
   <div class="wide"><span class="k">Observacion acabados</span><span class="v">${esc(obsAcabados)}</span></div>
 </div></section>
-</div>
 <div class="foot">Orden interna MultiBur</div>
-</div></div></body></html>`;
+</div></body></html>`;
   const w = window.open("", "_blank", "width=900,height=700");
   if (!w) {
     msgJobs("ERROR: El navegador bloqueo la ventana de impresion.");
