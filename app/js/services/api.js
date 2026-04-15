@@ -1211,6 +1211,12 @@ export async function fetchOrdenJuegosActivos(ordenId) {
 }
 
 export async function fetchRegistrosPausadosDisponibles() {
+  const { data: rpcRows, error: rpcError } = await supabase.rpc("get_registros_pausados_disponibles");
+
+  if (!rpcError) {
+    return rpcRows || [];
+  }
+
   const { data: pausados, error } = await supabase
     .from("registro_produccion")
     .select("id,orden_id,user_id,maquina_id,orden_juego_id,juego_num,cara_impresion,flujo_trabajo_id,motivo_pausa,obs_pausa,hora_inicio,pausado_en,hora_fin,estado_registro")
@@ -1219,7 +1225,7 @@ export async function fetchRegistrosPausadosDisponibles() {
     .order("pausado_en", { ascending: false, nullsLast: true })
     .order("id", { ascending: false });
 
-  if (error) throw error;
+  if (error) throw rpcError || error;
   const rows = pausados || [];
   if (!rows.length) return [];
 
@@ -1231,7 +1237,7 @@ export async function fetchRegistrosPausadosDisponibles() {
     .select("retoma_de_registro_id")
     .in("retoma_de_registro_id", pausedIds);
 
-  if (retError) throw retError;
+  if (retError) throw rpcError || retError;
 
   const retomadosSet = new Set(
     (retomados || [])

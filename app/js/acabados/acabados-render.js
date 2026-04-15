@@ -483,7 +483,23 @@ function renderBoard() {
     return;
   }
 
-  mount.innerHTML = rows.map(renderOrderCard).join("");
+  let localPinnedRank = 0;
+  const rowsForRender = rows.map((order) => {
+    if (!order?.is_pinned) {
+      return {
+        ...order,
+        visible_pinned_rank: null
+      };
+    }
+
+    localPinnedRank += 1;
+    return {
+      ...order,
+      visible_pinned_rank: localPinnedRank
+    };
+  });
+
+  mount.innerHTML = rowsForRender.map(renderOrderCard).join("");
 }
 
 function renderDetail() {
