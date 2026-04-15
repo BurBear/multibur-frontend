@@ -1838,6 +1838,27 @@ function isOrdenOverdue(fechaEntrega, estado) {
   return entregaDate.getTime() < Date.now();
 }
 
+function isDetalleOrdenOpen() {
+  const wrap = $("jobDetailWrap");
+  return !!wrap && !wrap.classList.contains("hide");
+}
+
+async function refreshDetalleOrdenIfOpen(latestRows = []) {
+  if (!isDetalleOrdenOpen()) return;
+  const oid = Number(detailRowCtx?.orden_id || 0);
+  if (!oid) return;
+
+  const latestRow = (latestRows || []).find((row) => Number(row?.orden_id) === oid) || detailRowCtx;
+  const latestExtra = await fetchOrdenById(oid).catch(() => detailExtraCtx || null);
+
+  if (!isDetalleOrdenOpen() || Number(detailRowCtx?.orden_id || 0) !== oid) return;
+
+  openDetalleOrden(
+    { ...(detailRowCtx || {}), ...(latestRow || {}) },
+    latestExtra || detailExtraCtx || null
+  );
+}
+
 
 
 
@@ -1864,46 +1885,158 @@ function openDetalleOrden(r, extra = null) {
   const guiaObs = extra?.guia_observacion || "-";
   const incMotivo = r?.incidencia_motivo || "-";
   const incObs = r?.incidencia_obs || "-";
+  const overdue = isOrdenOverdue(entregaRaw, r.estado);
+  const prodEstado = String(r.produccion_estado || "").trim().toUpperCase();
+  const routeTone = String(r.route_badge_tone || "").trim().toLowerCase();
+  const incidenciaBadge = renderIncidenciaBadge({
+    motivo_incidencia: r?.incidencia_motivo,
+    obs_incidencia: r?.incidencia_obs,
+    estado_registro: r?.incidencia_estado
+  });
+  const pausedBadge = prodEstado === "PAUSADO"
+    ? `<span class="state-pill is-paused">Pausado en operador</span>`
+    : routeTone === "paused"
+      ? `<span class="state-pill is-paused">Pausado en ruta</span>`
+      : "";
+  const detailAlerts = [renderOverdueBadge(overdue), incidenciaBadge, pausedBadge].filter(Boolean).join("");
   const procesoActualDetalle = estadoKey(r.estado) === "ACABADOS"
     ? [r.route_stage_primary, r.route_stage_secondary].filter(Boolean).join(" | ")
     : estadoKey(r.estado) === "IMPRESION"
       ? `Impresion | ${String(r.produccion_estado || "").trim().toUpperCase() === "PAUSADO" ? "Pausado en operador" : "Trabajando en operador"}`
       : r.estado || "-";
   const moduloRutaActual = r.route_current_module || "-";
+  const estadoGeneral = r.estado || "-";
   const juegosLabel = juegosPlacaLabel(r);
   const juegosNombres = juegosPlacaNombres(r, extra);
+  const documentoFiscal = `${cliDocTipo} ${cliDocNum}`.trim() || "-";
+  const materialText = `${r.papel_material || "-"}${r.gramaje ? ` (${r.gramaje}g)` : ""}`;
+  const formatLongText = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw || raw === "-") return "-";
+    return esc(raw).replace(/\n/g, "<br>");
+  };
+  const detailItem = (label, value, opts = {}) => `
+    <div class="order-detail-item ${opts.full ? "order-detail-item--full" : ""} ${opts.html ? "has-html" : ""}">
+      <span class="detail-k">${label}</span>
+      <span class="detail-v">${value || "-"}</span>
+    </div>
+  `;
+  const detailMetric = (label, value, opts = {}) => `
+    <div class="order-detail-metric ${opts.primary ? "is-primary" : ""} ${opts.html ? "has-html" : ""}">
+      <span class="detail-k">${label}</span>
+      <span class="detail-v">${value || "-"}</span>
+    </div>
+  `;
+  const chipGroup = (raw, variant = "neutral") => {
+    const values = String(raw || "")
+      .split("|")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (!values.length || (values.length === 1 && values[0] === "-")) {
+      return '<span class="order-detail-empty">Sin informacion registrada.</span>';
+    }
+
+    return `
+      <div class="order-detail-chip-group">
+        ${values.map((value) => `<span class="order-detail-chip is-${variant}">${esc(value)}</span>`).join("")}
+      </div>
+    `;
+  };
+  const noteCard = (label, value, tone = "neutral") => `
+    <article class="order-detail-note is-${tone}">
+      <span class="detail-k">${label}</span>
+      <div class="order-detail-note-copy">${formatLongText(value)}</div>
+    </article>
+  `;
+
   $("jobDetailBody").innerHTML = `
-    <div class="detail-grid">
-      <div><span class="detail-k">Orden</span><span class="detail-v">${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</span></div>
-      <div><span class="detail-k">Estado</span><span class="detail-v">${esc(r.estado || "-")}</span></div>
-      <div><span class="detail-k">Proceso actual</span><span class="detail-v">${esc(procesoActualDetalle || "-")}</span></div>
-      <div><span class="detail-k">Modulo actual</span><span class="detail-v">${esc(moduloRutaActual)}</span></div>
-      <div><span class="detail-k">Prioridad</span><span class="detail-v">${renderPrioridadBadge(r.prioridad)}</span></div>
-      <div><span class="detail-k">Entrega</span><span class="detail-v">${esc(entrega)}</span></div>
-      <div><span class="detail-k">Cliente</span><span class="detail-v">${esc(r.cliente_nombre || "-")}</span></div>
-      <div><span class="detail-k">Tipo cliente</span><span class="detail-v">${esc(cliTipo)}</span></div>
-      <div><span class="detail-k">Documento fiscal</span><span class="detail-v">${esc(`${cliDocTipo} ${cliDocNum}`)}</span></div>
-      <div><span class="detail-k">Maquina</span><span class="detail-v">${esc(r.maquina_sugerida_nombre || "-")}</span></div>
-      <div><span class="detail-k">Requiere OC</span><span class="detail-v">${tieneOc ? "SI" : "NO"}</span></div>
-      <div><span class="detail-k">Nro OC</span><span class="detail-v">${esc(ocNum)}</span></div>
-      <div><span class="detail-k">Obs OC</span><span class="detail-v">${esc(ocObs)}</span></div>
-      <div><span class="detail-k">Tiene guia</span><span class="detail-v">${tieneGuia ? "SI" : "NO"}</span></div>
-      <div><span class="detail-k">Nro guia</span><span class="detail-v">${esc(guiaNum)}</span></div>
-      <div><span class="detail-k">Obs guia</span><span class="detail-v">${esc(guiaObs)}</span></div>
-      <div><span class="detail-k">Formato</span><span class="detail-v">${esc(formato)}</span></div>
-      <div><span class="detail-k">Material</span><span class="detail-v">${esc(r.papel_material || "-")} ${esc(r.gramaje ? `(${r.gramaje}g)` : "")}</span></div>
-      <div><span class="detail-k">Tipo impresion</span><span class="detail-v">${esc(fmtTipoImpresion(r.tipo_impresion))}</span></div>
-      <div><span class="detail-k">Juegos de placa</span><span class="detail-v">${esc(juegosLabel || "-")}</span></div>
-      <div><span class="detail-k">Color</span><span class="detail-v">${esc(r.color_text || "-")}</span></div>
-      <div><span class="detail-k">Cantidad</span><span class="detail-v">${esc(cantidad)}</span></div>
-      <div><span class="detail-k">Demasia</span><span class="detail-v">${esc(demasia)}</span></div>
-      <div><span class="detail-k">Motivo incidencia</span><span class="detail-v">${esc(incMotivo)}</span></div>
-      <div><span class="detail-k">Observacion incidencia</span><span class="detail-v">${esc(incObs)}</span></div>
-      <div style="grid-column:1/-1"><span class="detail-k">Nombres de juegos</span><span class="detail-v">${esc(juegosNombres || "-")}</span></div>
-      <div style="grid-column:1/-1"><span class="detail-k">Procesos acabados</span><span class="detail-v">${esc(procesosAcabados)}</span></div>
-      <div style="grid-column:1/-1"><span class="detail-k">Trabajo</span><span class="detail-v">${esc(r.descripcion_trabajo || "-")}</span></div>
-      <div style="grid-column:1/-1"><span class="detail-k">Observacion tecnica (impresor)</span><span class="detail-v">${esc(obsTecnica)}</span></div>
-      <div style="grid-column:1/-1"><span class="detail-k">Observacion acabados</span><span class="detail-v">${esc(obsAcabados)}</span></div>
+    <div class="order-detail-shell">
+      <section class="order-detail-hero">
+        <div class="order-detail-identity">
+          <div class="order-detail-topline">
+            <span class="order-detail-order">Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</span>
+            <span class="order-detail-state-chip">${esc(estadoGeneral)}</span>
+            <span class="order-detail-client-chip">${esc(cliTipo)}</span>
+          </div>
+          <h3 class="order-detail-job">${esc(r.descripcion_trabajo || "-")}</h3>
+          <div class="order-detail-client">${esc(r.cliente_nombre || "-")}</div>
+          ${detailAlerts ? `<div class="order-detail-alerts">${detailAlerts}</div>` : ""}
+        </div>
+
+        <div class="order-detail-hero-grid">
+          ${detailMetric("Proceso actual", esc(procesoActualDetalle || "-"), { primary: true })}
+          ${detailMetric("Entrega", esc(entrega))}
+          ${detailMetric("Modulo actual", esc(moduloRutaActual))}
+          ${detailMetric("Prioridad", renderPrioridadBadge(r.prioridad), { html: true })}
+        </div>
+      </section>
+
+      <div class="order-detail-layout">
+        <section class="order-detail-card">
+          <div class="order-detail-card-head">
+            <h4>Comercial</h4>
+            <span>Cliente y documento</span>
+          </div>
+          <div class="order-detail-list">
+            ${detailItem("Tipo cliente", esc(cliTipo))}
+            ${detailItem("Documento fiscal", esc(documentoFiscal))}
+            ${detailItem("Requiere OC", esc(tieneOc ? "SI" : "NO"))}
+            ${detailItem("Nro OC", esc(ocNum))}
+            ${detailItem("Obs OC", esc(ocObs), { full: true })}
+            ${detailItem("Tiene guia", esc(tieneGuia ? "SI" : "NO"))}
+            ${detailItem("Nro guia", esc(guiaNum))}
+            ${detailItem("Obs guia", esc(guiaObs), { full: true })}
+          </div>
+        </section>
+
+        <section class="order-detail-card">
+          <div class="order-detail-card-head">
+            <h4>Produccion</h4>
+            <span>Ficha tecnica</span>
+          </div>
+          <div class="order-detail-list">
+            ${detailItem("Maquina", esc(r.maquina_sugerida_nombre || "-"))}
+            ${detailItem("Formato", esc(formato))}
+            ${detailItem("Material", esc(materialText))}
+            ${detailItem("Tipo impresion", esc(fmtTipoImpresion(r.tipo_impresion)))}
+            ${detailItem("Juegos de placa", esc(juegosLabel || "-"))}
+            ${detailItem("Cantidad solicitada", esc(cantidad))}
+            ${detailItem("Demasia", esc(demasia))}
+            ${detailItem("Color", esc(r.color_text || "-"))}
+          </div>
+        </section>
+
+        <section class="order-detail-card order-detail-card--wide">
+          <div class="order-detail-card-head">
+            <h4>Ruta y Juegos</h4>
+            <span>Configuracion del trabajo</span>
+          </div>
+          <div class="order-detail-stack">
+            <div class="order-detail-panel">
+              <span class="detail-k">Nombres de juegos</span>
+              ${chipGroup(juegosNombres || "-", "game")}
+            </div>
+            <div class="order-detail-panel">
+              <span class="detail-k">Procesos acabados</span>
+              ${chipGroup(procesosAcabados || "-", "process")}
+            </div>
+          </div>
+        </section>
+
+        <section class="order-detail-card order-detail-card--wide">
+          <div class="order-detail-card-head">
+            <h4>Observaciones</h4>
+            <span>Incidencias y notas</span>
+          </div>
+          <div class="order-detail-notes">
+            ${noteCard("Motivo incidencia", incMotivo, "warn")}
+            ${noteCard("Observacion incidencia", incObs, "warn")}
+            ${noteCard("Observacion tecnica (impresor)", obsTecnica, "neutral")}
+            ${noteCard("Observacion acabados", obsAcabados, "info")}
+          </div>
+        </section>
+      </div>
     </div>`;
   detailRowCtx = r;
   detailExtraCtx = extra;
@@ -2112,6 +2245,7 @@ async function loadJobs() {
   const support = await buildAdminBoardSupport(allOrderIds);
   let rows = hydrateAdminBoardRows(visibleRawRows, support);
   jobsBoardRowsCache = hydrateAdminBoardRows(pendingRawRows, support);
+  const detailRefreshRows = [...rows, ...jobsBoardRowsCache].filter(Boolean);
   renderPendingEntregaCards(jobsBoardRowsCache);
   syncLivePanelMode();
   if (!estado) rows = rows.filter((r) => estadoKey(r.estado) !== estadoKey(ESTADO_ENTREGADO));
@@ -2134,6 +2268,9 @@ async function loadJobs() {
   ].join(" ").toLowerCase().includes(q));
   rows = sortJobsBoardRows(rows);
   const tb = $("tbJobs");
+  refreshDetalleOrdenIfOpen(detailRefreshRows).catch((error) => {
+    console.warn("No pude refrescar el detalle abierto de la orden.", error);
+  });
   if (!tb) return;
   tb.innerHTML = (rows || []).map((r) => {
     const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
