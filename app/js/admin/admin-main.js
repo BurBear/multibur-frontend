@@ -27,17 +27,13 @@ import {
   fetchMaquinas,
   fetchTrabajosAdminBoardSnapshot,
   fetchOrdenesAncladas,
-  fetchUltimasIncidenciasByOrdenIds,
-  fetchUltimosEstadosProduccionByOrdenIds,
-  fetchRegistros,
+  fetchAdminBoardRegistroSupportByOrdenIds,
+  fetchAdminLiveRegistros,
   fetchProfilesByIds,
-  fetchMaquinasByIds,
   createOrdenConDetalles,
   updateOrdenConDetalles,
   fetchOrdenById,
   fetchOrdenResumenByIds,
-  fetchClienteTiposByOrdenIds,
-  fetchOrdenesMetaByIds,
   fetchReporteEntregados,
   rpcSetOrdenAnclada,
   rpcFinalizarEntregaOrden,
@@ -51,6 +47,8 @@ let clientesCache = [];
 let materialesCache = [];
 let detailRowCtx = null;
 let detailExtraCtx = null;
+let detailExtraFetchedAt = 0;
+let detailExtraRequestToken = 0;
 let entregaCtx = null;
 let entregaRequiresGuia = false;
 let smartMode = null;
@@ -61,10 +59,65 @@ let ordenModalMode = "create";
 let ordenEditId = null;
 let routeProcessDraft = [];
 let liveRegsStatusText = "";
+let liveRegsPayloadCache = null;
+let liveRegsCachePrimed = false;
+let liveRegsDataDirty = true;
 let jobsBoardRowsCache = [];
+let jobsBoardEntregadoCache = [];
+let jobsBoardActiveCachePrimed = false;
+let jobsBoardEntregadoCachePrimed = false;
+let pendingTrackedRowsCache = [];
+let pendingTrackedSummaryCache = {
+  total: 0,
+  directCount: 0,
+  pinnedCount: 0
+};
+let pendingTrackedRenderSignature = "";
+let pendingTrackedRenderState = "idle";
+let pendingTrackedRenderToken = 0;
 let adminBoardHeightObserver = null;
 const ADMIN_PENDING_PINS_KEY = "multibur_admin_pending_pins_v1";
 const ADMIN_LIVE_PANEL_MODE_KEY = "multibur_admin_live_panel_mode_v1";
+const ADMIN_BOARD_PERF_KEY = "multibur_admin_board_perf_v1";
+const PENDING_CARD_INITIAL_BATCH = 6;
+const DETAIL_EXTRA_TTL_MS = 60 * 1000;
+const detailExtraCache = new Map();
+
+function perfNow() {
+  return window.performance?.now?.() ?? Date.now();
+}
+
+function roundPerfMs(value) {
+  return Math.round(Number(value || 0) * 10) / 10;
+}
+
+function isAdminBoardPerfEnabled() {
+  try {
+    const stored = String(window.localStorage.getItem(ADMIN_BOARD_PERF_KEY) || "").trim();
+    if (stored === "1") return true;
+    if (stored === "0") return false;
+  } catch {
+    // ignore localStorage errors in preview mode
+  }
+  const host = String(window.location?.hostname || "").trim().toLowerCase();
+  return host === "127.0.0.1" || host === "localhost";
+}
+
+function pushAdminBoardPerfSample(sample) {
+  if (!isAdminBoardPerfEnabled()) return;
+  try {
+    const history = Array.isArray(window.__multiburAdminBoardPerfHistory)
+      ? window.__multiburAdminBoardPerfHistory
+      : [];
+    history.push(sample);
+    window.__multiburAdminBoardPerfHistory = history.slice(-25);
+    window.__multiburAdminBoardPerfLast = sample;
+  } catch {
+    // ignore window assignment errors in preview mode
+  }
+
+  console.info("[AdminPerf] loadJobs", sample);
+}
 
 function readLocalJson(key, fallback) {
   try {
@@ -114,6 +167,17 @@ let pendingPinnedOrderIds = new Set(
 );
 let pendingPinsStorageMode = pendingPinnedOrderIds.size ? "local" : "unknown";
 let pendingPinsLegacySyncDone = false;
+let sharedPinnedOrdersSyncPromise = null;
+let pinnedRefreshScheduled = false;
+let jobsLoadInFlight = false;
+let pendingPinnedRefreshNeeded = false;
+let pendingPinnedBackgroundSyncRequested = false;
+let pendingPinnedBackgroundSyncLegacy = false;
+let adminBoardSupportSyncPromise = null;
+let pendingBoardSupportRefreshNeeded = false;
+let pendingBoardSupportSyncRequest = null;
+let adminBoardSupportSyncToken = 0;
+let deliveredPinnedCleanupPromise = null;
 const PROCESS_ROUTE_META = Object.freeze({
   corte: { key: "corte", inputId: "p_corte", label: "Corte", module: "CORTADOR" },
   empaquetado: { key: "empaquetado", inputId: "p_empaq", label: "Empaquetado", module: "ACABADOS" },
@@ -224,6 +288,13 @@ function setKPIs(regs) {
   setText("kLast", last);
 }
 
+function getEffectiveLivePanelMode() {
+  const normalized = String(livePanelMode || "").trim().toLowerCase();
+  if (normalized === "pendientes") return "pendientes";
+  if (normalized === "produccion") return "produccion";
+  return pendingTrackedSummaryCache.total > 0 ? "pendientes" : "produccion";
+}
+
 function dbLocalTimestamp(dtLocal) {
   if (!dtLocal) return null;
   const [datePart, timePartRaw] = String(dtLocal).split("T");
@@ -287,6 +358,22 @@ function isTrackedDirectRow(row) {
   return e === "PLACAS" || e === "IMPRESION" || e === "ACABADOS";
 }
 
+function isPinnedEligibleRow(row) {
+  if (!row) return false;
+  if (estadoKey(row?.estado) === estadoKey(ESTADO_ENTREGADO)) return false;
+  return pendingPinnedOrderIds.has(Number(row?.orden_id));
+}
+
+function getDisplayPinnedOrderIds(rows = jobsBoardRowsCache) {
+  const visibleIds = new Set(
+    (rows || [])
+      .filter((row) => estadoKey(row?.estado) !== estadoKey(ESTADO_ENTREGADO))
+      .map((row) => Number(row?.orden_id))
+      .filter(Boolean)
+  );
+  return [...pendingPinnedOrderIds].filter((value) => visibleIds.has(Number(value)));
+}
+
 function getTrackedDirectStageRank(row) {
   if (isDeliverableTrackedRow(row)) return 0;
   const e = estadoKey(row?.estado);
@@ -319,10 +406,10 @@ function parseSortNumeroOrden(row) {
   return Number(row?.orden_id || 0) || 0;
 }
 
-function getPinnedOrderRank(ordenId) {
+function getPinnedOrderRank(ordenId, rows = jobsBoardRowsCache) {
   const oid = Number(ordenId);
   if (!oid) return null;
-  const ids = [...pendingPinnedOrderIds];
+  const ids = getDisplayPinnedOrderIds(rows);
   const index = ids.findIndex((value) => Number(value) === oid);
   return index >= 0 ? index + 1 : null;
 }
@@ -395,9 +482,167 @@ async function loadSharedPinnedOrders({ syncLegacy = false } = {}) {
   return orderedIds;
 }
 
+function areSameOrderedIds(a = [], b = []) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (Number(a[i]) !== Number(b[i])) return false;
+  }
+  return true;
+}
+
+function queuePinnedBoardRefresh() {
+  if (pinnedRefreshScheduled) return;
+  pinnedRefreshScheduled = true;
+  window.setTimeout(() => {
+    pinnedRefreshScheduled = false;
+    loadJobs({ reason: "pins-sync" }).catch((error) => {
+      console.warn("No pude refrescar la pizarra tras sincronizar anclados.", error);
+    });
+  }, 0);
+}
+
+function requestSharedPinnedOrdersSync({ syncLegacy = false } = {}) {
+  pendingPinnedBackgroundSyncRequested = true;
+  if (syncLegacy) pendingPinnedBackgroundSyncLegacy = true;
+}
+
+function updatePinnedOrderLocally(ordenId, pin) {
+  const oid = Number(ordenId);
+  if (!oid) return false;
+  const before = pendingPinnedOrderIds.has(oid);
+  if (pin) pendingPinnedOrderIds.add(oid);
+  else pendingPinnedOrderIds.delete(oid);
+  if (pendingPinsStorageMode !== "db") {
+    writeLocalJson(ADMIN_PENDING_PINS_KEY, [...pendingPinnedOrderIds]);
+  }
+  return before !== pendingPinnedOrderIds.has(oid);
+}
+
+async function unpinOrderIfNeeded(ordenId, { syncShared = true } = {}) {
+  const oid = Number(ordenId);
+  if (!oid || !pendingPinnedOrderIds.has(oid)) return false;
+
+  if (pendingPinsStorageMode === "db") {
+    await rpcSetOrdenAnclada({ ordenId: oid, pin: false });
+    if (syncShared) {
+      await loadSharedPinnedOrders();
+    } else {
+      pendingPinnedOrderIds.delete(oid);
+    }
+    return true;
+  }
+
+  return updatePinnedOrderLocally(oid, false);
+}
+
+function requestAdminBoardSupportSync(orderIds = []) {
+  const ids = [...new Set((orderIds || []).map((value) => Number(value)).filter(Boolean))];
+  if (!ids.length) return;
+  pendingBoardSupportSyncRequest = {
+    token: ++adminBoardSupportSyncToken,
+    orderIds: ids
+  };
+}
+
+function syncSharedPinnedOrdersInBackground({ syncLegacy = false } = {}) {
+  if (sharedPinnedOrdersSyncPromise) return sharedPinnedOrdersSyncPromise;
+
+  const beforeIds = [...pendingPinnedOrderIds];
+  const beforeMode = pendingPinsStorageMode;
+  sharedPinnedOrdersSyncPromise = loadSharedPinnedOrders({ syncLegacy })
+    .then((orderedIds) => {
+      const changed = beforeMode !== pendingPinsStorageMode || !areSameOrderedIds(beforeIds, orderedIds || []);
+      if (!changed) return false;
+      if (jobsLoadInFlight) {
+        pendingPinnedRefreshNeeded = true;
+        return true;
+      }
+      queuePinnedBoardRefresh();
+      return true;
+    })
+    .catch((error) => {
+      console.warn("No pude sincronizar anclados en segundo plano.", error);
+      return false;
+    })
+    .finally(() => {
+      sharedPinnedOrdersSyncPromise = null;
+    });
+
+  return sharedPinnedOrdersSyncPromise;
+}
+
+function syncAdminBoardSupportInBackground({ token, orderIds } = {}) {
+  const syncToken = Number(token || 0);
+  const ids = [...new Set((orderIds || []).map((value) => Number(value)).filter(Boolean))];
+  if (!syncToken || !ids.length) return Promise.resolve(false);
+  if (adminBoardSupportSyncPromise) return adminBoardSupportSyncPromise;
+
+  adminBoardSupportSyncPromise = buildAdminBoardSupport(ids)
+    .then((support) => {
+      if (syncToken !== adminBoardSupportSyncToken) return false;
+      jobsBoardRowsCache = hydrateAdminBoardRows(jobsBoardRowsCache, support);
+      jobsBoardEntregadoCache = hydrateAdminBoardRows(jobsBoardEntregadoCache, support);
+      if (jobsLoadInFlight) {
+        pendingBoardSupportRefreshNeeded = true;
+        return true;
+      }
+      loadJobs({ reason: "support-sync" }).catch((error) => {
+        console.warn("No pude refrescar la pizarra tras sincronizar soporte.", error);
+      });
+      return true;
+    })
+    .catch((error) => {
+      console.warn("No pude sincronizar soporte del tablero en segundo plano.", error);
+      return false;
+    })
+    .finally(() => {
+      adminBoardSupportSyncPromise = null;
+    });
+
+  return adminBoardSupportSyncPromise;
+}
+
+function requestDeliveredPinnedCleanup(rows = []) {
+  const staleIds = [...new Set(
+    (rows || [])
+      .filter((row) => estadoKey(row?.estado) === estadoKey(ESTADO_ENTREGADO) && pendingPinnedOrderIds.has(Number(row?.orden_id)))
+      .map((row) => Number(row?.orden_id))
+      .filter(Boolean)
+  )];
+  if (!staleIds.length || deliveredPinnedCleanupPromise) return;
+
+  deliveredPinnedCleanupPromise = (async () => {
+    try {
+      let changed = false;
+      for (const ordenId of staleIds) {
+        const unpinned = await unpinOrderIfNeeded(ordenId, { syncShared: false }).catch((error) => {
+          console.warn(`No pude limpiar el anclado de la orden entregada ${ordenId}.`, error);
+          return false;
+        });
+        changed = changed || !!unpinned;
+      }
+
+      if (pendingPinsStorageMode === "db" && changed) {
+        await loadSharedPinnedOrders().catch((error) => {
+          console.warn("No pude refrescar los anclados tras limpiar entregados.", error);
+        });
+      }
+
+      if (!changed) return;
+      if (jobsLoadInFlight) {
+        pendingPinnedRefreshNeeded = true;
+        return;
+      }
+      queuePinnedBoardRefresh();
+    } finally {
+      deliveredPinnedCleanupPromise = null;
+    }
+  })();
+}
+
 function comparePendingEntregaRows(a, b) {
-  const aPinned = pendingPinnedOrderIds.has(Number(a?.orden_id)) ? 0 : 1;
-  const bPinned = pendingPinnedOrderIds.has(Number(b?.orden_id)) ? 0 : 1;
+  const aPinned = isPinnedEligibleRow(a) ? 0 : 1;
+  const bPinned = isPinnedEligibleRow(b) ? 0 : 1;
   if (aPinned !== bPinned) return aPinned - bPinned;
   if (aPinned === 0 && bPinned === 0) {
     const aRank = getPinnedOrderRank(a?.orden_id) || Number.MAX_SAFE_INTEGER;
@@ -432,12 +677,12 @@ function sortJobsBoardRows(rows = []) {
   return (rows || [])
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
-      const aPinned = pendingPinnedOrderIds.has(Number(a?.row?.orden_id)) ? 0 : 1;
-      const bPinned = pendingPinnedOrderIds.has(Number(b?.row?.orden_id)) ? 0 : 1;
+      const aPinned = isPinnedEligibleRow(a?.row) ? 0 : 1;
+      const bPinned = isPinnedEligibleRow(b?.row) ? 0 : 1;
       if (aPinned !== bPinned) return aPinned - bPinned;
       if (aPinned === 0 && bPinned === 0) {
-        const aRank = getPinnedOrderRank(a?.row?.orden_id) || Number.MAX_SAFE_INTEGER;
-        const bRank = getPinnedOrderRank(b?.row?.orden_id) || Number.MAX_SAFE_INTEGER;
+        const aRank = getPinnedOrderRank(a?.row?.orden_id, rows) || Number.MAX_SAFE_INTEGER;
+        const bRank = getPinnedOrderRank(b?.row?.orden_id, rows) || Number.MAX_SAFE_INTEGER;
         if (aRank !== bRank) return aRank - bRank;
       }
       return a.index - b.index;
@@ -451,6 +696,109 @@ function setLivePanelMode(mode = "produccion") {
     : "produccion";
   writeLocalJson(ADMIN_LIVE_PANEL_MODE_KEY, livePanelMode);
   syncLivePanelMode();
+  if (getEffectiveLivePanelMode() === "pendientes") {
+    renderPendingEntregaCards(jobsBoardRowsCache, { force: true });
+    return;
+  }
+  if (!liveRegsCachePrimed || liveRegsDataDirty) {
+    msgRegs("Actualizando produccion...");
+    loadRegistros({ reason: "mode-switch" }).catch((error) => {
+      console.warn("No pude refrescar el panel de produccion al cambiar de pestaña.", error);
+    });
+    return;
+  }
+  renderLiveRegistrosPayload();
+  syncLivePanelMode();
+  syncAdminPanelHeights();
+}
+
+function preparePendingEntregaState(rows = jobsBoardRowsCache) {
+  const pendingRows = getPendingEntregaRows(rows);
+  pendingTrackedRowsCache = pendingRows;
+  pendingTrackedSummaryCache = {
+    total: pendingRows.length,
+    directCount: pendingRows.filter((row) => normalizeTipoCliente(row?.cliente_tipo) === "DIRECTO").length,
+    pinnedCount: pendingRows.filter((row) => isPinnedEligibleRow(row)).length
+  };
+  return pendingRows;
+}
+
+function buildPendingEntregaRenderSignature(rows = pendingTrackedRowsCache) {
+  if (!rows.length) return "empty";
+  const rankMap = new Map(
+    getDisplayPinnedOrderIds(rows).map((ordenId, index) => [Number(ordenId), index + 1])
+  );
+  return rows.map((row) => [
+    Number(row?.orden_id || 0),
+    estadoKey(row?.estado),
+    normalizeTipoCliente(row?.cliente_tipo),
+    String(row?.prioridad || "").trim().toUpperCase(),
+    String(row?.fecha_entrega || ""),
+    String(row?.route_badge_label || ""),
+    String(row?.produccion_estado || ""),
+    row?.route_all_closed ? 1 : 0,
+    rankMap.get(Number(row?.orden_id)) || 0
+  ].join(":")).join("|");
+}
+
+function buildPendingEntregaCardMarkup(row, rows = pendingTrackedRowsCache) {
+  const pinned = isPinnedEligibleRow(row);
+  const pinnedRank = pinned ? getPinnedOrderRank(row?.orden_id, rows) : null;
+  const tipoCliente = normalizeTipoCliente(row?.cliente_tipo) || "SERVICIO";
+  const entrega = splitEntregaLabel(fmtEntrega(row?.fecha_entrega));
+  const prioridadBadge = renderPrioridadBadge(row?.prioridad);
+  const badgeLabel = getTrackedDirectBadgeLabel(row);
+  const overdue = isOrdenOverdue(row?.fecha_entrega, row?.estado);
+  const canDeliver = isDeliverableTrackedRow(row);
+  const actionLabel = canDeliver ? "Entregar" : "Ver detalle";
+  const actionClass = canDeliver ? "btn btn-deliver" : "btn btn-ghost";
+
+  return `
+    <article class="pending-card ${tipoCliente === "DIRECTO" ? "is-directo" : ""} ${pinned ? "is-pinned" : ""}">
+      <div class="pending-card-head">
+        <div class="pending-card-title">
+          <div class="pending-card-order">
+            ${pinnedRank ? `<span class="pin-order-badge" title="Anclado #${pinnedRank}" aria-label="Anclado ${pinnedRank}">${pinnedRank}</span>` : ""}
+            <span>Orden ${esc(row?.numero_orden_fisica || `#${row?.orden_id}`)}</span>
+          </div>
+          <div class="pending-card-client">${esc(row?.cliente_nombre || "-")}</div>
+          <div class="pending-card-job">${esc(row?.descripcion_trabajo || "-")}</div>
+        </div>
+        <div class="pending-card-badges">
+          <span class="pending-chip ${tipoCliente === "DIRECTO" ? "is-directo" : "is-servicio"}">${esc(tipoCliente)}</span>
+          ${pinned ? renderPinnedBadge() : ""}
+        </div>
+      </div>
+
+      <div class="pending-card-grid">
+        <div class="pending-card-meta">
+          <span class="k">Entrega</span>
+          <span class="v">${esc(entrega.date)}</span>
+        </div>
+        <div class="pending-card-meta">
+          <span class="k">Hora</span>
+          <span class="v">${esc(entrega.time || "-")}</span>
+        </div>
+        <div class="pending-card-meta">
+          <span class="k">Estado</span>
+          <span class="v">${esc(badgeLabel)}</span>
+        </div>
+        <div class="pending-card-meta">
+          <span class="k">Prioridad</span>
+          <span class="v">${prioridadBadge}${overdue ? `<div class="small" style="margin-top:4px">${renderOverdueBadge(true)}</div>` : ""}</span>
+        </div>
+      </div>
+
+      <div class="pending-card-actions">
+        <button class="btn btn-pin ${pinned ? "is-pinned" : ""}" type="button" data-pending-action="pin" data-oid="${row.orden_id}">
+          ${pinned ? "Desanclar" : "Anclar"}
+        </button>
+        <button class="${actionClass}" type="button" data-pending-action="${canDeliver ? "deliver" : "detail"}" data-oid="${row.orden_id}">
+          ${actionLabel}
+        </button>
+      </div>
+    </article>
+  `;
 }
 
 function syncLivePanelMode() {
@@ -459,13 +807,12 @@ function syncLivePanelMode() {
   const pendingCount = $("btnRegsPendingCount");
   const liveSection = $("regsLiveSection");
   const pendingSection = $("regsPendingSection");
-  const pendingRows = getPendingEntregaRows();
-  const effectiveMode = livePanelMode || (pendingRows.length ? "pendientes" : "produccion");
+  const effectiveMode = getEffectiveLivePanelMode();
+  const pendingTotal = pendingTrackedSummaryCache.total || 0;
 
   if (pendingCount) {
-    const total = pendingRows.length;
-    pendingCount.hidden = total <= 0;
-    pendingCount.textContent = total > 99 ? "99+" : String(total);
+    pendingCount.hidden = pendingTotal <= 0;
+    pendingCount.textContent = pendingTotal > 99 ? "99+" : String(pendingTotal);
   }
 
   if (liveButton) liveButton.classList.toggle("is-active", effectiveMode === "produccion");
@@ -477,11 +824,11 @@ function syncLivePanelMode() {
     return;
   }
 
-  const directCount = pendingRows.filter((row) => normalizeTipoCliente(row?.cliente_tipo) === "DIRECTO").length;
-  const pinnedCount = pendingRows.filter((row) => pendingPinnedOrderIds.has(Number(row?.orden_id))).length;
+  const directCount = pendingTrackedSummaryCache.directCount || 0;
+  const pinnedCount = pendingTrackedSummaryCache.pinnedCount || 0;
   msgRegs(
-    pendingRows.length
-      ? `${pendingRows.length} seguimiento(s) - ${directCount} directo(s) - ${pinnedCount} anclado(s)`
+    pendingTotal
+      ? `${pendingTotal} seguimiento(s) - ${directCount} directo(s) - ${pinnedCount} anclado(s)`
       : "No hay trabajos directos en seguimiento."
   );
   syncAdminPanelHeights();
@@ -503,7 +850,7 @@ async function togglePinnedPendingOrder(ordenId) {
     writeLocalJson(ADMIN_PENDING_PINS_KEY, [...pendingPinnedOrderIds]);
   }
 
-  await loadJobs();
+  await loadJobs({ force: true });
 }
 
 async function openPendingPanelDetail(ordenId) {
@@ -514,111 +861,241 @@ async function openPendingPanelDetail(ordenId) {
     msgRegs("No se encontro la orden para abrir el detalle.");
     return;
   }
-  const extra = await fetchOrdenById(oid).catch(() => null);
-  openDetalleOrden(row, extra);
+  openDetalleOrden(row);
 }
 
-function renderPendingEntregaCards(rows = jobsBoardRowsCache) {
+function renderPendingEntregaCards(rows = jobsBoardRowsCache, options = {}) {
+  const { force = false } = options;
   const wrap = $("regsPendingList");
   if (!wrap) return;
 
-  const pendingRows = getPendingEntregaRows(rows);
+  const pendingRows = preparePendingEntregaState(rows);
+  const renderSignature = buildPendingEntregaRenderSignature(pendingRows);
+  if (!force && getEffectiveLivePanelMode() !== "pendientes") {
+    syncLivePanelMode();
+    return;
+  }
 
   if (!pendingRows.length) {
+    pendingTrackedRenderSignature = renderSignature;
+    pendingTrackedRenderState = "ready";
+    pendingTrackedRenderToken += 1;
     wrap.innerHTML = `<div class="live-empty">No hay trabajos directos en seguimiento.</div>`;
     syncLivePanelMode();
     return;
   }
 
-  wrap.innerHTML = pendingRows.map((row) => {
-    const pinned = pendingPinnedOrderIds.has(Number(row?.orden_id));
-    const pinnedRank = pinned ? getPinnedOrderRank(row?.orden_id) : null;
-    const tipoCliente = normalizeTipoCliente(row?.cliente_tipo) || "SERVICIO";
-    const entrega = splitEntregaLabel(fmtEntrega(row?.fecha_entrega));
-    const prioridadBadge = renderPrioridadBadge(row?.prioridad);
-    const badgeLabel = getTrackedDirectBadgeLabel(row);
-    const overdue = isOrdenOverdue(row?.fecha_entrega, row?.estado);
-    const canDeliver = isDeliverableTrackedRow(row);
-    const actionLabel = canDeliver ? "Entregar" : "Ver detalle";
-    const actionClass = canDeliver ? "btn btn-deliver" : "btn btn-ghost";
+  if (!force && pendingTrackedRenderState === "ready" && pendingTrackedRenderSignature === renderSignature) {
+    syncLivePanelMode();
+    syncAdminPanelHeights();
+    return;
+  }
 
-    return `
-      <article class="pending-card ${tipoCliente === "DIRECTO" ? "is-directo" : ""} ${pinned ? "is-pinned" : ""}">
-        <div class="pending-card-head">
-          <div class="pending-card-title">
-            <div class="pending-card-order">
-              ${pinnedRank ? `<span class="pin-order-badge" title="Anclado #${pinnedRank}" aria-label="Anclado ${pinnedRank}">${pinnedRank}</span>` : ""}
-              <span>Orden ${esc(row?.numero_orden_fisica || `#${row?.orden_id}`)}</span>
-            </div>
-            <div class="pending-card-client">${esc(row?.cliente_nombre || "-")}</div>
-            <div class="pending-card-job">${esc(row?.descripcion_trabajo || "-")}</div>
+  const renderToken = ++pendingTrackedRenderToken;
+  const initialRows = pendingRows.slice(0, PENDING_CARD_INITIAL_BATCH);
+  pendingTrackedRenderState = pendingRows.length > PENDING_CARD_INITIAL_BATCH ? "partial" : "ready";
+  wrap.innerHTML = initialRows.map((row) => buildPendingEntregaCardMarkup(row, pendingRows)).join("");
+
+  const finalizePendingRender = () => {
+    pendingTrackedRenderSignature = renderSignature;
+    pendingTrackedRenderState = "ready";
+    syncLivePanelMode();
+    syncAdminPanelHeights();
+  };
+
+  if (pendingRows.length <= PENDING_CARD_INITIAL_BATCH) {
+    finalizePendingRender();
+    return;
+  }
+
+  const appendRemainingRows = () => {
+    if (renderToken !== pendingTrackedRenderToken) return;
+    const remainingMarkup = pendingRows
+      .slice(PENDING_CARD_INITIAL_BATCH)
+      .map((row) => buildPendingEntregaCardMarkup(row, pendingRows))
+      .join("");
+    if (remainingMarkup) {
+      wrap.insertAdjacentHTML("beforeend", remainingMarkup);
+    }
+    finalizePendingRender();
+  };
+
+  if (typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(appendRemainingRows);
+  } else {
+    window.setTimeout(appendRemainingRows, 0);
+  }
+}
+
+function buildLiveRegistrosPayload({
+  regs = [],
+  ordenes = [],
+  users = [],
+  maqs = [],
+  clienteTipos = [],
+  currentOperadorValue = "",
+  liveRows = null
+} = {}) {
+  let normalizedRows = [];
+  let operadorOptionsHtml = `<option value="">Todos</option>`;
+
+  if (Array.isArray(liveRows)) {
+    normalizedRows = liveRows.map((row) => ({
+      ...row,
+      numero_orden_fisica: row?.numero_orden_fisica || `#${row?.orden_id}`,
+      cliente_nombre: row?.cliente_nombre || "-",
+      cliente_tipo: row?.cliente_tipo || null,
+      descripcion_trabajo: row?.descripcion_trabajo || "-",
+      maquina_nombre: row?.maquina_nombre || "-",
+      operador_nombre: row?.operador_nombre || row?.user_id || "-"
+    }));
+    const operadorOptions = [];
+    const operadorIds = new Set();
+    for (const row of normalizedRows) {
+      const operatorId = row?.user_id;
+      if (!operatorId || operadorIds.has(operatorId)) continue;
+      operadorIds.add(operatorId);
+      operadorOptions.push({
+        id: operatorId,
+        label: row?.operador_nombre || operatorId
+      });
+    }
+    operadorOptionsHtml = `<option value="">Todos</option>` + operadorOptions
+      .map((u) => `<option value="${u.id}">${esc(u.label)}</option>`)
+      .join("");
+  } else {
+    const ordenMap = new Map((ordenes || []).map((o) => [o.orden_id, o]));
+    const userMap = new Map((users || []).map((u) => [u.id, getProfileDisplayName(u) || u.username || u.id]));
+    const maqMap = new Map((maqs || []).map((m) => [m.id, m.nombre]));
+    const tipoClienteMap = new Map((clienteTipos || []).map((o) => [o.id, o.cliente?.tipo_cliente]));
+    normalizedRows = (regs || []).map((r) => {
+      const ordenRaw = ordenMap.get(r?.orden_id) || {};
+      return {
+        ...r,
+        numero_orden_fisica: ordenRaw?.numero_orden_fisica || ("#" + r.orden_id),
+        cliente_nombre: ordenRaw?.cliente_nombre || "Sin cliente",
+        cliente_tipo: tipoClienteMap.get(r?.orden_id) || null,
+        descripcion_trabajo: ordenRaw?.descripcion_trabajo || "Sin trabajo",
+        maquina_nombre: maqMap.get(r?.maquina_id) || r?.maquina_id || "-",
+        operador_nombre: userMap.get(r?.user_id) || r?.user_id || "-"
+      };
+    });
+    operadorOptionsHtml = `<option value="">Todos</option>` + (users || [])
+      .map((u) => `<option value="${u.id}">${esc(getProfileDisplayName(u) || u.username || u.id)}</option>`)
+      .join("");
+  }
+
+  const activeRegs = normalizedRows.filter((r) => !r.hora_fin);
+
+  const activeMarkup = activeRegs.length
+    ? activeRegs.map((r) => {
+      const ordenNum = r?.numero_orden_fisica || ("#" + r.orden_id);
+      const clienteNom = r?.cliente_nombre || "Sin cliente";
+      const trabajoNom = r?.descripcion_trabajo || "Sin trabajo";
+      const tipoC = r?.cliente_tipo;
+      const tipoBadge = tipoC ? ` - ${tipoC}` : "";
+      const operador = r?.operador_nombre || r?.user_id || "-";
+      const maq = r?.maquina_nombre || r?.maquina_id || "-";
+      const cara = String(r.cara_impresion || "").toUpperCase();
+      const juegoNum = Number(r.juego_num || 0);
+      const sufijoCara = cara === "TIRA" ? "A" : (cara === "RETIRA" ? "B" : "");
+      const juegoCaraLabel = (juegoNum && (cara === "TIRA" || cara === "RETIRA"))
+        ? `${cara} ${juegoNum}${sufijoCara}`
+        : "";
+      return `<article class="live-card">
+        <div class="live-card-top">
+          <div>
+            <div class="live-card-name">${esc(operador)}</div>
+            <div class="live-card-order">Orden ${esc(ordenNum)}${juegoCaraLabel ? ` | ${esc(juegoCaraLabel)}` : ""}</div>
           </div>
-          <div class="pending-card-badges">
-            <span class="pending-chip ${tipoCliente === "DIRECTO" ? "is-directo" : "is-servicio"}">${esc(tipoCliente)}</span>
-            ${pinned ? renderPinnedBadge() : ""}
+          <div class="live-status"><span class="live-dot"></span>En curso</div>
+        </div>
+        <div class="live-meta">
+          <div class="live-meta-item">
+            <span class="k">Maquina / Inicio</span>
+            <span class="v">${esc(maq)}</span>
+            <div style="font-size: 11px; opacity: 0.8; margin-top: 4px;">${esc(fmtDTPE(r.hora_inicio))}</div>
+          </div>
+          <div class="live-meta-item">
+            <span class="k" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" title="CLIENTE${tipoBadge}">CLIENTE${tipoBadge}</span>
+            <div class="v" style="font-size: 13px; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;" title="${esc(clienteNom)}">${esc(clienteNom)}</div>
+          </div>
+          <div class="live-meta-item">
+            <span class="k">Tiempo transcurrido</span>
+            <span class="v" data-live-start="${esc(r.hora_inicio || "")}">${esc(formatDurationMinutes(r.hora_inicio))}</span>
+          </div>
+          <div class="live-meta-item">
+            <span class="k">Trabajo</span>
+            <div class="v" style="font-size: 13px; font-weight: normal; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;" title="${esc(trabajoNom)}">${esc(trabajoNom)}</div>
           </div>
         </div>
+        </article>`;
+      }).join("")
+      : `<div class="live-empty">No hay operadores trabajando en este momento con los filtros aplicados.</div>`;
 
-        <div class="pending-card-grid">
-          <div class="pending-card-meta">
-            <span class="k">Entrega</span>
-            <span class="v">${esc(entrega.date)}</span>
-          </div>
-          <div class="pending-card-meta">
-            <span class="k">Hora</span>
-            <span class="v">${esc(entrega.time || "-")}</span>
-          </div>
-          <div class="pending-card-meta">
-            <span class="k">Estado</span>
-            <span class="v">${esc(badgeLabel)}</span>
-          </div>
-          <div class="pending-card-meta">
-            <span class="k">Prioridad</span>
-            <span class="v">${prioridadBadge}${overdue ? `<div class="small" style="margin-top:4px">${renderOverdueBadge(true)}</div>` : ""}</span>
-          </div>
-        </div>
+  const recentMarkup = normalizedRows.length
+    ? normalizedRows.slice(0, 14).map((r) => {
+      const orden = r?.numero_orden_fisica || ("#" + r.orden_id);
+      const operador = r?.operador_nombre || r?.user_id || "-";
+      const maq = r?.maquina_nombre || r?.maquina_id || "-";
+      const status = r.hora_fin ? `Finalizo ${fmtDTPE(r.hora_fin)}` : `Activo desde ${fmtDTPE(r.hora_inicio)}`;
+      return `<div class="live-row">
+        <div class="ord">${esc(orden)}</div>
+        <div class="op">${esc(operador)}</div>
+        <div>${esc(maq)}</div>
+        <div class="time">${esc(status)}</div>
+      </div>`;
+    }).join("")
+    : `<div class="live-empty">No hay movimientos para mostrar.</div>`;
 
-        <div class="pending-card-actions">
-          <button class="btn btn-pin ${pinned ? "is-pinned" : ""}" type="button" data-pending-action="pin" data-oid="${row.orden_id}">
-            ${pinned ? "Desanclar" : "Anclar"}
-          </button>
-          <button class="${actionClass}" type="button" data-pending-action="${canDeliver ? "deliver" : "detail"}" data-oid="${row.orden_id}">
-            ${actionLabel}
-          </button>
-        </div>
-      </article>
-    `;
-  }).join("");
+  return {
+    regs: normalizedRows,
+    currentOperadorValue,
+    operadorOptionsHtml,
+    activeMarkup,
+    recentMarkup,
+    statusText: activeRegs.length
+      ? `Monitoreo activo: ${activeRegs.length} operador(es) trabajando ahora.`
+      : `Sin operadores activos. Movimientos cargados: ${normalizedRows.length}`
+  };
+}
 
-  syncLivePanelMode();
-  syncAdminPanelHeights();
+function renderLiveRegistrosPayload(payload = liveRegsPayloadCache) {
+  if (!payload) return;
+  const selOperador = $("rgOperador");
+  if (selOperador) {
+    const current = payload.currentOperadorValue ?? selOperador.value ?? "";
+    selOperador.innerHTML = payload.operadorOptionsHtml || `<option value="">Todos</option>`;
+    selOperador.value = current;
+  }
+
+  const activeWrap = $("regsActiveNow");
+  if (activeWrap) activeWrap.innerHTML = payload.activeMarkup || `<div class="live-empty">No hay operadores trabajando en este momento con los filtros aplicados.</div>`;
+
+  const recentWrap = $("regsRecentList");
+  if (recentWrap) recentWrap.innerHTML = payload.recentMarkup || `<div class="live-empty">No hay movimientos para mostrar.</div>`;
+
+  setKPIs(payload.regs || []);
+  refreshLiveDurationLabels();
+  ensureLiveDurationTicker();
+  liveRegsStatusText = payload.statusText || "Sin operadores activos.";
 }
 
 async function buildAdminBoardSupport(orderIds = []) {
   const uniqueOrderIds = [...new Set((orderIds || []).map((value) => Number(value)).filter(Boolean))];
   if (!uniqueOrderIds.length) {
     return {
-      metaMap: new Map(),
       incidenciaMap: new Map(),
-      produccionEstadoMap: new Map(),
-      tipoClienteMap: new Map()
+      produccionEstadoMap: new Map()
     };
   }
 
-  const [metas, incidencias, produccionEstados, clienteTipos] = await Promise.all([
-    fetchOrdenesMetaByIds(uniqueOrderIds).catch(() => []),
-    fetchUltimasIncidenciasByOrdenIds(uniqueOrderIds).catch(() => []),
-    fetchUltimosEstadosProduccionByOrdenIds(uniqueOrderIds).catch(() => []),
-    fetchClienteTiposByOrdenIds(uniqueOrderIds).catch(() => [])
-  ]);
+  const support = await fetchAdminBoardRegistroSupportByOrdenIds(uniqueOrderIds)
+    .catch(() => ({ incidencias: [], produccionEstados: [] }));
 
   return {
-    metaMap: new Map((metas || []).map((m) => [Number(m.id), m])),
-    incidenciaMap: new Map((incidencias || []).map((i) => [Number(i.orden_id), i])),
-    produccionEstadoMap: new Map((produccionEstados || []).map((s) => [Number(s.orden_id), s])),
-    tipoClienteMap: new Map(
-      (clienteTipos || []).map((o) => [Number(o.id), normalizeTipoCliente(o?.cliente?.tipo_cliente)])
-    )
+    incidenciaMap: new Map((support?.incidencias || []).map((i) => [Number(i.orden_id), i])),
+    produccionEstadoMap: new Map((support?.produccionEstados || []).map((s) => [Number(s.orden_id), s]))
   };
 }
 
@@ -626,22 +1103,19 @@ function hydrateAdminBoardRows(rows = [], support = null) {
   const safeRows = Array.isArray(rows) ? rows : [];
   if (!safeRows.length) return [];
 
-  const metaMap = support?.metaMap || new Map();
   const incidenciaMap = support?.incidenciaMap || new Map();
   const produccionEstadoMap = support?.produccionEstadoMap || new Map();
-  const tipoClienteMap = support?.tipoClienteMap || new Map();
 
   return safeRows.map((r) => {
     const inc = incidenciaMap.get(Number(r.orden_id)) || null;
-    const meta = metaMap.get(Number(r.orden_id)) || null;
     const prod = produccionEstadoMap.get(Number(r.orden_id)) || null;
-    const tipoCliente = normalizeTipoCliente(r?.cliente_tipo || tipoClienteMap.get(Number(r.orden_id)) || "");
+    const tipoCliente = normalizeTipoCliente(r?.cliente_tipo || "");
     return {
       ...r,
       cliente_tipo: tipoCliente || "",
       is_external: resolveExternalCompat({
-        es_externo: r?.es_externo ?? meta?.es_externo,
-        observaciones_generales: meta?.observaciones_generales
+        es_externo: r?.es_externo,
+        observacionesGenerales: r?.observaciones_generales ?? r?.observacion_orden
       }),
       incidencia_motivo: inc?.motivo_incidencia || null,
       incidencia_obs: inc?.obs_incidencia || null,
@@ -1768,9 +2242,12 @@ async function confirmEntregaDesdeModal() {
   if (!rpcRes) {
     await updateOrdenEstado(oid, ESTADO_ENTREGADO, payload);
   }
+  await unpinOrderIfNeeded(oid).catch((error) => {
+    console.warn(`No pude quitar el anclado de la orden entregada ${oid}.`, error);
+  });
   closeEntregaModal();
   msgJobs(`OK Orden ${oid} marcada como ENTREGADO.`);
-  await loadJobs();
+  await loadJobs({ force: true });
 }
 
 function renderAccion(r) {
@@ -1849,126 +2326,198 @@ async function refreshDetalleOrdenIfOpen(latestRows = []) {
   if (!oid) return;
 
   const latestRow = (latestRows || []).find((row) => Number(row?.orden_id) === oid) || detailRowCtx;
-  const latestExtra = await fetchOrdenById(oid).catch(() => detailExtraCtx || null);
+  const cacheEntry = getDetalleExtraCacheEntry(oid);
+  const currentExtra = detailExtraCtx || cacheEntry?.extra || null;
+  const fetchedAt = detailExtraFetchedAt || cacheEntry?.fetchedAt || 0;
+  const mergedRow = { ...(detailRowCtx || {}), ...(latestRow || {}) };
 
-  if (!isDetalleOrdenOpen() || Number(detailRowCtx?.orden_id || 0) !== oid) return;
+  setDetalleOrdenContext(mergedRow, currentExtra, { fetchedAt });
+  renderDetalleOrdenBody(mergedRow, currentExtra);
 
-  openDetalleOrden(
-    { ...(detailRowCtx || {}), ...(latestRow || {}) },
-    latestExtra || detailExtraCtx || null
-  );
+  if (!currentExtra || !cacheEntry?.isFresh) {
+    await ensureDetalleOrdenExtra(oid, { force: !currentExtra });
+  }
 }
 
+function isDetalleExtraMeaningful(value) {
+  const raw = String(value ?? '').trim();
+  return !!raw && raw !== '-';
+}
 
+function getDetalleExtraCacheEntry(ordenId) {
+  const oid = Number(ordenId);
+  if (!oid) return null;
+  const entry = detailExtraCache.get(oid);
+  if (!entry?.extra) return null;
+  const fetchedAt = Number(entry.fetchedAt || 0);
+  const isFresh = fetchedAt > 0 && (Date.now() - fetchedAt) < DETAIL_EXTRA_TTL_MS;
+  return { extra: entry.extra, fetchedAt, isFresh };
+}
 
+function setDetalleOrdenContext(row, extra = null, options = {}) {
+  detailRowCtx = row || null;
+  detailExtraCtx = extra || null;
+  detailExtraFetchedAt = Number(options.fetchedAt || 0);
+}
 
+function buildDetalleSeguimientoHtml(row) {
+  const estado = estadoKey(row?.estado);
+  const prodEstado = String(row?.produccion_estado || '').trim().toUpperCase();
 
+  if (estado === 'ACABADOS') return renderRouteStatusPill(row);
+  if (estado === 'IMPRESION') {
+    const label = prodEstado === 'PAUSADO' ? 'Pausado en operador' : 'Imprimiendo';
+    const toneClass = prodEstado === 'PAUSADO' ? 'is-paused' : 'is-printing';
+    return `<span class="state-pill ${toneClass}">${esc(label)}</span>`;
+  }
+  if (estado === estadoKey(ESTADO_FINAL)) {
+    return '<span class="state-pill is-done">Listo para entregar</span>';
+  }
+  if (estado === estadoKey(ESTADO_ENTREGADO)) {
+    return '<span class="state-pill is-done">Entregado</span>';
+  }
+  if (estado === 'PLACAS') {
+    return '<span class="state-pill is-ready">Listo para operador</span>';
+  }
+  if (estado === 'DISENO') {
+    return '<span class="state-pill is-ready">Preparando para placas</span>';
+  }
+  return '<span class="small muted">Seguimiento en actualizacion</span>';
+}
 
+function renderDetalleOrdenBody(r, extra = null, options = {}) {
+  if (!r) {
+    $('jobDetailBody').innerHTML = '<div class="live-empty">No se pudo cargar el detalle de la orden.</div>';
+    $('btnPrintDetail').disabled = true;
+    return;
+  }
 
-function openDetalleOrden(r, extra = null) {
+  const { loadingExtra = false } = options;
   const entregaRaw = extra?.fecha_entrega || r.fecha_entrega || null;
   const entrega = fmtEntrega(entregaRaw);
-  const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
-  const cantidad = r.cantidad_solicitada ?? "-";
-  const demasia = r.demasia ?? "-";
-  const obsAcabados = extra?.observaciones_generales || "-";
-  const obsTecnica = r.observacion_tecnica || "-";
+  const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : '-';
+  const cantidad = r.cantidad_solicitada ?? '-';
+  const demasia = r.demasia ?? '-';
+  const obsAcabados = extra?.observaciones_generales || '-';
+  const obsTecnica = r.observacion_tecnica || '-';
   const procesosAcabados = getProcesosAcabadosText(r);
-  const cliTipo = extra?.cliente?.tipo_cliente || "-";
-  const cliDocTipo = extra?.cliente?.doc_fiscal_tipo || "-";
-  const cliDocNum = extra?.cliente?.doc_fiscal_numero || "-";
+  const cliTipo = extra?.cliente?.tipo_cliente || r.cliente_tipo || '-';
+  const cliDocTipo = extra?.cliente?.doc_fiscal_tipo || '-';
+  const cliDocNum = extra?.cliente?.doc_fiscal_numero || '-';
   const tieneOc = !!extra?.tiene_oc;
-  const ocNum = extra?.oc_numero || "-";
-  const ocObs = extra?.oc_observacion || "-";
+  const ocNum = extra?.oc_numero || '-';
+  const ocObs = extra?.oc_observacion || '-';
   const tieneGuia = !!extra?.tiene_guia;
-  const guiaNum = extra?.guia_numero || "-";
-  const guiaObs = extra?.guia_observacion || "-";
-  const incMotivo = r?.incidencia_motivo || "-";
-  const incObs = r?.incidencia_obs || "-";
+  const guiaNum = extra?.guia_numero || '-';
+  const guiaObs = extra?.guia_observacion || '-';
+  const incMotivo = r?.incidencia_motivo || '-';
+  const incObs = r?.incidencia_obs || '-';
   const overdue = isOrdenOverdue(entregaRaw, r.estado);
-  const prodEstado = String(r.produccion_estado || "").trim().toUpperCase();
-  const routeTone = String(r.route_badge_tone || "").trim().toLowerCase();
+  const prodEstado = String(r.produccion_estado || '').trim().toUpperCase();
+  const routeTone = String(r.route_badge_tone || '').trim().toLowerCase();
   const incidenciaBadge = renderIncidenciaBadge({
     motivo_incidencia: r?.incidencia_motivo,
     obs_incidencia: r?.incidencia_obs,
     estado_registro: r?.incidencia_estado
   });
-  const pausedBadge = prodEstado === "PAUSADO"
-    ? `<span class="state-pill is-paused">Pausado en operador</span>`
-    : routeTone === "paused"
-      ? `<span class="state-pill is-paused">Pausado en ruta</span>`
-      : "";
-  const detailAlerts = [renderOverdueBadge(overdue), incidenciaBadge, pausedBadge].filter(Boolean).join("");
-  const procesoActualDetalle = estadoKey(r.estado) === "ACABADOS"
-    ? [r.route_stage_primary, r.route_stage_secondary].filter(Boolean).join(" | ")
-    : estadoKey(r.estado) === "IMPRESION"
-      ? `Impresion | ${String(r.produccion_estado || "").trim().toUpperCase() === "PAUSADO" ? "Pausado en operador" : "Trabajando en operador"}`
-      : r.estado || "-";
-  const moduloRutaActual = r.route_current_module || "-";
-  const estadoGeneral = r.estado || "-";
+  const pausedBadge = prodEstado === 'PAUSADO'
+    ? '<span class="state-pill is-paused">Pausado en operador</span>'
+    : routeTone === 'paused'
+      ? '<span class="state-pill is-paused">Pausado en ruta</span>'
+      : '';
+  const detailAlerts = [renderOverdueBadge(overdue), incidenciaBadge, pausedBadge].filter(Boolean).join('');
+  const procesoActualDetalle = estadoKey(r.estado) === 'ACABADOS'
+    ? [r.route_stage_primary, r.route_stage_secondary].filter(Boolean).join(' | ')
+    : estadoKey(r.estado) === 'IMPRESION'
+      ? `Impresion | ${prodEstado === 'PAUSADO' ? 'Pausado en operador' : 'Trabajando en operador'}`
+      : r.estado || '-';
+  const moduloRutaActual = r.route_current_module || '-';
+  const estadoGeneral = r.estado || '-';
   const juegosLabel = juegosPlacaLabel(r);
   const juegosNombres = juegosPlacaNombres(r, extra);
-  const documentoFiscal = `${cliDocTipo} ${cliDocNum}`.trim() || "-";
-  const materialText = `${r.papel_material || "-"}${r.gramaje ? ` (${r.gramaje}g)` : ""}`;
+  const documentoFiscal = [cliDocTipo, cliDocNum]
+    .map((value) => String(value || '').trim())
+    .filter((value) => value && value !== '-')
+    .join(' ') || '-';
+  const materialText = `${r.papel_material || '-'}${r.gramaje ? ` (${r.gramaje}g)` : ''}`;
+  const siguientePaso = String(r.route_next_process_label || r.route_badge_label || '').trim() || '-';
+  const seguimientoActual = buildDetalleSeguimientoHtml(r);
+  const syncBadge = loadingExtra
+    ? '<span class="order-detail-sync-badge">Actualizando detalle...</span>'
+    : '';
   const formatLongText = (value) => {
-    const raw = String(value || "").trim();
-    if (!raw || raw === "-") return "-";
-    return esc(raw).replace(/\n/g, "<br>");
+    const raw = String(value || '').trim();
+    if (!raw || raw === '-') return '-';
+    return esc(raw).replace(/\n/g, '<br>');
   };
   const detailItem = (label, value, opts = {}) => `
-    <div class="order-detail-item ${opts.full ? "order-detail-item--full" : ""} ${opts.html ? "has-html" : ""}">
+    <div class="order-detail-item ${opts.full ? 'order-detail-item--full' : ''} ${opts.html ? 'has-html' : ''}">
       <span class="detail-k">${label}</span>
-      <span class="detail-v">${value || "-"}</span>
+      <span class="detail-v">${value || '-'}</span>
     </div>
   `;
   const detailMetric = (label, value, opts = {}) => `
-    <div class="order-detail-metric ${opts.primary ? "is-primary" : ""} ${opts.html ? "has-html" : ""}">
+    <div class="order-detail-metric ${opts.primary ? 'is-primary' : ''} ${opts.html ? 'has-html' : ''}">
       <span class="detail-k">${label}</span>
-      <span class="detail-v">${value || "-"}</span>
+      <span class="detail-v">${value || '-'}</span>
     </div>
   `;
-  const chipGroup = (raw, variant = "neutral") => {
-    const values = String(raw || "")
-      .split("|")
+  const chipGroup = (raw, variant = 'neutral') => {
+    const values = String(raw || '')
+      .split('|')
       .map((item) => item.trim())
       .filter(Boolean);
 
-    if (!values.length || (values.length === 1 && values[0] === "-")) {
+    if (!values.length || (values.length === 1 && values[0] === '-')) {
       return '<span class="order-detail-empty">Sin informacion registrada.</span>';
     }
 
     return `
       <div class="order-detail-chip-group">
-        ${values.map((value) => `<span class="order-detail-chip is-${variant}">${esc(value)}</span>`).join("")}
+        ${values.map((value) => `<span class="order-detail-chip is-${variant}">${esc(value)}</span>`).join('')}
       </div>
     `;
   };
-  const noteCard = (label, value, tone = "neutral") => `
+  const noteCard = (label, value, tone = 'neutral') => `
     <article class="order-detail-note is-${tone}">
       <span class="detail-k">${label}</span>
       <div class="order-detail-note-copy">${formatLongText(value)}</div>
     </article>
   `;
+  const noteCards = [];
+  if (isDetalleExtraMeaningful(incMotivo)) noteCards.push(noteCard('Motivo incidencia', incMotivo, 'warn'));
+  if (isDetalleExtraMeaningful(incObs)) noteCards.push(noteCard('Observacion incidencia', incObs, 'warn'));
+  if (isDetalleExtraMeaningful(obsTecnica)) noteCards.push(noteCard('Observacion tecnica (impresor)', obsTecnica, 'neutral'));
+  if (isDetalleExtraMeaningful(obsAcabados)) noteCards.push(noteCard('Observacion acabados', obsAcabados, 'info'));
+  if (!noteCards.length) {
+    noteCards.push(`
+      <article class="order-detail-note is-empty">
+        <span class="detail-k">Observaciones</span>
+        <div class="order-detail-note-copy">No hay observaciones, incidencias ni notas registradas para esta orden.</div>
+      </article>
+    `);
+  }
 
-  $("jobDetailBody").innerHTML = `
+  $('jobDetailBody').innerHTML = `
     <div class="order-detail-shell">
       <section class="order-detail-hero">
         <div class="order-detail-identity">
           <div class="order-detail-topline">
-            <span class="order-detail-order">Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</span>
+            <span class="order-detail-order">Orden ${esc(r.numero_orden_fisica || ('#' + r.orden_id))}</span>
             <span class="order-detail-state-chip">${esc(estadoGeneral)}</span>
             <span class="order-detail-client-chip">${esc(cliTipo)}</span>
+            ${syncBadge}
           </div>
-          <h3 class="order-detail-job">${esc(r.descripcion_trabajo || "-")}</h3>
-          <div class="order-detail-client">${esc(r.cliente_nombre || "-")}</div>
-          ${detailAlerts ? `<div class="order-detail-alerts">${detailAlerts}</div>` : ""}
+          <h3 class="order-detail-job">${esc(r.descripcion_trabajo || '-')}</h3>
+          <div class="order-detail-client">${esc(r.cliente_nombre || '-')}</div>
+          ${detailAlerts ? `<div class="order-detail-alerts">${detailAlerts}</div>` : ''}
         </div>
 
         <div class="order-detail-hero-grid">
-          ${detailMetric("Proceso actual", esc(procesoActualDetalle || "-"), { primary: true })}
-          ${detailMetric("Entrega", esc(entrega))}
-          ${detailMetric("Modulo actual", esc(moduloRutaActual))}
-          ${detailMetric("Prioridad", renderPrioridadBadge(r.prioridad), { html: true })}
+          ${detailMetric('Seguimiento actual', seguimientoActual, { html: true, primary: true })}
+          ${detailMetric('Proceso actual', esc(procesoActualDetalle || '-'))}
+          ${detailMetric('Entrega', esc(entrega))}
+          ${detailMetric('Cantidad solicitada', esc(cantidad))}
         </div>
       </section>
 
@@ -1979,31 +2528,33 @@ function openDetalleOrden(r, extra = null) {
             <span>Cliente y documento</span>
           </div>
           <div class="order-detail-list">
-            ${detailItem("Tipo cliente", esc(cliTipo))}
-            ${detailItem("Documento fiscal", esc(documentoFiscal))}
-            ${detailItem("Requiere OC", esc(tieneOc ? "SI" : "NO"))}
-            ${detailItem("Nro OC", esc(ocNum))}
-            ${detailItem("Obs OC", esc(ocObs), { full: true })}
-            ${detailItem("Tiene guia", esc(tieneGuia ? "SI" : "NO"))}
-            ${detailItem("Nro guia", esc(guiaNum))}
-            ${detailItem("Obs guia", esc(guiaObs), { full: true })}
+            ${detailItem('Tipo cliente', esc(cliTipo))}
+            ${detailItem('Documento fiscal', esc(documentoFiscal))}
+            ${detailItem('Requiere OC', esc(tieneOc ? 'SI' : 'NO'))}
+            ${detailItem('Nro OC', esc(ocNum))}
+            ${detailItem('Obs OC', esc(ocObs), { full: true })}
+            ${detailItem('Tiene guia', esc(tieneGuia ? 'SI' : 'NO'))}
+            ${detailItem('Nro guia', esc(guiaNum))}
+            ${detailItem('Obs guia', esc(guiaObs), { full: true })}
           </div>
         </section>
 
         <section class="order-detail-card">
           <div class="order-detail-card-head">
             <h4>Produccion</h4>
-            <span>Ficha tecnica</span>
+            <span>Seguimiento y ficha tecnica</span>
           </div>
           <div class="order-detail-list">
-            ${detailItem("Maquina", esc(r.maquina_sugerida_nombre || "-"))}
-            ${detailItem("Formato", esc(formato))}
-            ${detailItem("Material", esc(materialText))}
-            ${detailItem("Tipo impresion", esc(fmtTipoImpresion(r.tipo_impresion)))}
-            ${detailItem("Juegos de placa", esc(juegosLabel || "-"))}
-            ${detailItem("Cantidad solicitada", esc(cantidad))}
-            ${detailItem("Demasia", esc(demasia))}
-            ${detailItem("Color", esc(r.color_text || "-"))}
+            ${detailItem('Modulo actual', esc(moduloRutaActual))}
+            ${detailItem('Siguiente paso', esc(siguientePaso))}
+            ${detailItem('Maquina', esc(r.maquina_sugerida_nombre || '-'))}
+            ${detailItem('Formato', esc(formato))}
+            ${detailItem('Material', esc(materialText))}
+            ${detailItem('Tipo impresion', esc(fmtTipoImpresion(r.tipo_impresion)))}
+            ${detailItem('Juegos de placa', esc(juegosLabel || '-'))}
+            ${detailItem('Prioridad', renderPrioridadBadge(r.prioridad), { html: true })}
+            ${detailItem('Demasia', esc(demasia))}
+            ${detailItem('Color', esc(r.color_text || '-'))}
           </div>
         </section>
 
@@ -2015,11 +2566,11 @@ function openDetalleOrden(r, extra = null) {
           <div class="order-detail-stack">
             <div class="order-detail-panel">
               <span class="detail-k">Nombres de juegos</span>
-              ${chipGroup(juegosNombres || "-", "game")}
+              ${chipGroup(juegosNombres || '-', 'game')}
             </div>
             <div class="order-detail-panel">
               <span class="detail-k">Procesos acabados</span>
-              ${chipGroup(procesosAcabados || "-", "process")}
+              ${chipGroup(procesosAcabados || '-', 'process')}
             </div>
           </div>
         </section>
@@ -2030,25 +2581,87 @@ function openDetalleOrden(r, extra = null) {
             <span>Incidencias y notas</span>
           </div>
           <div class="order-detail-notes">
-            ${noteCard("Motivo incidencia", incMotivo, "warn")}
-            ${noteCard("Observacion incidencia", incObs, "warn")}
-            ${noteCard("Observacion tecnica (impresor)", obsTecnica, "neutral")}
-            ${noteCard("Observacion acabados", obsAcabados, "info")}
+            ${noteCards.join('')}
           </div>
         </section>
       </div>
     </div>`;
-  detailRowCtx = r;
-  detailExtraCtx = extra;
-  $("btnPrintDetail").disabled = false;
-  $("jobDetailWrap")?.classList.remove("hide");
+  $('btnPrintDetail').disabled = !r || (!extra && loadingExtra);
+  $('jobDetailWrap')?.classList.remove('hide');
+}
+
+async function ensureDetalleOrdenExtra(ordenId, options = {}) {
+  const oid = Number(ordenId);
+  if (!oid) return null;
+
+  const { force = false } = options;
+  const cacheEntry = getDetalleExtraCacheEntry(oid);
+  if (!force && cacheEntry?.isFresh) {
+    if (isDetalleOrdenOpen() && Number(detailRowCtx?.orden_id || 0) === oid && detailExtraCtx !== cacheEntry.extra) {
+      setDetalleOrdenContext(detailRowCtx, cacheEntry.extra, { fetchedAt: cacheEntry.fetchedAt });
+      renderDetalleOrdenBody(detailRowCtx, cacheEntry.extra);
+    }
+    return cacheEntry.extra;
+  }
+
+  const requestToken = ++detailExtraRequestToken;
+  const currentRow = Number(detailRowCtx?.orden_id || 0) === oid ? detailRowCtx : null;
+  if (currentRow && isDetalleOrdenOpen() && !detailExtraCtx) {
+    renderDetalleOrdenBody(currentRow, cacheEntry?.extra || null, { loadingExtra: true });
+  }
+
+  let latestExtra = null;
+  try {
+    latestExtra = await fetchOrdenById(oid);
+  } catch {
+    latestExtra = cacheEntry?.extra || detailExtraCtx || null;
+  }
+
+  if (requestToken !== detailExtraRequestToken) return latestExtra;
+
+  if (latestExtra) {
+    const fetchedAt = Date.now();
+    detailExtraCache.set(oid, { extra: latestExtra, fetchedAt });
+    if (isDetalleOrdenOpen() && Number(detailRowCtx?.orden_id || 0) === oid) {
+      setDetalleOrdenContext(detailRowCtx, latestExtra, { fetchedAt });
+      renderDetalleOrdenBody(detailRowCtx, latestExtra);
+    }
+    return latestExtra;
+  }
+
+  if (isDetalleOrdenOpen() && Number(detailRowCtx?.orden_id || 0) === oid && detailRowCtx) {
+    renderDetalleOrdenBody(detailRowCtx, detailExtraCtx || null);
+  }
+  return null;
+}
+
+function openDetalleOrden(r, extra = null, options = {}) {
+  const oid = Number(r?.orden_id || 0);
+  if (!oid) return;
+
+  const { forceRefreshExtra = false, skipExtraFetch = false } = options;
+  const cacheEntry = extra ? null : getDetalleExtraCacheEntry(oid);
+  const resolvedExtra = extra || cacheEntry?.extra || null;
+  const fetchedAt = extra ? Date.now() : (cacheEntry?.fetchedAt || 0);
+  const extraIsFresh = extra ? true : !!cacheEntry?.isFresh;
+  const shouldFetchExtra = !skipExtraFetch && (!resolvedExtra || forceRefreshExtra || !extraIsFresh);
+
+  if (extra) {
+    detailExtraCache.set(oid, { extra, fetchedAt });
+  }
+
+  setDetalleOrdenContext(r, resolvedExtra, { fetchedAt });
+  renderDetalleOrdenBody(r, resolvedExtra, { loadingExtra: shouldFetchExtra && !resolvedExtra });
+
+  if (shouldFetchExtra) {
+    void ensureDetalleOrdenExtra(oid, { force: forceRefreshExtra || !resolvedExtra });
+  }
 }
 
 function closeDetalleOrden() {
-  detailRowCtx = null;
-  detailExtraCtx = null;
-  $("btnPrintDetail").disabled = true;
-  $("jobDetailWrap")?.classList.add("hide");
+  setDetalleOrdenContext(null, null, { fetchedAt: 0 });
+  $('btnPrintDetail').disabled = true;
+  $('jobDetailWrap')?.classList.add('hide');
 }
 
 async function inspectOrdenesFisicas(...rawNumbers) {
@@ -2227,60 +2840,168 @@ ${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}
   w.print();
 }
 
-async function loadJobs() {
-  msgJobs("");
-  const estadoRaw = $("fEstado")?.value || "";
-  const estado = toDbEstado(estadoRaw);
-  const tipoClienteFiltro = String($("fTipoCliente")?.value || "").trim().toUpperCase();
-  const q = ($("q")?.value || "").trim().toLowerCase();
-  await loadSharedPinnedOrders({ syncLegacy: true });
-  const [visibleRawRows, pendingRawRows] = await Promise.all([
-    fetchTrabajosAdminBoardSnapshot({ estado }),
-    fetchTrabajosAdminBoardSnapshot({ estado: "" })
-  ]);
-  const allOrderIds = [
-    ...(visibleRawRows || []).map((r) => Number(r.orden_id)).filter(Boolean),
-    ...(pendingRawRows || []).map((r) => Number(r.orden_id)).filter(Boolean)
-  ];
-  const support = await buildAdminBoardSupport(allOrderIds);
-  let rows = hydrateAdminBoardRows(visibleRawRows, support);
-  jobsBoardRowsCache = hydrateAdminBoardRows(pendingRawRows, support);
-  const detailRefreshRows = [...rows, ...jobsBoardRowsCache].filter(Boolean);
-  renderPendingEntregaCards(jobsBoardRowsCache);
-  syncLivePanelMode();
-  if (!estado) rows = rows.filter((r) => estadoKey(r.estado) !== estadoKey(ESTADO_ENTREGADO));
-  if (tipoClienteFiltro) {
-    rows = rows.filter((r) => normalizeTipoCliente(r.cliente_tipo) === tipoClienteFiltro);
-  }
-  if (q) rows = rows.filter((r) => [
-    r.numero_orden_fisica,
-    r.cliente_nombre,
-    r.descripcion_trabajo,
-    r.estado,
-    r.route_stage_primary,
-    r.route_stage_secondary,
-    r.route_current_module,
-    r.route_next_process_label,
-    r.route_badge_label,
-    r.tipo_impresion,
-    r.color_text,
-    r.maquina_sugerida_nombre
-  ].join(" ").toLowerCase().includes(q));
-  rows = sortJobsBoardRows(rows);
-  const tb = $("tbJobs");
-  refreshDetalleOrdenIfOpen(detailRefreshRows).catch((error) => {
-    console.warn("No pude refrescar el detalle abierto de la orden.", error);
-  });
-  if (!tb) return;
-  tb.innerHTML = (rows || []).map((r) => {
+async function loadJobs(options = {}) {
+  const force = !!options?.force;
+  const reason = String(options?.reason || (force ? "force-refresh" : "ui-filter")).trim() || "ui-filter";
+  const perfStartedAt = perfNow();
+  const perfSample = {
+    reason,
+    force,
+    estadoFiltro: "TODOS",
+    tipoClienteFiltro: "TODOS",
+    queryLength: 0,
+    cacheActivaUsada: false,
+    cacheEntregadoUsada: false,
+    activeFetch: false,
+    deliveredFetch: false,
+    pinnedSync: false,
+    pinnedDeferred: false,
+    supportDeferred: false,
+    rowsFetchedActive: 0,
+    rowsFetchedDelivered: 0,
+    rowsBeforeFilters: 0,
+    rowsRendered: 0,
+    pinnedMs: 0,
+    fetchSnapshotsMs: 0,
+    fetchSupportMs: 0,
+    hydrateMs: 0,
+    cloneRowsMs: 0,
+    filterRowsMs: 0,
+    sortRowsMs: 0,
+    renderPendingMs: 0,
+    syncPanelMs: 0,
+    tableMarkupMs: 0,
+    tableDomMs: 0,
+    totalMs: 0
+  };
+  jobsLoadInFlight = true;
+  try {
+    msgJobs("");
+    const estadoRaw = $("fEstado")?.value || "";
+    const estado = toDbEstado(estadoRaw);
+    const isEntregadoView = estadoKey(estado) === estadoKey(ESTADO_ENTREGADO);
+    const tipoClienteFiltro = String($("fTipoCliente")?.value || "").trim().toUpperCase();
+    const q = ($("q")?.value || "").trim().toLowerCase();
+    const needActiveFetch = force || !jobsBoardActiveCachePrimed;
+    const needEntregadoFetch = isEntregadoView && (force || !jobsBoardEntregadoCachePrimed);
+    perfSample.estadoFiltro = estadoRaw || "TODOS";
+    perfSample.tipoClienteFiltro = tipoClienteFiltro || "TODOS";
+    perfSample.queryLength = q.length;
+    perfSample.activeFetch = needActiveFetch;
+    perfSample.deliveredFetch = needEntregadoFetch;
+    perfSample.cacheActivaUsada = !needActiveFetch;
+    perfSample.cacheEntregadoUsada = isEntregadoView && !needEntregadoFetch;
+
+    if (pendingPinsStorageMode === "unknown") {
+      perfSample.pinnedDeferred = true;
+      requestSharedPinnedOrdersSync({ syncLegacy: true });
+    } else if (force) {
+      perfSample.pinnedDeferred = true;
+      requestSharedPinnedOrdersSync();
+    }
+
+    if (needActiveFetch || needEntregadoFetch) {
+      const snapshotsStartedAt = perfNow();
+      const [activeRawRows, deliveredRawRows] = await Promise.all([
+        needActiveFetch ? fetchTrabajosAdminBoardSnapshot({ estado: "" }) : Promise.resolve([]),
+        needEntregadoFetch ? fetchTrabajosAdminBoardSnapshot({ estado: ESTADO_ENTREGADO }) : Promise.resolve([])
+      ]);
+      perfSample.fetchSnapshotsMs = roundPerfMs(perfNow() - snapshotsStartedAt);
+      perfSample.rowsFetchedActive = Array.isArray(activeRawRows) ? activeRawRows.length : 0;
+      perfSample.rowsFetchedDelivered = Array.isArray(deliveredRawRows) ? deliveredRawRows.length : 0;
+
+      const fetchedRows = [
+        ...(activeRawRows || []),
+        ...(deliveredRawRows || [])
+      ];
+      const hydrateStartedAt = perfNow();
+
+      if (needActiveFetch) {
+        jobsBoardRowsCache = hydrateAdminBoardRows(activeRawRows);
+        jobsBoardActiveCachePrimed = true;
+      }
+
+      if (needEntregadoFetch) {
+        jobsBoardEntregadoCache = hydrateAdminBoardRows(deliveredRawRows);
+        jobsBoardEntregadoCachePrimed = true;
+      }
+      perfSample.hydrateMs = roundPerfMs(perfNow() - hydrateStartedAt);
+      perfSample.supportDeferred = fetchedRows.length > 0;
+      requestAdminBoardSupportSync(
+        fetchedRows.map((row) => Number(row?.orden_id)).filter(Boolean)
+      );
+    }
+
+    const cloneRowsStartedAt = perfNow();
+    let rows = isEntregadoView
+      ? jobsBoardEntregadoCache.slice()
+      : jobsBoardRowsCache.slice();
+    perfSample.cloneRowsMs = roundPerfMs(perfNow() - cloneRowsStartedAt);
+    perfSample.rowsBeforeFilters = rows.length;
+
+    const filterRowsStartedAt = perfNow();
+    if (!isEntregadoView && estado) {
+      rows = rows.filter((row) => estadoKey(row?.estado) === estadoKey(estado));
+    }
+
+    const renderPendingStartedAt = perfNow();
+    preparePendingEntregaState(jobsBoardRowsCache);
+    if (getEffectiveLivePanelMode() === "pendientes") {
+      renderPendingEntregaCards(jobsBoardRowsCache, { force: true });
+    } else {
+      syncLivePanelMode();
+    }
+    perfSample.renderPendingMs = roundPerfMs(perfNow() - renderPendingStartedAt);
+    const detailRefreshRows = [
+      ...rows,
+      ...jobsBoardRowsCache,
+      ...(isEntregadoView ? jobsBoardEntregadoCache : [])
+    ].filter(Boolean);
+    const syncPanelStartedAt = perfNow();
+    syncLivePanelMode();
+    perfSample.syncPanelMs = roundPerfMs(perfNow() - syncPanelStartedAt);
+    if (!estado) rows = rows.filter((r) => estadoKey(r.estado) !== estadoKey(ESTADO_ENTREGADO));
+    if (tipoClienteFiltro) {
+      rows = rows.filter((r) => normalizeTipoCliente(r.cliente_tipo) === tipoClienteFiltro);
+    }
+    if (q) rows = rows.filter((r) => [
+      r.numero_orden_fisica,
+      r.cliente_nombre,
+      r.descripcion_trabajo,
+      r.estado,
+      r.route_stage_primary,
+      r.route_stage_secondary,
+      r.route_current_module,
+      r.route_next_process_label,
+      r.route_badge_label,
+      r.tipo_impresion,
+      r.color_text,
+      r.maquina_sugerida_nombre
+    ].join(" ").toLowerCase().includes(q));
+    perfSample.filterRowsMs = roundPerfMs(perfNow() - filterRowsStartedAt);
+    const sortRowsStartedAt = perfNow();
+    rows = sortJobsBoardRows(rows);
+    perfSample.sortRowsMs = roundPerfMs(perfNow() - sortRowsStartedAt);
+    perfSample.rowsRendered = rows.length;
+    const tb = $("tbJobs");
+    refreshDetalleOrdenIfOpen(detailRefreshRows).catch((error) => {
+      console.warn("No pude refrescar el detalle abierto de la orden.", error);
+    });
+    if (!tb) {
+      perfSample.totalMs = roundPerfMs(perfNow() - perfStartedAt);
+      pushAdminBoardPerfSample(perfSample);
+      return;
+    }
+    const tableMarkupStartedAt = perfNow();
+    const tableHtml = (rows || []).map((r) => {
     const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
     const entrega = fmtEntrega(r.fecha_entrega);
     const entregaLabel = splitEntregaLabel(entrega);
     const overdue = isOrdenOverdue(r.fecha_entrega, r.estado);
     const prioridadBadge = renderPrioridadBadge(r.prioridad);
-    const isPinned = pendingPinnedOrderIds.has(Number(r?.orden_id));
+    const isPinned = isPinnedEligibleRow(r);
     const pinnedBadge = isPinned ? renderPinnedBadge() : "";
-    const pinnedRank = isPinned ? getPinnedOrderRank(r?.orden_id) : null;
+    const pinnedRank = isPinned ? getPinnedOrderRank(r?.orden_id, rows) : null;
     const incidenciaBadge = renderIncidenciaBadge({
       motivo_incidencia: r.incidencia_motivo,
       obs_incidencia: r.incidencia_obs,
@@ -2339,6 +3060,12 @@ async function loadJobs() {
       </td>
     </tr>`;
   }).join("");
+  perfSample.tableMarkupMs = roundPerfMs(perfNow() - tableMarkupStartedAt);
+  const tableDomStartedAt = perfNow();
+  tb.innerHTML = tableHtml;
+  perfSample.tableDomMs = roundPerfMs(perfNow() - tableDomStartedAt);
+  perfSample.totalMs = roundPerfMs(perfNow() - perfStartedAt);
+  pushAdminBoardPerfSample(perfSample);
 
   tb.querySelectorAll('button[data-action="set"]').forEach((btn) => btn.addEventListener("click", async () => {
     const oid = Number(btn.getAttribute("data-oid"));
@@ -2354,7 +3081,7 @@ async function loadJobs() {
       }
       await updateOrdenEstado(oid, to, extras);
       msgJobs(`OK Orden ${oid} -> ${to}`);
-      await loadJobs();
+      await loadJobs({ force: true });
     } catch (e) {
       msgJobs("ERROR: No se pudo actualizar estado: " + (e?.message || e));
     } finally {
@@ -2384,7 +3111,7 @@ async function loadJobs() {
         moduloDestino: moduleTarget
       });
       msgJobs(res?.mensaje || `OK Orden ${oid} enviada a ${moduleTarget}.`);
-      await loadJobs();
+      await loadJobs({ force: true });
     } catch (e) {
       const detail = formatDbError(e);
       msgJobs(`ERROR: No se pudo transferir la orden ${row.numero_orden_fisica || oid}: ${detail}`);
@@ -2398,8 +3125,7 @@ async function loadJobs() {
     const oid = Number(btn.getAttribute("data-oid"));
     const row = (rows || []).find((x) => Number(x.orden_id) === oid);
     if (!row) return;
-    const extra = await fetchOrdenById(oid).catch(() => null);
-    openDetalleOrden(row, extra);
+    openDetalleOrden(row);
   }));
 
   tb.querySelectorAll('button[data-action="edit"]').forEach((btn) => btn.addEventListener("click", async () => {
@@ -2413,114 +3139,64 @@ async function loadJobs() {
     }
   }));
 
-  msgJobs(`Cargados: ${(rows || []).length} trabajo(s).`);
-  syncAdminPanelHeights();
+    if (isEntregadoView) {
+      requestDeliveredPinnedCleanup(rows);
+    }
+    msgJobs(`Cargados: ${(rows || []).length} trabajo(s).`);
+    syncAdminPanelHeights();
+  } finally {
+    jobsLoadInFlight = false;
+    if (pendingPinnedRefreshNeeded) {
+      pendingPinnedRefreshNeeded = false;
+      queuePinnedBoardRefresh();
+    }
+    if (pendingBoardSupportRefreshNeeded) {
+      pendingBoardSupportRefreshNeeded = false;
+      loadJobs({ reason: "support-sync" }).catch((error) => {
+        console.warn("No pude refrescar la pizarra tras aplicar soporte.", error);
+      });
+    }
+    if (pendingPinnedBackgroundSyncRequested) {
+      const syncLegacy = pendingPinnedBackgroundSyncLegacy;
+      pendingPinnedBackgroundSyncRequested = false;
+      pendingPinnedBackgroundSyncLegacy = false;
+      window.setTimeout(() => {
+        syncSharedPinnedOrdersInBackground({ syncLegacy });
+      }, 0);
+    }
+    if (pendingBoardSupportSyncRequest) {
+      const request = pendingBoardSupportSyncRequest;
+      pendingBoardSupportSyncRequest = null;
+      window.setTimeout(() => {
+        syncAdminBoardSupportInBackground(request);
+      }, 0);
+    }
+  }
 }
 
-async function loadRegistros() {
+async function loadRegistros(options = {}) {
+  const { force = false } = options || {};
+  if (!force && getEffectiveLivePanelMode() !== "produccion") {
+    liveRegsDataDirty = true;
+    syncLivePanelMode();
+    return liveRegsPayloadCache?.regs || [];
+  }
   const preset = $("rgPreset")?.value || "today";
   const fromDate = $("rgFrom")?.value || "";
   const toDate = $("rgTo")?.value || "";
   const ordenId = $("rgOrden")?.value ? Number($("rgOrden").value) : null;
   const userId = $("rgOperador")?.value || "";
-  const regs = await fetchRegistros({ preset, fromDate, toDate, ordenId, userId, limit: 300 });
-  const orderIds = [...new Set((regs || []).map((r) => r.orden_id).filter(Boolean))];
-  const userIds = [...new Set((regs || []).map((r) => r.user_id).filter(Boolean))];
-  const maqIds = [...new Set((regs || []).map((r) => r.maquina_id).filter(Boolean))];
-  const [ordenes, users, maqs, clienteTipos] = await Promise.all([
-    fetchOrdenResumenByIds(orderIds),
-    fetchProfilesByIds(userIds),
-    fetchMaquinasByIds(maqIds),
-    fetchClienteTiposByOrdenIds(orderIds)
-  ]);
-  const ordenMap = new Map((ordenes || []).map((o) => [o.orden_id, o.numero_orden_fisica]));
-  const userMap = new Map((users || []).map((u) => [u.id, getProfileDisplayName(u) || u.username || u.id]));
-  const maqMap = new Map((maqs || []).map((m) => [m.id, m.nombre]));
-  const tipoClienteMap = new Map((clienteTipos || []).map((o) => [o.id, o.cliente?.tipo_cliente]));
-
-  const selOperador = $("rgOperador");
-  if (selOperador) {
-    const current = selOperador.value || "";
-    selOperador.innerHTML = `<option value="">Todos</option>` + (users || []).map((u) => `<option value="${u.id}">${esc(getProfileDisplayName(u) || u.username || u.id)}</option>`).join("");
-    selOperador.value = current;
-  }
-
-  const activeRegs = (regs || []).filter((r) => !r.hora_fin);
-  const activeWrap = $("regsActiveNow");
-  if (activeWrap) {
-    activeWrap.innerHTML = activeRegs.length
-      ? activeRegs.map((r) => {
-        const ordenRaw = (ordenes || []).find((o) => o.orden_id === r.orden_id) || {};
-        const ordenNum = ordenRaw.numero_orden_fisica || ("#" + r.orden_id);
-        const clienteNom = ordenRaw.cliente_nombre || "Sin cliente";
-        const trabajoNom = ordenRaw.descripcion_trabajo || "Sin trabajo";
-        const tipoC = tipoClienteMap.get(r.orden_id);
-        const tipoBadge = tipoC ? ` - ${tipoC}` : "";
-        const operador = userMap.get(r.user_id) || r.user_id || "-";
-        const maq = maqMap.get(r.maquina_id) || r.maquina_id || "-";
-        const cara = String(r.cara_impresion || "").toUpperCase();
-        const juegoNum = Number(r.juego_num || 0);
-        const sufijoCara = cara === "TIRA" ? "A" : (cara === "RETIRA" ? "B" : "");
-        const juegoCaraLabel = (juegoNum && (cara === "TIRA" || cara === "RETIRA"))
-          ? `${cara} ${juegoNum}${sufijoCara}`
-          : "";
-        return `<article class="live-card">
-          <div class="live-card-top">
-            <div>
-              <div class="live-card-name">${esc(operador)}</div>
-              <div class="live-card-order">Orden ${esc(ordenNum)}${juegoCaraLabel ? ` | ${esc(juegoCaraLabel)}` : ""}</div>
-            </div>
-            <div class="live-status"><span class="live-dot"></span>En curso</div>
-          </div>
-          <div class="live-meta">
-            <div class="live-meta-item">
-              <span class="k">Maquina / Inicio</span>
-              <span class="v">${esc(maq)}</span>
-              <div style="font-size: 11px; opacity: 0.8; margin-top: 4px;">${esc(fmtDTPE(r.hora_inicio))}</div>
-            </div>
-            <div class="live-meta-item">
-              <span class="k" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" title="CLIENTE${tipoBadge}">CLIENTE${tipoBadge}</span>
-              <div class="v" style="font-size: 13px; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;" title="${esc(clienteNom)}">${esc(clienteNom)}</div>
-            </div>
-            <div class="live-meta-item">
-              <span class="k">Tiempo transcurrido</span>
-              <span class="v" data-live-start="${esc(r.hora_inicio || "")}">${esc(formatDurationMinutes(r.hora_inicio))}</span>
-            </div>
-            <div class="live-meta-item">
-              <span class="k">Trabajo</span>
-              <div class="v" style="font-size: 13px; font-weight: normal; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;" title="${esc(trabajoNom)}">${esc(trabajoNom)}</div>
-            </div>
-          </div>
-        </article>`;
-      }).join("")
-      : `<div class="live-empty">No hay operadores trabajando en este momento con los filtros aplicados.</div>`;
-  }
-
-  const recentWrap = $("regsRecentList");
-  if (recentWrap) {
-    recentWrap.innerHTML = (regs || []).length
-      ? (regs || []).slice(0, 14).map((r) => {
-        const orden = ordenMap.get(r.orden_id) || ("#" + r.orden_id);
-        const operador = userMap.get(r.user_id) || r.user_id || "-";
-        const maq = maqMap.get(r.maquina_id) || r.maquina_id || "-";
-        const status = r.hora_fin ? `Finalizo ${fmtDTPE(r.hora_fin)}` : `Activo desde ${fmtDTPE(r.hora_inicio)}`;
-        return `<div class="live-row">
-          <div class="ord">${esc(orden)}</div>
-          <div class="op">${esc(operador)}</div>
-          <div>${esc(maq)}</div>
-          <div class="time">${esc(status)}</div>
-        </div>`;
-      }).join("")
-      : `<div class="live-empty">No hay movimientos para mostrar.</div>`;
-  }
-  setKPIs(regs);
-  refreshLiveDurationLabels();
-  ensureLiveDurationTicker();
-  liveRegsStatusText = activeRegs.length
-    ? `Monitoreo activo: ${activeRegs.length} operador(es) trabajando ahora.`
-    : `Sin operadores activos. Movimientos cargados: ${(regs || []).length}`;
+  const liveRows = await fetchAdminLiveRegistros({ preset, fromDate, toDate, ordenId, userId, limit: 300 });
+  liveRegsPayloadCache = buildLiveRegistrosPayload({
+    currentOperadorValue: userId,
+    liveRows
+  });
+  liveRegsCachePrimed = true;
+  liveRegsDataDirty = false;
+  renderLiveRegistrosPayload(liveRegsPayloadCache);
   syncLivePanelMode();
   syncAdminPanelHeights();
+  return liveRows;
 }
 
 async function onGuardarOrden() {
@@ -2625,7 +3301,7 @@ async function onGuardarOrden() {
         `OK Orden creada\nID: ${res.id}\nNro Orden: ${res.numero_orden_fisica || ("#" + res.id)}\nEntrega guardada: ${entregaSaved}`
       );
     }
-    await loadJobs();
+    await loadJobs({ force: true });
     await loadRegistros();
     clearOrdenForm();
     setOrdenModalMode("create");
@@ -2843,7 +3519,7 @@ async function exportReporteEntregadosCsv() {
   refreshFormState();
   bindAdminPanelHeightSync();
   bindRealtime();
-  await loadJobs();
+  await loadJobs({ force: true });
   await loadRegistros();
   syncAdminPanelHeights();
 })().catch((e) => {

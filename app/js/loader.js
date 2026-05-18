@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 window.addEventListener("load", () => {
-  // Ocultar el loader despues de 4 segundos
+  // Ocultar el loader despues de 1.5 segundos
   setTimeout(() => {
     const loader = document.getElementById("loader");
     if (loader) {
@@ -24,5 +24,5 @@ window.addEventListener("load", () => {
         loader.remove();
       }, 500);
     }
-  }, 4000); 
+  }, 1500); 
 });

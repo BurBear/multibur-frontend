@@ -30,8 +30,8 @@ export function bindOperadorEvents(deps) {
     document.addEventListener(evt, unlockAudio, { once: true, passive: true });
   });
 
-  el("btnReload")?.addEventListener("click", loadTrabajos);
-  el("q")?.addEventListener("input", debounce(loadTrabajos, 250));
+  el("btnReload")?.addEventListener("click", () => loadTrabajos({ force: true, reason: "manual-reload" }));
+  el("q")?.addEventListener("input", debounce(() => loadTrabajos({ force: false, reason: "search" }), 250));
 
   el("btnStart")?.addEventListener("click", startRegistro);
   el("btnPause")?.addEventListener("click", openPauseModal);

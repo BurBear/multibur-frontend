@@ -20,15 +20,15 @@ export function bindAdminEvents(deps) {
   };
 
   $("btnLogout")?.addEventListener("click", async () => { await logout(); window.location.href = "./login.html"; });
-  $("btnReloadJobs")?.addEventListener("click", loadJobs);
+  $("btnReloadJobs")?.addEventListener("click", () => loadJobs({ force: true, reason: "manual-reload" }));
   $("btnPrintPendientes")?.addEventListener("click", () => window.print());
   $("btnReloadRegs")?.addEventListener("click", loadRegistros);
   $("btnRegsViewLive")?.addEventListener("click", () => setLivePanelMode?.("produccion"));
   $("btnRegsViewPending")?.addEventListener("click", () => setLivePanelMode?.("pendientes"));
   $("btnApplyRegs")?.addEventListener("click", loadRegistros);
-  $("q")?.addEventListener("input", debounce(loadJobs, 250));
-  $("fTipoCliente")?.addEventListener("change", loadJobs);
-  $("fEstado")?.addEventListener("change", loadJobs);
+  $("q")?.addEventListener("input", debounce(() => loadJobs({ reason: "search-filter" }), 250));
+  $("fTipoCliente")?.addEventListener("change", () => loadJobs({ reason: "tipo-cliente-filter" }));
+  $("fEstado")?.addEventListener("change", () => loadJobs({ reason: "estado-filter" }));
   $("o_cliente")?.addEventListener("change", syncClienteSelectedText);
   $("o_tiene_oc")?.addEventListener("change", () => { syncOcFields(); refreshFormState(); });
   $("o_oc_numero")?.addEventListener("input", refreshFormState);
@@ -79,9 +79,6 @@ export function bindAdminEvents(deps) {
   $("btnCloseDetail")?.addEventListener("click", closeDetalleOrden);
   $("btnPrintDetail")?.addEventListener("click", () => {
     if (getDetailRowCtx()) printOrden(getDetailRowCtx(), getDetailExtraCtx());
-  });
-  $("jobDetailWrap")?.addEventListener("click", (ev) => {
-    if (ev.target && ev.target.id === "jobDetailWrap") closeDetalleOrden();
   });
   $("btnCloseEntrega")?.addEventListener("click", closeEntregaModal);
   $("btnConfirmEntrega")?.addEventListener("click", confirmEntregaDesdeModal);
