@@ -42,7 +42,7 @@ export function bindAdminRealtime({
   function scheduleLoadJobs(delay = 400) {
     clearTimeout(jobsReloadTimer);
     jobsReloadTimer = setTimeout(() => {
-      loadJobs().catch((e) => console.error("REALTIME_LOADJOBS_ERROR", e));
+      loadJobs({ force: true, reason: "realtime" }).catch((e) => console.error("REALTIME_LOADJOBS_ERROR", e));
     }, delay);
   }
 

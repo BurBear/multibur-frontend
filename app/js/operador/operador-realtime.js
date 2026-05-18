@@ -43,7 +43,7 @@ export function bindOperadorRealtime({
   function scheduleLoadTrabajos(delay = 350) {
     clearTimeout(trabajoReloadTimer);
     trabajoReloadTimer = setTimeout(() => {
-      loadTrabajos().catch((e) => console.error("REALTIME_LOADTRABAJOS_ERROR", e));
+      loadTrabajos({ force: true, reason: "realtime" }).catch((e) => console.error("REALTIME_LOADTRABAJOS_ERROR", e));
     }, delay);
   }
 

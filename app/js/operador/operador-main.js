@@ -28,7 +28,7 @@ import { buildKpiSnapshot } from "./operador-registros.js";
 import {
   fetchMaquinas,
   fetchOrdenesAncladas,
-  fetchTrabajosAdminBoard,
+  fetchOperadorPendientesSnapshot,
   fetchMiRegistroActivo,
   fetchRegistrosPausadosDisponibles,
   rpcIniciarTrabajo,
@@ -73,6 +73,9 @@ let stopActionBusy = false;
 let finalizeValidationRequested = false;
 let pinnedOrderIds = new Set();
 let pinnedOrderRankMap = new Map();
+let pendientesSnapshotCache = [];
+let pendientesCacheReady = false;
+let selectedOrderMachineId = null;
 
 /* =========================
    MODAL
@@ -179,11 +182,12 @@ function isTipoImpresionTR(value) {
 }
 
 function isVisibleForOperador(row) {
-  if (Array.isArray(row?.paused_registros) && row.paused_registros.length > 0) return true;
   const estado = String(row?.estado || "").trim().toUpperCase();
+  if (estado === "ENTREGADO" || estado === "TERMINADO") return false;
+  if (Array.isArray(row?.paused_registros) && row.paused_registros.length > 0) return true;
   if (estado === "PLACAS") return true;
   if (estado !== "IMPRESION") return false;
-  return !!row?.requiere_juegos_placa && isTipoImpresionTR(row?.tipo_impresion);
+  return isTipoImpresionTR(row?.tipo_impresion);
 }
 
 function renderPinnedBadge() {
@@ -256,6 +260,47 @@ function enrichTrabajosWithPausados(rows, pausedRows) {
       tiene_pausado_retomable: pausedForOrder.length > 0
     };
   });
+}
+
+function buildOperadorFormato(row) {
+  if (row?.formato_label) return String(row.formato_label);
+  return (row?.medida_ancho && row?.medida_alto) ? `${row.medida_ancho} x ${row.medida_alto}` : "-";
+}
+
+function resolveSuggestedMachineId(row = null) {
+  const machineId = Number(row?.maquina_sugerida_id || 0);
+  return machineId > 0 ? machineId : null;
+}
+
+function syncAssignedMachineUI(machineId = null) {
+  const sel = el("maquina");
+  const note = el("maquinaAutoNote");
+  if (!sel) return;
+
+  selectedOrderMachineId = machineId ? Number(machineId) : null;
+  sel.value = selectedOrderMachineId ? String(selectedOrderMachineId) : "";
+  sel.disabled = true;
+
+  if (note) {
+    note.textContent = selectedOrderMachineId
+      ? "La maquina se asigna automaticamente segun la orden creada en admin."
+      : "Esta orden no tiene maquina configurada en admin.";
+    note.classList.toggle("field-msg-danger", !selectedOrderMachineId);
+  }
+}
+
+async function hydratePendientesSnapshot() {
+  const [snapshotRows, pausedRows, pinnedRows] = await Promise.all([
+    fetchOperadorPendientesSnapshot(),
+    fetchRegistrosPausadosDisponibles().catch(() => []),
+    fetchOrdenesAncladas().catch(() => null)
+  ]);
+
+  setPinnedOrderState(pinnedRows || []);
+  const mergedRows = enrichTrabajosWithPausados(snapshotRows || [], pausedRows || []);
+  pendientesSnapshotCache = (mergedRows || []).filter((row) => isVisibleForOperador(row));
+  pendientesCacheReady = true;
+  return pendientesSnapshotCache;
 }
 
 function getSelectedPausedRegistro() {
@@ -440,10 +485,11 @@ function setModalDetails(row) {
     setVal("mJuegos", "-");
     if (juegosWrap) juegosWrap.classList.add("hide");
     setVal("mObs", "-");
+    syncAssignedMachineUI(null);
     return;
   }
 
-  const formato = (row.medida_ancho && row.medida_alto) ? `${row.medida_ancho} x ${row.medida_alto}` : "-";
+  const formato = buildOperadorFormato(row);
   const entrega = row.fecha_entrega ? fmtDatePE(row.fecha_entrega) : "-";
   const mat = `${row.papel_material || "-"} ${row.gramaje ? (row.gramaje + "g") : ""}`.trim();
   const cantidad = row.cantidad_solicitada ?? row.cantidad ?? "-";
@@ -465,6 +511,7 @@ function setModalDetails(row) {
   setVal("mJuegos", juegosLabel || "-");
   if (juegosWrap) juegosWrap.classList.toggle("hide", !juegosLabel);
   setVal("mObs", buildOperadorObservaciones(row));
+  syncAssignedMachineUI(resolveSuggestedMachineId(row));
 }
 
 function buildOperadorObservaciones(row) {
@@ -474,7 +521,7 @@ function buildOperadorObservaciones(row) {
 
 function buildJuegosPlacaLabel(row) {
   const total = Number(row?.juegos_placa_total || 0);
-  if (!row?.requiere_juegos_placa || !isTipoImpresionTR(row?.tipo_impresion) || total <= 0) return "";
+  if (!isTipoImpresionTR(row?.tipo_impresion) || total <= 0) return "";
   return `Juegos: ${total}`;
 }
 
@@ -490,7 +537,7 @@ async function loadModalDetails(row) {
     const ord = await fetchOrdenById(row.orden_id);
     const detRaw = Array.isArray(ord?.detalles_orden) ? ord.detalles_orden[0] : ord?.detalles_orden;
     const det = detRaw || {};
-    setModalDetails({
+    const resolvedRow = {
       ...row,
       orden_id: row?.orden_id ?? ord?.id,
       numero_orden_fisica: row?.numero_orden_fisica ?? (ord?.id ? "#" + ord.id : "-"),
@@ -508,10 +555,13 @@ async function loadModalDetails(row) {
       observacion_tecnica: row?.observacion_tecnica ?? det?.observacion_tecnica,
       requiere_juegos_placa: row?.requiere_juegos_placa ?? det?.requiere_juegos_placa,
       juegos_placa_total: row?.juegos_placa_total ?? det?.juegos_placa_total,
+      maquina_sugerida_id: row?.maquina_sugerida_id ?? det?.maquina_sugerida_id,
       maquina_sugerida_nombre: row?.maquina_sugerida_nombre ?? det?.maquina?.nombre,
       cantidad_solicitada: det?.cantidad_solicitada ?? row.cantidad_solicitada,
       demasia: det?.demasia ?? row.demasia
-    });
+    };
+    selectedRow = resolvedRow;
+    setModalDetails(resolvedRow);
     await syncJuegoCaraUI({
       ordenId: Number((row?.orden_id ?? ord?.id) || 0),
       requiereJuegos: !!det?.requiere_juegos_placa,
@@ -544,9 +594,10 @@ async function loadMaquinas() {
   const maquinas = await fetchMaquinas();
   const sel = el("maquina");
   if (sel) {
-    sel.innerHTML = (maquinas || [])
+    sel.innerHTML = ['<option value="">Maquina asignada por admin</option>', ...(maquinas || [])
       .map(m => `<option value="${m.id}">${esc(m.nombre)} (${esc(m.tipo)})</option>`)
-      .join("");
+    ].join("");
+    sel.disabled = true;
   }
   maquinasMap = new Map((maquinas || []).map(m => [Number(m.id), m.nombre]));
 }
@@ -556,7 +607,7 @@ function renderPendientes(rows) {
   if (!tb) return;
 
   tb.innerHTML = (rows || []).map(r => {
-    const formato = (r.medida_ancho && r.medida_alto) ? `${r.medida_ancho} x ${r.medida_alto}` : "-";
+    const formato = buildOperadorFormato(r);
     const entrega = r.fecha_entrega ? fmtDatePE(r.fecha_entrega) : "-";
     const juegosLabel = buildJuegosPlacaLabel(r);
     const pinnedBadge = r.is_pinned ? renderPinnedBadge() : "";
@@ -641,25 +692,46 @@ function renderPendientes(rows) {
   msgL(`Cargados: ${(rows || []).length} trabajo(s).`);
 }
 
-async function loadTrabajos() {
+async function loadTrabajos(options = {}) {
   msgL("");
 
+  const force = options?.force !== false;
+  const reason = String(options?.reason || (force ? "default" : "cache")).trim().toLowerCase();
   const q = getValue("q");
-  const [boardRows, pausedRows, pinnedRows] = await Promise.all([
-    fetchTrabajosAdminBoard({}),
-    fetchRegistrosPausadosDisponibles().catch(() => []),
-    fetchOrdenesAncladas().catch(() => null)
-  ]);
-  setPinnedOrderState(pinnedRows || []);
-  const allRows = enrichTrabajosWithPausados(boardRows || [], pausedRows || []);
-  const rows = applyPinnedPriority(filterTrabajosByQuery(
-    (allRows || []).filter((r) => isVisibleForOperador(r)),
-    q
-  ));
+  const perf = {
+    reason,
+    force,
+    queryLength: String(q || "").trim().length,
+    cacheUsada: false
+  };
+  const totalStart = performance.now();
+
+  if (force || !pendientesCacheReady) {
+    const fetchStart = performance.now();
+    await hydratePendientesSnapshot();
+    perf.fetchSnapshotMs = Number((performance.now() - fetchStart).toFixed(1));
+  } else {
+    perf.fetchSnapshotMs = 0;
+    perf.cacheUsada = true;
+  }
+
+  const filterStart = performance.now();
+  const rows = applyPinnedPriority(filterTrabajosByQuery(pendientesSnapshotCache || [], q));
+  perf.filterRowsMs = Number((performance.now() - filterStart).toFixed(1));
+  perf.rowsBeforeFilters = (pendientesSnapshotCache || []).length;
+  perf.rowsRendered = (rows || []).length;
 
   allPendientes = rows || [];
   filteredPendientes = allPendientes.slice();
+  if (selectedOrderId) {
+    selectedRow = allPendientes.find((x) => Number(x.orden_id) === Number(selectedOrderId)) || selectedRow;
+    selectedOrderPausedRegistros = selectedRow?.paused_registros || selectedOrderPausedRegistros;
+  }
+  const renderStart = performance.now();
   renderPendientes(filteredPendientes);
+  perf.renderRowsMs = Number((performance.now() - renderStart).toFixed(1));
+  perf.totalMs = Number((performance.now() - totalStart).toFixed(1));
+  console.log("[OperadorPerf] loadTrabajos", perf);
 }
 
 async function loadActiveRegistro() {
@@ -725,7 +797,7 @@ async function resumeIfActive() {
 
   const sel = el("maquina");
   if (sel && activeRegistro.maquina_id) {
-    sel.value = String(activeRegistro.maquina_id);
+    syncAssignedMachineUI(Number(activeRegistro.maquina_id));
   }
 
   msgR("");
@@ -764,7 +836,16 @@ async function startRegistro() {
     return;
   }
 
-  const maquinaId = Number(getValue("maquina"));
+  const maquinaId = Number(
+    pausedSelected?.maquina_id
+    || selectedOrderMachineId
+    || getValue("maquina")
+    || 0
+  );
+  if (!maquinaId) {
+    msgR("Esta orden no tiene maquina configurada en admin. Corrigela antes de iniciar o retomar.");
+    return;
+  }
   const juegoCaraSelected = parseJuegoCaraValue(getValue("juegoCara"));
     if (selectedOrderRequiresJuegos && !juegoCaraSelected) {
       msgR("Selecciona Juego y Cara antes de iniciar.");
@@ -808,7 +889,7 @@ async function startRegistro() {
 
     msgR("");
 
-    await loadTrabajos();
+    await loadTrabajos({ force: true, reason: "after-start" });
     await loadHoy();
     await loadActiveRegistro();
     if (!activeRegistro?.id) {
@@ -871,7 +952,7 @@ async function pauseRegistro() {
       msgL(pauseMessage);
       clearPauseFields(el);
       setKPIs();
-      await loadTrabajos();
+      await loadTrabajos({ force: true, reason: "after-pause" });
       await loadHoy();
       closeModal();
     } catch (e) {
@@ -1002,7 +1083,7 @@ async function stopRegistro() {
       finalizeValidationRequested = false;
       setKPIs();
 
-    await loadTrabajos();
+    await loadTrabajos({ force: true, reason: "after-finalize" });
     await loadHoy();
     selectedOrderId = finishedOrderId || selectedOrderId;
     selectedRow = allPendientes.find((x) => Number(x.orden_id) === Number(selectedOrderId)) || selectedRow;
@@ -1080,7 +1161,7 @@ async function returnTrabajoAPlacas() {
     );
     msgInc("Trabajo devuelto a PLACAS.");
 
-    await loadTrabajos();
+    await loadTrabajos({ force: true, reason: "after-return-placas" });
     await loadHoy();
     closeIncidentModal();
     closeModal();
@@ -1154,7 +1235,7 @@ function setTab(which) {
 
   await loadMaquinas();
   bindRealtime();
-  await loadTrabajos();
+  await loadTrabajos({ force: true, reason: "init" });
   await loadHoy();
 
   await resumeIfActive();

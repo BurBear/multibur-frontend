@@ -56,6 +56,38 @@ export async function fetchTrabajosPendientes({ estado = "" } = {}) {
   return data || [];
 }
 
+function normalizeOperadorPendienteRow(row = {}) {
+  const ordenIdRaw = row?.orden_id ?? row?.id ?? null;
+  const ordenId = Number(ordenIdRaw || 0) || null;
+  const formatoLabel = String(
+    row?.formato
+    || ((row?.medida_ancho && row?.medida_alto) ? `${row.medida_ancho} x ${row.medida_alto}` : "")
+  ).trim();
+
+  return {
+    ...row,
+    orden_id: ordenId,
+    numero_orden_fisica: row?.numero_orden_fisica || (ordenId ? `#${ordenId}` : "-"),
+    cliente_nombre: row?.cliente_nombre || row?.cliente || "-",
+    descripcion_trabajo: row?.descripcion_trabajo || row?.trabajo || "-",
+    maquina_sugerida_nombre: row?.maquina_sugerida_nombre || row?.maquina || "-",
+    color_text: row?.color_text || row?.color || "-",
+    cantidad_solicitada: row?.cantidad_solicitada ?? row?.cantidad ?? null,
+    formato_label: formatoLabel || "-",
+    requiere_juegos_placa: row?.requiere_juegos_placa ?? (Number(row?.juegos_placa_total || 0) > 0)
+  };
+}
+
+export async function fetchOperadorPendientesSnapshot() {
+  try {
+    const rows = await fetchTrabajosPendientes({});
+    return (rows || []).map(normalizeOperadorPendienteRow);
+  } catch {
+    const fallbackRows = await fetchTrabajosAdminBoard({});
+    return (fallbackRows || []).map(normalizeOperadorPendienteRow);
+  }
+}
+
 export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
   const runQuery = async (
     withObsTecnica,
@@ -177,7 +209,9 @@ export async function fetchTrabajosAdminBoard({ estado = "" } = {}) {
       orden_id: o.id,
       numero_orden_fisica: o.numero_orden_fisica || `#${o.id}`,
       cliente_nombre: o.cliente?.nombre || "-",
+      cliente_tipo: o.cliente?.tipo_cliente || "",
       descripcion_trabajo: o.descripcion_trabajo || "-",
+      observaciones_generales: o.observaciones_generales || null,
       observacion_orden: o.observaciones_generales || null,
       fecha_entrega: o.fecha_entrega || null,
       prioridad: o.prioridad || "NORMAL",
@@ -597,6 +631,19 @@ export async function fetchOrdenProcesosAcabadosByOrdenIds(orderIds = []) {
   return data || [];
 }
 
+async function fetchOrdenProcesosAdminRouteByOrdenIds(orderIds = []) {
+  if (!orderIds.length) return [];
+  const { data, error } = await supabase
+    .from("orden_procesos")
+    .select("id,orden_id,proceso_codigo,modulo_responsable,estado,secuencia,configuracion")
+    .in("orden_id", orderIds)
+    .order("orden_id", { ascending: true })
+    .order("secuencia", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
 export async function fetchOrdenesAncladas() {
   const { data, error } = await supabase.rpc("get_ordenes_ancladas");
   if (error) {
@@ -807,8 +854,13 @@ export async function fetchTrabajosAdminBoardSnapshot({ estado = "" } = {}) {
   const orders = await fetchTrabajosAdminBoard({ estado });
   if (!orders.length) return [];
 
-  const orderIds = [...new Set(orders.map((o) => Number(o.orden_id)).filter(Boolean))];
-  const procesos = await fetchOrdenProcesosAcabadosByOrdenIds(orderIds);
+  const routeOrderIds = [...new Set(
+    orders
+      .filter((order) => String(order?.estado || "").trim().toUpperCase() === "ACABADOS")
+      .map((order) => Number(order.orden_id))
+      .filter(Boolean)
+  )];
+  const procesos = await fetchOrdenProcesosAdminRouteByOrdenIds(routeOrderIds);
   const procesosByOrden = new Map();
 
   for (const proceso of procesos || []) {
@@ -819,6 +871,10 @@ export async function fetchTrabajosAdminBoardSnapshot({ estado = "" } = {}) {
   }
 
   return orders.map((order) => {
+    if (String(order?.estado || "").trim().toUpperCase() !== "ACABADOS") {
+      return order;
+    }
+
     const allProcesos = procesosByOrden.get(Number(order.orden_id)) || [];
     return {
       ...order,
@@ -894,6 +950,57 @@ export async function fetchRegistros({
   return data || [];
 }
 
+export async function fetchAdminLiveRegistros({
+  preset = "today",
+  fromDate = "",
+  toDate = "",
+  ordenId = null,
+  userId = "",
+  limit = 300
+} = {}) {
+  const rpcParams = {
+    p_preset: String(preset || "today"),
+    p_from_date: fromDate || null,
+    p_to_date: toDate || fromDate || null,
+    p_orden_id: ordenId ? Number(ordenId) : null,
+    p_user_id: userId || null,
+    p_limit: Math.max(1, Math.min(Number(limit || 300) || 300, 1000))
+  };
+
+  const { data, error } = await supabase.rpc("get_admin_live_registros", rpcParams);
+  if (!error) return data || [];
+  if (!isMissingRpc(error)) throw error;
+
+  const regs = await fetchRegistros({ preset, fromDate, toDate, ordenId, userId, limit });
+  const orderIds = [...new Set((regs || []).map((r) => Number(r?.orden_id)).filter(Boolean))];
+  const userIds = [...new Set((regs || []).map((r) => r?.user_id).filter(Boolean))];
+  const maqIds = [...new Set((regs || []).map((r) => Number(r?.maquina_id)).filter(Boolean))];
+  const [ordenes, users, maqs, clienteTipos] = await Promise.all([
+    fetchOrdenResumenByIds(orderIds),
+    fetchProfilesByIds(userIds),
+    fetchMaquinasByIds(maqIds),
+    fetchClienteTiposByOrdenIds(orderIds)
+  ]);
+
+  const ordenMap = new Map((ordenes || []).map((o) => [Number(o?.orden_id), o]));
+  const userMap = new Map((users || []).map((u) => [u.id, getProfileDisplayName(u) || u.username || u.id]));
+  const maqMap = new Map((maqs || []).map((m) => [Number(m?.id), m?.nombre || "-"]));
+  const tipoClienteMap = new Map((clienteTipos || []).map((o) => [Number(o?.id), o?.cliente?.tipo_cliente || null]));
+
+  return (regs || []).map((row) => {
+    const orden = ordenMap.get(Number(row?.orden_id)) || null;
+    return {
+      ...row,
+      numero_orden_fisica: orden?.numero_orden_fisica || `#${row?.orden_id}`,
+      cliente_nombre: orden?.cliente_nombre || "-",
+      cliente_tipo: tipoClienteMap.get(Number(row?.orden_id)) || orden?.cliente_tipo || null,
+      descripcion_trabajo: orden?.descripcion_trabajo || "-",
+      maquina_nombre: maqMap.get(Number(row?.maquina_id)) || "-",
+      operador_nombre: userMap.get(row?.user_id) || row?.user_id || "-"
+    };
+  });
+}
+
 export async function fetchUltimasIncidenciasByOrdenIds(orderIds = []) {
   if (!orderIds.length) return [];
   const { data, error } = await supabase
@@ -930,6 +1037,77 @@ export async function fetchUltimosEstadosProduccionByOrdenIds(orderIds = []) {
     if (!latest.has(row.orden_id)) latest.set(row.orden_id, row);
   }
   return Array.from(latest.values());
+}
+
+function compareNullableDateDesc(a, b, { nullsFirst = false } = {}) {
+  const aTime = a ? Date.parse(a) : NaN;
+  const bTime = b ? Date.parse(b) : NaN;
+  const aValid = Number.isFinite(aTime);
+  const bValid = Number.isFinite(bTime);
+
+  if (!aValid && !bValid) return 0;
+  if (!aValid) return nullsFirst ? -1 : 1;
+  if (!bValid) return nullsFirst ? 1 : -1;
+  return bTime - aTime;
+}
+
+function sortRegistroForIncidencia(rows = []) {
+  return [...rows].sort((a, b) =>
+    compareNullableDateDesc(a?.hora_fin, b?.hora_fin, { nullsFirst: false })
+    || compareNullableDateDesc(a?.hora_pausa, b?.hora_pausa, { nullsFirst: false })
+    || compareNullableDateDesc(a?.hora_inicio, b?.hora_inicio, { nullsFirst: false })
+    || (Number(b?.id || 0) - Number(a?.id || 0))
+  );
+}
+
+function sortRegistroForEstado(rows = []) {
+  return [...rows].sort((a, b) =>
+    compareNullableDateDesc(a?.hora_fin, b?.hora_fin, { nullsFirst: true })
+    || compareNullableDateDesc(a?.pausado_en, b?.pausado_en, { nullsFirst: false })
+    || compareNullableDateDesc(a?.hora_inicio, b?.hora_inicio, { nullsFirst: false })
+    || (Number(b?.id || 0) - Number(a?.id || 0))
+  );
+}
+
+export async function fetchAdminBoardRegistroSupportByOrdenIds(orderIds = []) {
+  if (!orderIds.length) {
+    return {
+      incidencias: [],
+      produccionEstados: []
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("registro_produccion")
+    .select("id, orden_id, user_id, estado_registro, motivo_incidencia, obs_incidencia, hora_pausa, hora_inicio, hora_fin, pausado_en")
+    .in("orden_id", orderIds)
+    .in("estado_registro", ["ACTIVO", "PAUSADO", "DEVUELTO"]);
+
+  if (error) throw error;
+
+  const rows = data || [];
+  const incidencias = [];
+  const produccionEstados = [];
+  const byOrden = new Map();
+
+  for (const row of rows) {
+    const orderId = Number(row?.orden_id || 0);
+    if (!orderId) continue;
+    const bucket = byOrden.get(orderId) || [];
+    bucket.push(row);
+    byOrden.set(orderId, bucket);
+  }
+
+  for (const [orderId, orderRows] of byOrden.entries()) {
+    const latestEstado = sortRegistroForEstado(orderRows)[0] || null;
+    if (latestEstado) produccionEstados.push(latestEstado);
+
+    const incidenciaRows = orderRows.filter((row) => ["PAUSADO", "DEVUELTO"].includes(String(row?.estado_registro || "").trim().toUpperCase()));
+    const latestIncidencia = sortRegistroForIncidencia(incidenciaRows)[0] || null;
+    if (latestIncidencia) incidencias.push(latestIncidencia);
+  }
+
+  return { incidencias, produccionEstados };
 }
 
 export async function fetchProfilesByIds(ids = []) {
