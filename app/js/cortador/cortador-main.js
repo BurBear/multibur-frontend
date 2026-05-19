@@ -31,6 +31,11 @@ import {
 } from "./cortador-state.js";
 
 const { showToast } = createToastController();
+let boardSnapshotCache = [];
+let boardCacheReady = false;
+let pinnedRowsCache = [];
+let pinnedSyncScheduled = false;
+let pinnedSignatureCache = "";
 
 function getPauseModalElements() {
   return {
@@ -194,6 +199,84 @@ function applyPinnedPriorityToOrders(orders = [], pinnedMeta = buildPinnedMeta()
   });
 }
 
+function getCurrentSelectionOptions() {
+  return {
+    keepOrderId: cortadorState.selectedOrderId,
+    keepProcessId: cortadorState.selectedProcessId,
+    openDetail: !!cortadorState.detailOpen
+  };
+}
+
+function serializePinnedRows(pinnedRows = []) {
+  return (pinnedRows || [])
+    .map((row) => `${Number(row?.orden_id || row || 0)}`)
+    .filter(Boolean)
+    .join("|");
+}
+
+function buildVisibleOrders(orders = []) {
+  return (orders || []).filter(
+    (order) => (order.procesos || []).length > 0 || order.requires_handoff
+  );
+}
+
+function updateCachedBoardSnapshot(orders = []) {
+  boardSnapshotCache = Array.isArray(orders) ? orders : [];
+  boardCacheReady = true;
+}
+
+function renderBoardFromSnapshot(orders = [], options = {}) {
+  const pinnedMeta = buildPinnedMeta(pinnedRowsCache || []);
+  const visibleOrders = buildVisibleOrders(orders);
+  const prioritizedOrders = applyPinnedPriorityToOrders(visibleOrders, pinnedMeta);
+
+  setOrders(prioritizedOrders);
+  applyPostLoadSelection(prioritizedOrders, options);
+  renderAll();
+  return prioritizedOrders;
+}
+
+async function syncPinnedOrdersInBackground() {
+  pinnedSyncScheduled = false;
+  if (!boardCacheReady) return;
+  let nextPinnedRows = [];
+  try {
+    nextPinnedRows = await fetchOrdenesAncladas();
+  } catch (error) {
+    console.warn("No pude sincronizar anclados para CORTADOR.", error);
+    return;
+  }
+
+  const nextSignature = serializePinnedRows(nextPinnedRows);
+  if (nextSignature === pinnedSignatureCache) return;
+  pinnedRowsCache = nextPinnedRows;
+  pinnedSignatureCache = nextSignature;
+
+  const perfStart = performance.now();
+  renderBoardFromSnapshot(boardSnapshotCache, getCurrentSelectionOptions());
+  console.log("[CortadorPerf] loadBoard", {
+    reason: "pins-sync",
+    cacheUsada: true,
+    fetchSnapshotMs: 0,
+    seedMs: 0,
+    renderMs: Number((performance.now() - perfStart).toFixed(1)),
+    totalMs: Number((performance.now() - perfStart).toFixed(1)),
+    rowsBeforeFilters: boardSnapshotCache.length,
+    rowsRendered: cortadorState.filteredOrders.length
+  });
+}
+
+function requestPinnedSync() {
+  if (pinnedSyncScheduled) return;
+  pinnedSyncScheduled = true;
+  setTimeout(() => {
+    syncPinnedOrdersInBackground().catch((error) => {
+      pinnedSyncScheduled = false;
+      console.warn("No pude actualizar anclados en segundo plano para CORTADOR.", error);
+    });
+  }, 0);
+}
+
 function applyPostLoadSelection(orders, options = {}) {
   const {
     keepOrderId = null,
@@ -306,39 +389,63 @@ async function ensureMissingSeeds(orders = []) {
 }
 
 async function loadBoard(options = {}) {
-  setMessage("Cargando tablero de CORTADOR...");
+  const force = options.force !== false;
+  const reason = String(options.reason || (force ? "force-refresh" : "cache-render"));
+  const perfStart = performance.now();
+  let fetchSnapshotMs = 0;
+  let seedMs = 0;
+
+  if (reason !== "pins-sync") {
+    setMessage("Cargando tablero de CORTADOR...");
+  }
   try {
-    const [fetchedOrders, pinnedRows] = await Promise.all([
-      fetchCortadorBoardSnapshot({ userId: cortadorState.currentUser?.id || null }),
-      fetchOrdenesAncladas().catch(() => null)
-    ]);
-    let orders = fetchedOrders;
-    const seedResult = await ensureMissingSeeds(orders);
-    orders = seedResult.orders || orders;
-    const pinnedMeta = buildPinnedMeta(pinnedRows || []);
-    const visibleOrders = (orders || []).filter(
-      (order) => (order.procesos || []).length > 0 || order.requires_handoff
-    );
-    const prioritizedOrders = applyPinnedPriorityToOrders(visibleOrders, pinnedMeta);
+    let orders = [];
+    if (!force && boardCacheReady) {
+      orders = boardSnapshotCache;
+    } else {
+      const fetchStart = performance.now();
+      orders = await fetchCortadorBoardSnapshot({ userId: cortadorState.currentUser?.id || null });
+      fetchSnapshotMs = performance.now() - fetchStart;
 
-    setOrders(prioritizedOrders);
-    applyPostLoadSelection(prioritizedOrders, options);
-    renderAll();
+      const seedStart = performance.now();
+      const seedResult = await ensureMissingSeeds(orders);
+      seedMs = performance.now() - seedStart;
+      orders = seedResult.orders || orders;
+      updateCachedBoardSnapshot(orders);
 
-    if (seedResult.seededOrders > 0) {
-      showToast(`Se prepararon procesos para ${seedResult.seededOrders} orden(es) de CORTADOR.`, "info");
+      if (seedResult.seededOrders > 0) {
+        showToast(`Se prepararon procesos para ${seedResult.seededOrders} orden(es) de CORTADOR.`, "info");
+      }
+
+      if (seedResult.failures.length) {
+        showToast(`No pude preparar ${seedResult.failures.length} orden(es) automaticamente.`, "warn");
+      }
     }
 
-    if (seedResult.failures.length) {
-      showToast(`No pude preparar ${seedResult.failures.length} orden(es) automaticamente.`, "warn");
-    }
+    const renderStart = performance.now();
+    const prioritizedOrders = renderBoardFromSnapshot(orders, options);
+    const renderMs = performance.now() - renderStart;
+
+    requestPinnedSync();
 
     if (!prioritizedOrders.length) {
       setMessage("No hay trabajos listos para CORTADOR por ahora.");
-      return;
+    } else {
+      setMessage(`Trabajos listos para CORTADOR: ${prioritizedOrders.length}.`);
     }
 
-    setMessage(`Trabajos listos para CORTADOR: ${prioritizedOrders.length}.`);
+    console.log("[CortadorPerf] loadBoard", {
+      reason,
+      force,
+      cacheUsada: !force && boardCacheReady,
+      fetchSnapshotMs: Number(fetchSnapshotMs.toFixed(1)),
+      seedMs: Number(seedMs.toFixed(1)),
+      renderMs: Number(renderMs.toFixed(1)),
+      pinnedDeferred: true,
+      rowsBeforeFilters: Array.isArray(orders) ? orders.length : 0,
+      rowsRendered: cortadorState.filteredOrders.length,
+      totalMs: Number((performance.now() - perfStart).toFixed(1))
+    });
   } catch (error) {
     console.error(error);
     setMessage(`No pude cargar CORTADOR:\n${formatDbError(error)}`, true);
@@ -399,6 +506,8 @@ async function handleStart() {
     }
     clearActionNoteDraft();
     await loadBoard({
+      force: true,
+      reason: "start",
       keepOrderId: result?.orden_id || process.orden_id,
       keepProcessId: result?.proceso_id || process.id,
       openDetail: true
@@ -429,6 +538,8 @@ async function handlePause() {
       });
     clearActionNoteDraft();
     await loadBoard({
+      force: true,
+      reason: "pause",
       keepOrderId: result?.orden_id || process.orden_id,
       keepProcessId: result?.proceso_id || process.id,
       openDetail: true
@@ -458,6 +569,8 @@ async function handleResume() {
     }
     clearActionNoteDraft();
     await loadBoard({
+      force: true,
+      reason: "resume",
       keepOrderId: result?.orden_id || process.orden_id,
       keepProcessId: result?.proceso_id || process.id,
       openDetail: true
@@ -485,6 +598,8 @@ async function handleFinish() {
       });
     clearActionNoteDraft();
     await loadBoard({
+      force: true,
+      reason: "finish",
       keepOrderId: result?.orden_id || order.orden_id,
       keepProcessId: null,
       openDetail: true,
@@ -535,7 +650,7 @@ async function handleTransfer(targetModule) {
       moduloDestino: target
     });
     clearActionNoteDraft();
-    await loadBoard();
+    await loadBoard({ force: true, reason: "handoff" });
     setMessage(result?.mensaje || `Orden ${order.numero_orden_fisica || `#${order.orden_id}`} transferida correctamente.`);
     showToast(
       result?.mensaje || (
@@ -598,7 +713,7 @@ async function init() {
     onLogout: handleLogout
   });
 
-  await loadBoard();
+  await loadBoard({ force: true, reason: "initial" });
 }
 
 init();
