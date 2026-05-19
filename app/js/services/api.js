@@ -748,8 +748,10 @@ async function fetchRouteBoardSnapshot(moduleName, { userId = null } = {}) {
   if (!orders.length) return [];
 
   const orderIds = [...new Set(orders.map((o) => Number(o.orden_id)).filter(Boolean))];
-  const procesos = await fetchOrdenProcesosAcabadosByOrdenIds(orderIds);
-  const impresionTotales = await fetchOrdenImpresionTotalesByOrdenIds(orderIds);
+  const [procesos, impresionTotales] = await Promise.all([
+    fetchOrdenProcesosAcabadosByOrdenIds(orderIds),
+    fetchOrdenImpresionTotalesByOrdenIds(orderIds)
+  ]);
   const produccionCantidades = impresionTotales ? new Map() : await fetchOrdenProduccionCantidadesByOrdenIds(orderIds);
   const juegosOrderIds = impresionTotales
     ? []
