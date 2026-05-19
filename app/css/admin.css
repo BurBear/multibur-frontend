@@ -3357,7 +3357,7 @@ body.page-admin-main .main {
   display: grid;
   grid-template-columns: 1fr 340px;
   gap: 14px;
-  align-items: stretch;
+  align-items: start;
 }
 
 @media (max-width:1200px) {

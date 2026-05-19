@@ -2745,6 +2745,69 @@ async function inspectOrdenesFisicas(...rawNumbers) {
 
 window.inspectOrdenesFisicas = inspectOrdenesFisicas;
 
+function printHtmlInHiddenFrame(html, errorMessage) {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("title", "Impresion de orden");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.position = "fixed";
+  frame.style.left = "-10000px";
+  frame.style.top = "0";
+  frame.style.width = "900px";
+  frame.style.height = "700px";
+  frame.style.border = "0";
+  frame.style.opacity = "0";
+  frame.style.pointerEvents = "none";
+
+  let printed = false;
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    window.setTimeout(() => frame.remove(), 250);
+  };
+  const fail = (error) => {
+    if (error) console.warn("No se pudo imprimir la orden:", error);
+    cleanup();
+    msgJobs(errorMessage);
+  };
+  const runPrint = () => {
+    if (printed) return;
+    printed = true;
+    const printWindow = frame.contentWindow;
+    if (!printWindow) {
+      fail();
+      return;
+    }
+    try {
+      printWindow.focus();
+      printWindow.print();
+      window.setTimeout(cleanup, 60000);
+    } catch (error) {
+      fail(error);
+    }
+  };
+
+  document.body.appendChild(frame);
+  const printWindow = frame.contentWindow;
+  if (!printWindow) {
+    fail();
+    return;
+  }
+
+  printWindow.addEventListener("afterprint", cleanup, { once: true });
+  frame.addEventListener("load", () => window.setTimeout(runPrint, 0), { once: true });
+
+  try {
+    const doc = printWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+    if (doc.readyState === "complete") window.setTimeout(runPrint, 0);
+  } catch (error) {
+    fail(error);
+  }
+}
+
 function printOrden(r, extra = null) {
   const entregaRaw = extra?.fecha_entrega || r.fecha_entrega || null;
   const entrega = fmtEntrega(entregaRaw);
@@ -2828,16 +2891,7 @@ ${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}
 </div></section>
 <div class="foot">Orden interna MultiBur</div>
 </div></body></html>`;
-  const w = window.open("", "_blank", "width=900,height=700");
-  if (!w) {
-    msgJobs("ERROR: El navegador bloqueo la ventana de impresion.");
-    return;
-  }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  w.print();
+  printHtmlInHiddenFrame(html, "ERROR: No se pudo abrir la impresion desde el navegador.");
 }
 
 async function loadJobs(options = {}) {
