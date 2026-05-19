@@ -2834,13 +2834,21 @@ function printOrden(r, extra = null) {
   const html = `
 <!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Orden ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</title>
 <style>
-@page{size:A5 portrait;margin:6mm}
+@page{margin:0}
 :root{--line:#d4d4d8;--muted:#52525b;--ink:#111827}
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 html,body{margin:0;padding:0}
 body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
-.sheet{
+.print-page{
   width:100%;
+  min-height:100vh;
+  padding:6mm;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+}
+.sheet{
+  width:min(136mm,100%);
   min-height:calc(210mm - 12mm);
   margin:0;
   display:flex;
@@ -2864,7 +2872,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
 .section-tecnica .grid{gap:5px 7px}
 .wide{grid-column:1/-1}
 .foot{margin-top:5px;font-size:7.5px;color:#71717a;text-align:right}
-</style></head><body><div class="sheet">
+</style></head><body><div class="print-page"><div class="sheet">
 <header class="head"><div class="brand"><img class="brand-logo" src="${esc(logoUrl)}" alt="Logo MultiBur" /><div><h1>MultiBur - Orden de Produccion</h1><small>Documento operativo para planta y control</small></div></div><div class="meta"><div class="n">Nro ${esc(r.numero_orden_fisica || ("#" + r.orden_id))}</div><div class="s">Emitido: ${esc(emitido)}</div></div></header>
 <section class="section"><h3>Datos generales</h3><div class="grid">
 <div><span class="k">Cliente</span><span class="v">${esc(r.cliente_nombre || "-")}</span></div>
@@ -2890,7 +2898,7 @@ ${showOcField ? `<div><span class="k">Nro OC</span><span class="v">${esc(ocNum)}
   <div class="wide"><span class="k">Observacion acabados</span><span class="v">${esc(obsAcabados)}</span></div>
 </div></section>
 <div class="foot">Orden interna MultiBur</div>
-</div></body></html>`;
+</div></div></body></html>`;
   printHtmlInHiddenFrame(html, "ERROR: No se pudo abrir la impresion desde el navegador.");
 }
 
