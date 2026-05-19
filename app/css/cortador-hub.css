@@ -162,6 +162,7 @@ body.page-cortador-hub {
 }
 
 .hub-option {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -176,6 +177,26 @@ body.page-cortador-hub {
   cursor: pointer;
   transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
   background: linear-gradient(180deg, rgba(14, 22, 39, .94), rgba(11, 17, 32, .98));
+}
+
+.hub-option-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 10px 18px rgba(239, 68, 68, .28);
+  border: 2px solid rgba(255, 255, 255, .08);
 }
 
 .hub-option:hover:not(:disabled) {
@@ -269,6 +290,14 @@ body.page-cortador-hub {
     min-height: 178px;
     padding: 16px;
     border-radius: 16px;
+  }
+
+  .hub-option-badge {
+    top: 12px;
+    right: 12px;
+    min-width: 28px;
+    height: 28px;
+    font-size: 13px;
   }
 
   .hub-option-title {
@@ -384,6 +413,14 @@ body.page-cortador-hub {
   .hub-option {
     min-height: 136px;
     padding: 12px;
+  }
+
+  .hub-option-badge {
+    top: 10px;
+    right: 10px;
+    min-width: 24px;
+    height: 24px;
+    font-size: 12px;
   }
 
   .hub-option-title {
